@@ -14,13 +14,14 @@
       {
         "label": "main",
         "title": "Orbital SIP",
-        "width": 60,
-        "height": 60,
-        "resizable": true,
+        "width": 80,
+        "height": 80,
+        "resizable": false,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
-        "visible": true
+        "visible": true,
+        "shadow": false
       }
     ],
     "security": {

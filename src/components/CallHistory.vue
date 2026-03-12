@@ -19,7 +19,7 @@ const call = (num: string) => {
 </script>
 
 <template>
-  <div class="p-4 bg-slate-900 text-white rounded-lg shadow-2xl w-72 h-96 overflow-hidden flex flex-col">
+  <div class="p-4 bg-slate-900 text-white rounded-lg  w-72 h-96 overflow-hidden flex flex-col">
     <h3 class="text-sm font-bold text-slate-400 mb-2 uppercase tracking-wider">Recent Calls</h3>
 
     <div class="flex-grow overflow-y-auto space-y-1 pr-1 custom-scrollbar">

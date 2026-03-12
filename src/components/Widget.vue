@@ -25,7 +25,7 @@ const handleClick = () => {
 <template>
   <div
     data-tauri-drag-region
-    class="relative w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center cursor-pointer border-4 transition-all duration-300 shadow-xl overflow-hidden"
+    class="relative w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center cursor-pointer border-4 transition-all duration-300  overflow-hidden"
     :class="[statusColor, store.isExpanded ? 'scale-0' : 'scale-100']"
     @click="handleClick"
   >

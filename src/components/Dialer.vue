@@ -25,7 +25,7 @@ const call = () => {
 </script>
 
 <template>
-  <div class="p-4 bg-slate-900 text-white rounded-lg shadow-2xl w-72">
+  <div class="p-4 bg-slate-900 text-white rounded-lg  w-72">
     <div class="mb-4 flex items-center bg-slate-800 rounded p-2">
       <input
         v-model="number"

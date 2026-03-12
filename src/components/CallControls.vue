@@ -21,7 +21,7 @@ const transfer = () => {
 </script>
 
 <template>
-  <div class="flex flex-col items-center p-6 bg-slate-900 text-white rounded-3xl shadow-2xl w-72">
+  <div class="flex flex-col items-center p-6 bg-slate-900 text-white rounded-3xl  w-72">
     <div class="text-center mb-8">
       <div class="w-20 h-20 bg-slate-800 rounded-full mx-auto flex items-center justify-center text-4xl mb-4 shadow-inner">
         👤

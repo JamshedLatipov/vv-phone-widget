@@ -43,7 +43,7 @@ const setStatus = (status: any, minutes?: number) => {
       v-motion
       :initial="{ opacity: 0, scale: 0.8, y: 20 }"
       :enter="{ opacity: 1, scale: 1, y: 0 }"
-      class="bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-700 w-80"
+      class="bg-slate-900 rounded-3xl  overflow-hidden border border-slate-700 w-80"
     >
       <!-- Header -->
       <div class="p-4 border-b border-slate-800 flex items-center justify-between">
@@ -105,7 +105,7 @@ const setStatus = (status: any, minutes?: number) => {
       v-motion
       :initial="{ y: 100, opacity: 0 }"
       :enter="{ y: 0, opacity: 1 }"
-      class="bg-slate-900 border border-slate-700 p-6 rounded-3xl shadow-2xl w-80 text-center"
+      class="bg-slate-900 border border-slate-700 p-6 rounded-3xl  w-80 text-center"
     >
       <div class="w-16 h-16 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-3xl mb-4 animate-bounce">
         📞
