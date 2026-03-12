@@ -68,7 +68,11 @@
           <!-- Green dot -->
           <Ellipse Name="StatusDot" Width="10" Height="10" Fill="#1ED760"
                    HorizontalAlignment="Right" VerticalAlignment="Top"
-                   Margin="0,25,25,0" />
+                   Margin="0,25,25,0">
+            <ToolTip.Tip>
+              <TextBlock Name="StatusTip" Text="Registered" />
+            </ToolTip.Tip>
+          </Ellipse>
         </Grid>
 
       </Grid>

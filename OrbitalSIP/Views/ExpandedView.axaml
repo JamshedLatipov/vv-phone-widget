@@ -6,10 +6,17 @@
     <Grid RowDefinitions="Auto,Auto,Auto,Auto">
 
       <!-- Header -->
-      <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+      <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,16">
         <TextBlock Text="Dialer" FontSize="15" FontWeight="SemiBold"
                    Foreground="#FFFFFF" VerticalAlignment="Center" />
-        <Button Grid.Column="1" Name="CloseBtn"
+        <Button Grid.Column="1" Name="SettingsBtn"
+                Width="28" Height="28" CornerRadius="14"
+                Background="#1A2D42" Foreground="#8FA6BE"
+                FontSize="14" Padding="0" Margin="0,0,6,0"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center"
+                Content="⚙" />
+        <Button Grid.Column="2" Name="CloseBtn"
                 Width="28" Height="28" CornerRadius="14"
                 Background="#1A2D42" Foreground="#8FA6BE"
                 FontSize="13" Padding="0"
@@ -18,15 +25,23 @@
                 Content="✕" />
       </Grid>
 
-      <!-- Number display -->
-      <Border Grid.Row="1" Background="#0F2540" CornerRadius="10" Padding="14,10" Margin="0,0,0,16">
-        <TextBlock Name="DisplayText" Text="" FontSize="24" FontWeight="Light"
-                   Foreground="#FFFFFF" HorizontalAlignment="Center"
-                   LetterSpacing="4" MinHeight="32" />
-      </Border>
+      <!-- Number display + backspace -->
+      <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+        <Border Background="#0F2540" CornerRadius="10" Padding="14,10">
+          <TextBlock Name="DisplayText" Text="" FontSize="24" FontWeight="Light"
+                     Foreground="#FFFFFF" HorizontalAlignment="Center"
+                     LetterSpacing="4" MinHeight="32" />
+        </Border>
+        <Button Grid.Column="1" Name="BackspaceBtn"
+                Width="44" Height="44" Margin="8,0,0,0" CornerRadius="10"
+                Background="#1A2D42" Foreground="#8FA6BE" FontSize="18"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center"
+                Content="⌫" />
+      </Grid>
 
       <!-- Dial pad -->
-      <UniformGrid Grid.Row="2" Rows="4" Columns="3">
+      <UniformGrid Grid.Row="2" Name="DialPad" Rows="4" Columns="3">
         <Button Content="1" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />
         <Button Content="2" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />
         <Button Content="3" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="OrbitalSIP.Views.ActiveCallView">
+  <Border Background="#0A1929" CornerRadius="16" Padding="20" Width="280">
+    <StackPanel>
+
+      <!-- Status label -->
+      <TextBlock Name="StatusLabel" Text="CONNECTED"
+                 FontSize="10" FontWeight="Bold" LetterSpacing="2"
+                 Foreground="#17E0A0" HorizontalAlignment="Center" />
+
+      <!-- Avatar circle -->
+      <Ellipse Width="72" Height="72" Margin="0,20,0,0" HorizontalAlignment="Center">
+        <Ellipse.Fill>
+          <RadialGradientBrush GradientOrigin="0.5,0.4">
+            <GradientStop Color="#1A3050" Offset="0" />
+            <GradientStop Color="#0F2540" Offset="1" />
+          </RadialGradientBrush>
+        </Ellipse.Fill>
+      </Ellipse>
+
+      <!-- Caller ID -->
+      <TextBlock Name="CallerLabel" Text=""
+                 FontSize="22" FontWeight="Medium" Foreground="#FFFFFF"
+                 HorizontalAlignment="Center" Margin="0,14,0,0" />
+
+      <!-- Duration timer -->
+      <TextBlock Name="TimerLabel" Text="00:00"
+                 FontSize="13" Foreground="#5F7A96"
+                 HorizontalAlignment="Center" Margin="0,6,0,0" />
+
+      <!-- Action buttons -->
+      <Grid ColumnDefinitions="*,*,*" Margin="0,36,0,0">
+
+        <!-- Mute -->
+        <StackPanel Grid.Column="0" Spacing="8" HorizontalAlignment="Center">
+          <Button Name="MuteBtn"
+                  Width="56" Height="56" CornerRadius="28"
+                  Background="#1A2D42"
+                  HorizontalAlignment="Center"
+                  HorizontalContentAlignment="Center"
+                  VerticalContentAlignment="Center">
+            <Viewbox Width="22" Height="22">
+              <Path Name="MuteIcon" Fill="#8FA6BE" Width="24" Height="24" Stretch="Uniform"
+                    Data="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z" />
+            </Viewbox>
+          </Button>
+          <TextBlock Name="MuteLabel" Text="Mute"
+                     FontSize="11" Foreground="#5F7A96"
+                     HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Hangup -->
+        <StackPanel Grid.Column="1" Spacing="8" HorizontalAlignment="Center">
+          <Button Name="HangupBtn"
+                  Width="64" Height="64" CornerRadius="32"
+                  Background="#C62828"
+                  HorizontalAlignment="Center"
+                  HorizontalContentAlignment="Center"
+                  VerticalContentAlignment="Center">
+            <Viewbox Width="28" Height="28">
+              <Path Fill="#FFFFFF" Width="24" Height="24" Stretch="Uniform"
+                    Data="M12,9C10.4,5.4 10.8,2.6 14.6,2.6C17,2.6 19,4.6 19,7C19,9 18.4,10.6 17.6,12L15.6,10C15.9,9.3 16,8.6 16,8C16,6.9 15.1,6 14,6C12.4,6 12,6.9 12,9L12,9M5.6,17C3.1,14.5 1.8,11.2 7.4,5.6L8.8,7C6.3,9.5 6.5,11.6 8.4,13.5L5.6,17Z" />
+            </Viewbox>
+          </Button>
+          <TextBlock Text="Hang up"
+                     FontSize="11" Foreground="#5F7A96"
+                     HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Keypad (show dialpad during call) -->
+        <StackPanel Grid.Column="2" Spacing="8" HorizontalAlignment="Center">
+          <Button Name="KeypadBtn"
+                  Width="56" Height="56" CornerRadius="28"
+                  Background="#1A2D42"
+                  HorizontalAlignment="Center"
+                  HorizontalContentAlignment="Center"
+                  VerticalContentAlignment="Center">
+            <Viewbox Width="22" Height="22">
+              <Path Fill="#8FA6BE" Width="24" Height="24" Stretch="Uniform"
+                    Data="M12,19A1,1 0 0,1 13,20A1,1 0 0,1 12,21A1,1 0 0,1 11,20A1,1 0 0,1 12,19M6,19A1,1 0 0,1 7,20A1,1 0 0,1 6,21A1,1 0 0,1 5,20A1,1 0 0,1 6,19M18,19A1,1 0 0,1 19,20A1,1 0 0,1 18,21A1,1 0 0,1 17,20A1,1 0 0,1 18,19M12,13A1,1 0 0,1 13,14A1,1 0 0,1 12,15A1,1 0 0,1 11,14A1,1 0 0,1 12,13M6,13A1,1 0 0,1 7,14A1,1 0 0,1 6,15A1,1 0 0,1 5,14A1,1 0 0,1 6,13M18,13A1,1 0 0,1 19,14A1,1 0 0,1 18,15A1,1 0 0,1 17,14A1,1 0 0,1 18,13M12,7A1,1 0 0,1 13,8A1,1 0 0,1 12,9A1,1 0 0,1 11,8A1,1 0 0,1 12,7M6,7A1,1 0 0,1 7,8A1,1 0 0,1 6,9A1,1 0 0,1 5,8A1,1 0 0,1 6,7M18,7A1,1 0 0,1 19,8A1,1 0 0,1 18,9A1,1 0 0,1 17,8A1,1 0 0,1 18,7M12,1A1,1 0 0,1 13,2A1,1 0 0,1 12,3A1,1 0 0,1 11,2A1,1 0 0,1 12,1M6,1A1,1 0 0,1 7,2A1,1 0 0,1 6,3A1,1 0 0,1 5,2A1,1 0 0,1 6,1M18,1A1,1 0 0,1 19,2A1,1 0 0,1 18,3A1,1 0 0,1 17,2A1,1 0 0,1 18,1Z" />
+            </Viewbox>
+          </Button>
+          <TextBlock Text="Keypad"
+                     FontSize="11" Foreground="#5F7A96"
+                     HorizontalAlignment="Center" />
+        </StackPanel>
+
+      </Grid>
+
+    </StackPanel>
+  </Border>
+</UserControl>
