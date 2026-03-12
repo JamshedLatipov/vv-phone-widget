@@ -13,6 +13,8 @@ namespace OrbitalSIP
         private const double WidgetSize     = 96;
         private const double ExpandedWidth  = 300;
         private const double ExpandedHeight = 480;
+        private const double IncomingWidth  = 436;
+        private const double IncomingHeight = 132;
         private const double AnimDurationMs = 220;
 
         private int  _anchorX, _anchorY;
@@ -153,14 +155,14 @@ namespace OrbitalSIP
             if (host == null) return;
 
             var incoming = new Views.IncomingView();
-
-            var callerText = (incoming as Avalonia.Controls.UserControl)
-                ?.FindControl<Avalonia.Controls.TextBlock>("CallerText");
-            if (callerText != null) callerText.Text = callerId;
+            incoming.SetCaller(callerId);
 
             incoming.OnAnswer  += async (_, __) =>
             {
                 await App.SipService.AnswerAsync();
+                _anchorX = Position.X + (int)Width;
+                _anchorY = Position.Y + (int)Height;
+                StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight);
                 ShowActiveCallView(callerId);
             };
             incoming.OnDecline += (_, __) =>
@@ -170,6 +172,9 @@ namespace OrbitalSIP
             };
 
             host.Content = incoming;
+            _anchorX = Position.X + (int)Width;
+            _anchorY = Position.Y + (int)Height;
+            StartAnimation(Width, Height, IncomingWidth, IncomingHeight);
         }
 
         private void ShowActiveCallView(string callerId)

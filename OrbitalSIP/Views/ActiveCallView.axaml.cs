@@ -4,6 +4,7 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
+using System.Threading.Tasks;
 using AvaloniaPath = Avalonia.Controls.Shapes.Path;
 
 namespace OrbitalSIP.Views
@@ -78,6 +79,38 @@ namespace OrbitalSIP.Views
             var keypad = this.FindControl<Button>("KeypadBtn");
             if (keypad != null)
                 keypad.Click += (_, __) => OnKeypadRequested?.Invoke(this, EventArgs.Empty);
+
+            var copy = this.FindControl<Button>("CopyCallerBtn");
+            if (copy != null)
+                copy.Click += async (_, __) => await CopyCallerAsync();
+        }
+
+        private async Task CopyCallerAsync()
+        {
+            var caller = this.FindControl<TextBlock>("CallerLabel")?.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(caller))
+            {
+                return;
+            }
+
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel?.Clipboard == null)
+            {
+                return;
+            }
+
+            await topLevel.Clipboard.SetTextAsync(caller);
+
+            var copyButton = this.FindControl<Button>("CopyCallerBtn");
+            if (copyButton == null)
+            {
+                return;
+            }
+
+            var original = copyButton.Content;
+            copyButton.Content = "Copied";
+            await Task.Delay(1200);
+            copyButton.Content = original;
         }
 
         private void ToggleMute()

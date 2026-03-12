@@ -21,9 +21,27 @@
       </Ellipse>
 
       <!-- Caller ID -->
-      <TextBlock Name="CallerLabel" Text=""
-                 FontSize="22" FontWeight="Medium" Foreground="#FFFFFF"
-                 HorizontalAlignment="Center" Margin="0,14,0,0" />
+      <Grid ColumnDefinitions="Auto,Auto" HorizontalAlignment="Center" Margin="0,14,0,0">
+        <TextBlock Name="CallerLabel" Text=""
+                   Grid.Column="0"
+                   FontSize="22" FontWeight="Medium" Foreground="#FFFFFF"
+                   VerticalAlignment="Center" />
+        <Button Name="CopyCallerBtn"
+                Grid.Column="1"
+                MinWidth="56"
+                Height="24"
+                Margin="8,0,0,0"
+                CornerRadius="12"
+                Padding="10,0"
+                Background="#1A2D42"
+                BorderBrush="#294461"
+                BorderThickness="1"
+                Foreground="#E2E8F0"
+                FontSize="10"
+                FontWeight="Bold"
+                Content="Copy"
+                VerticalAlignment="Center" />
+      </Grid>
 
       <!-- Duration timer -->
       <TextBlock Name="TimerLabel" Text="00:00"
@@ -60,8 +78,8 @@
                   HorizontalContentAlignment="Center"
                   VerticalContentAlignment="Center">
             <Viewbox Width="28" Height="28">
-              <Path Fill="#FFFFFF" Width="24" Height="24" Stretch="Uniform"
-                    Data="M12,9C10.4,5.4 10.8,2.6 14.6,2.6C17,2.6 19,4.6 19,7C19,9 18.4,10.6 17.6,12L15.6,10C15.9,9.3 16,8.6 16,8C16,6.9 15.1,6 14,6C12.4,6 12,6.9 12,9L12,9M5.6,17C3.1,14.5 1.8,11.2 7.4,5.6L8.8,7C6.3,9.5 6.5,11.6 8.4,13.5L5.6,17Z" />
+              <Path Fill="#FFFFFF" Stretch="Uniform"
+                    Data="M21,15.46L18.46,12.93C18.15,12.61 17.68,12.54 17.29,12.75C16.02,13.41 14.56,13.76 13,13.76C11.44,13.76 9.98,13.41 8.71,12.75C8.32,12.54 7.85,12.61 7.54,12.93L5,15.46C4.41,16.05 4.53,17.04 5.24,17.46C7.5,18.8 10.15,19.5 13,19.5C15.85,19.5 18.5,18.8 20.76,17.46C21.47,17.04 21.59,16.05 21,15.46Z" />
             </Viewbox>
           </Button>
           <TextBlock Text="Hang up"

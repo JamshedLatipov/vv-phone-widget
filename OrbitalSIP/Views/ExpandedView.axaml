@@ -12,21 +12,29 @@
         <Button Grid.Column="1" Name="SettingsBtn"
                 Width="28" Height="28" CornerRadius="14"
                 Background="#1A2D42" Foreground="#8FA6BE"
-                FontSize="14" Padding="0" Margin="0,0,6,0"
+          Padding="0" Margin="0,0,6,0"
                 HorizontalContentAlignment="Center"
-                VerticalContentAlignment="Center"
-                Content="⚙" />
+          VerticalContentAlignment="Center">
+          <Viewbox Width="14" Height="14">
+            <Path Fill="#8FA6BE" Stretch="Uniform"
+            Data="M12,8.8A3.2,3.2 0 0,1 15.2,12A3.2,3.2 0 0,1 12,15.2A3.2,3.2 0 0,1 8.8,12A3.2,3.2 0 0,1 12,8.8M12,2L14.09,4.17C14.73,4.33 15.34,4.58 15.89,4.92L18.8,4.04L19.96,6.96L17.8,9.08C17.87,9.38 17.91,9.69 17.91,10C17.91,10.31 17.87,10.62 17.8,10.92L19.96,13.04L18.8,15.96L15.89,15.08C15.34,15.42 14.73,15.67 14.09,15.83L12,18L9.91,15.83C9.27,15.67 8.66,15.42 8.11,15.08L5.2,15.96L4.04,13.04L6.2,10.92C6.13,10.62 6.09,10.31 6.09,10C6.09,9.69 6.13,9.38 6.2,9.08L4.04,6.96L5.2,4.04L8.11,4.92C8.66,4.58 9.27,4.33 9.91,4.17L12,2Z" />
+          </Viewbox>
+        </Button>
         <Button Grid.Column="2" Name="CloseBtn"
                 Width="28" Height="28" CornerRadius="14"
                 Background="#1A2D42" Foreground="#8FA6BE"
-                FontSize="13" Padding="0"
+          Padding="0"
                 HorizontalContentAlignment="Center"
-                VerticalContentAlignment="Center"
-                Content="✕" />
+          VerticalContentAlignment="Center">
+          <Viewbox Width="12" Height="12">
+            <Path Fill="#8FA6BE" Stretch="Uniform"
+            Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
+          </Viewbox>
+        </Button>
       </Grid>
 
       <!-- Number display + backspace -->
-      <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+      <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,12">
         <Border Background="#0F2540" CornerRadius="10" Padding="14,10">
           <TextBlock Name="DisplayText" Text="" FontSize="24" FontWeight="Light"
                      Foreground="#FFFFFF" HorizontalAlignment="Center"
@@ -34,10 +42,21 @@
         </Border>
         <Button Grid.Column="1" Name="BackspaceBtn"
                 Width="44" Height="44" Margin="8,0,0,0" CornerRadius="10"
-                Background="#1A2D42" Foreground="#8FA6BE" FontSize="18"
+                Background="#1A2D42" Foreground="#8FA6BE"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center">
+          <Viewbox Width="18" Height="18">
+            <Path Fill="#8FA6BE" Stretch="Uniform"
+                  Data="M22,3H7L1,12L7,21H22C23.11,21 24,20.11 24,19V5C24,3.89 23.11,3 22,3M19,16.59L17.59,18L13.5,13.91L9.41,18L8,16.59L12.09,12.5L8,8.41L9.41,7L13.5,11.09L17.59,7L19,8.41L14.91,12.5L19,16.59Z" />
+          </Viewbox>
+        </Button>
+        <Button Grid.Column="2" Name="CopyBtn"
+                MinWidth="56" Height="44" Margin="8,0,0,0" CornerRadius="10"
+                Background="#1A2D42" Foreground="#E2E8F0" FontSize="11"
+                FontWeight="Bold"
                 HorizontalContentAlignment="Center"
                 VerticalContentAlignment="Center"
-                Content="⌫" />
+                Content="Copy" />
       </Grid>
 
       <!-- Dial pad -->
@@ -64,10 +83,8 @@
               HorizontalContentAlignment="Center"
               VerticalContentAlignment="Center">
         <Viewbox Width="28" Height="28">
-          <Canvas Width="24" Height="24">
-            <Path Fill="#001219" Stretch="Uniform"
-                  Data="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.61 21 3 13.39 3 4c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
-          </Canvas>
+          <Path Fill="#001219" Stretch="Uniform"
+                Data="M6.62,10.79C8.06,13.62 10.38,15.93 13.21,17.38L15.41,15.18C15.68,14.91 16.08,14.82 16.43,14.94C17.55,15.31 18.76,15.51 20,15.51C20.55,15.51 21,15.96 21,16.51V20C21,20.55 20.55,21 20,21C10.61,21 3,13.39 3,4C3,3.45 3.45,3 4,3H7.5C8.05,3 8.5,3.45 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
         </Viewbox>
       </Button>
 

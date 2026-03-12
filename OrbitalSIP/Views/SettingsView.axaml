@@ -12,10 +12,14 @@
         <Button Grid.Column="1" Name="BackBtn"
                 Width="28" Height="28" CornerRadius="14"
                 Background="#1A2D42" Foreground="#8FA6BE"
-                FontSize="14" Padding="0"
+                Padding="0"
                 HorizontalContentAlignment="Center"
-                VerticalContentAlignment="Center"
-                Content="←" />
+                VerticalContentAlignment="Center">
+          <Viewbox Width="12" Height="12">
+            <Path Fill="#8FA6BE" Stretch="Uniform"
+                  Data="M20,11H7.83L13.42,5.41L12,4L4,12L12,20L13.41,18.59L7.83,13H20V11Z" />
+          </Viewbox>
+        </Button>
       </Grid>
 
       <!-- Fields -->

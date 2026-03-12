@@ -2,6 +2,7 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Markup.Xaml;
+using System.Threading.Tasks;
 
 namespace OrbitalSIP.Views
 {
@@ -20,6 +21,7 @@ namespace OrbitalSIP.Views
             // Header buttons
             Bind("CloseBtn",    () => OnCloseRequested?.Invoke(this, EventArgs.Empty));
             Bind("SettingsBtn", () => OnSettingsRequested?.Invoke(this, EventArgs.Empty));
+            BindAsync("CopyBtn", CopyDisplayedNumberAsync);
 
             // Backspace
             Bind("BackspaceBtn", () =>
@@ -59,6 +61,40 @@ namespace OrbitalSIP.Views
         {
             var btn = this.FindControl<Button>(name);
             if (btn != null) btn.Click += (_, __) => action();
+        }
+
+        private void BindAsync(string name, Func<Task> action)
+        {
+            var btn = this.FindControl<Button>(name);
+            if (btn != null) btn.Click += async (_, __) => await action();
+        }
+
+        private async Task CopyDisplayedNumberAsync()
+        {
+            var text = this.FindControl<TextBlock>("DisplayText")?.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel?.Clipboard == null)
+            {
+                return;
+            }
+
+            await topLevel.Clipboard.SetTextAsync(text);
+
+            var button = this.FindControl<Button>("CopyBtn");
+            if (button == null)
+            {
+                return;
+            }
+
+            var original = button.Content;
+            button.Content = "Copied";
+            await Task.Delay(1200);
+            button.Content = original;
         }
 
         // ── Events ────────────────────────────────────────────────────
