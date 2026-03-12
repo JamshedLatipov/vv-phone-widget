@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:Views="clr-namespace:OrbitalSIP.Views"
+  x:Class="OrbitalSIP.MainWindow"
+  Width="96" Height="96"
+  WindowStartupLocation="Manual"
+  TransparencyLevelHint="Transparent"
+  CanResize="False"
+  Topmost="True"
+  Background="Transparent">
+
+  <Grid>
+    <Border Width="100" Height="100" CornerRadius="50" Background="#FF1E88E5" Padding="6">
+      <ContentControl Name="Host">
+        <Views:WidgetView />
+      </ContentControl>
+    </Border>
+  </Grid>
+</Window>
