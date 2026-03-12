@@ -2,25 +2,60 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="OrbitalSIP.Views.ExpandedView">
-  <Border Background="#FFFFFFFF" CornerRadius="8" Padding="12" Width="320" Height="240">
-    <Grid RowDefinitions="Auto,Auto,*">
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-        <Button Name="CloseBtn" Content="Close" />
-      </StackPanel>
+  <Border Background="#0A1929" CornerRadius="16" Padding="20" Width="280">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto">
 
-      <TextBlock Grid.Row="1" Text="Dial" FontWeight="Bold" Margin="0,8,0,8" />
+      <!-- Header -->
+      <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+        <TextBlock Text="Dialer" FontSize="15" FontWeight="SemiBold"
+                   Foreground="#FFFFFF" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Name="CloseBtn"
+                Width="28" Height="28" CornerRadius="14"
+                Background="#1A2D42" Foreground="#8FA6BE"
+                FontSize="13" Padding="0"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center"
+                Content="✕" />
+      </Grid>
 
-      <StackPanel Grid.Row="2">
-        <TextBox Name="NumberBox" Watermark="Enter number" />
-        <WrapPanel Margin="0,8,0,0">
-          <Button Content="1" Width="48" Height="48"/>
-          <Button Content="2" Width="48" Height="48"/>
-          <Button Content="3" Width="48" Height="48"/>
-          <Button Content="4" Width="48" Height="48"/>
-          <Button Content="5" Width="48" Height="48"/>
-          <Button Content="6" Width="48" Height="48"/>
-        </WrapPanel>
-      </StackPanel>
+      <!-- Number display -->
+      <Border Grid.Row="1" Background="#0F2540" CornerRadius="10" Padding="14,10" Margin="0,0,0,16">
+        <TextBlock Name="DisplayText" Text="" FontSize="24" FontWeight="Light"
+                   Foreground="#FFFFFF" HorizontalAlignment="Center"
+                   LetterSpacing="4" MinHeight="32" />
+      </Border>
+
+      <!-- Dial pad -->
+      <UniformGrid Grid.Row="2" Rows="4" Columns="3">
+        <Button Content="1" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />
+        <Button Content="2" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />
+        <Button Content="3" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />
+        <Button Content="4" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />
+        <Button Content="5" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />
+        <Button Content="6" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />
+        <Button Content="7" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />
+        <Button Content="8" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />
+        <Button Content="9" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />
+        <Button Content="*" Margin="4" Height="52" Background="#0F2540" Foreground="#5F7A96" FontSize="20" CornerRadius="8" />
+        <Button Content="0" Margin="4" Height="52" Background="#0F2540" Foreground="#FFFFFF" FontSize="20" CornerRadius="8" />
+        <Button Content="#" Margin="4" Height="52" Background="#0F2540" Foreground="#5F7A96" FontSize="20" CornerRadius="8" />
+      </UniformGrid>
+
+      <!-- Call button -->
+      <Button Grid.Row="3" Name="CallBtn"
+              Width="64" Height="64" CornerRadius="32"
+              Background="#17E0A0" Margin="0,16,0,0"
+              HorizontalAlignment="Center"
+              HorizontalContentAlignment="Center"
+              VerticalContentAlignment="Center">
+        <Viewbox Width="28" Height="28">
+          <Canvas Width="24" Height="24">
+            <Path Fill="#001219" Stretch="Uniform"
+                  Data="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.61 21 3 13.39 3 4c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+          </Canvas>
+        </Viewbox>
+      </Button>
+
     </Grid>
   </Border>
 </UserControl>

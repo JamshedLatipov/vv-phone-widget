@@ -11,10 +11,8 @@
   Background="Transparent">
 
   <Grid>
-    <Border Width="100" Height="100" CornerRadius="50" Background="#FF1E88E5" Padding="6">
-      <ContentControl Name="Host">
-        <Views:WidgetView />
-      </ContentControl>
-    </Border>
+    <ContentControl Name="Host">
+      <Views:WidgetView />
+    </ContentControl>
   </Grid>
 </Window>

@@ -35,33 +35,16 @@ namespace OrbitalSIP.Views
 
         private void OnPulseTick(object? sender, EventArgs e)
         {
-            if (_glow == null || _ringGroup == null || _stopwatch == null) return;
+            if (_stopwatch == null || _strokeRing == null) return;
 
-            // Use a smooth sine-based value for pulsing
-            var t = _stopwatch.Elapsed.TotalSeconds;
-            var pulse = (Math.Sin(t * 2.0) + 1.0) / 2.0; // 0..1
+            // Smooth sine pulse: 0..1
+            var pulse = (Math.Sin(_stopwatch.Elapsed.TotalSeconds * 2.2) + 1.0) / 2.0;
 
-            // Glow opacity (soft)
-            _glow.Opacity = 0.08 + pulse * 0.22; // range ~0.08..0.3
+            // Ring opacity: breathes between 0.35 and 1.0
+            _strokeRing.Opacity = 0.35 + pulse * 0.65;
 
-            // Slight scale of inner group
-            var scale = 1.0 + pulse * 0.02; // 1.00 .. 1.02
-            var st = _ringGroup.RenderTransform as ScaleTransform;
-            if (st != null)
-            {
-                st.ScaleX = scale;
-                st.ScaleY = scale;
-            }
-
-            // Animate stroke dash offset to create wave movement along the ring
-            if (_strokeRing != null)
-            {
-                // StrokeDashArray is "4,200" so pattern length ~=204
-                var tNow = _stopwatch.Elapsed.TotalSeconds;
-                var speed = 60.0; // units per second
-                var offset = (tNow * speed) % 204.0;
-                _strokeRing.StrokeDashOffset = offset;
-            }
+            // Ring thickness: grows from 4 to 8
+            _strokeRing.StrokeThickness = 4.0 + pulse * 4.0;
         }
     }
 }

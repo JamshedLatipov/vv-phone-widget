@@ -3,64 +3,75 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="OrbitalSIP.Views.WidgetView"
              ClipToBounds="False">
-    <Grid ClipToBounds="False">
-      <Border ClipToBounds="False" Padding="40" Background="Transparent">
-        <Grid HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="False">
-      <!-- Soft gradient glow (pulsing) -->
-      <Ellipse Name="GlowEllipse" Width="120" Height="120" Opacity="0.0" IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <Ellipse.Fill>
-          <RadialGradientBrush GradientOrigin="0.5,0.5">
-            <GradientStop Color="#001F2B" Offset="0" />
-            <GradientStop Color="#16E6A6" Offset="0.4" />
-            <GradientStop Color="#16E6A6" Offset="0.6" />
-            <GradientStop Color="#001F2B" Offset="1" />
-          </RadialGradientBrush>
-        </Ellipse.Fill>
-      </Ellipse>
+  <Grid ClipToBounds="False">
+    <Border ClipToBounds="False" Padding="40" Background="Transparent">
+      <Grid HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="False">
 
-      <!-- Group for stroke and inner content so we can scale it slightly during pulse -->
-      <Grid Name="RingGroup" RenderTransformOrigin="0.5,0.5">
-        <Grid.RenderTransform>
-          <ScaleTransform ScaleX="1" ScaleY="1" />
-        </Grid.RenderTransform>
-
-        <!-- Outer subtle backdrop -->
-        <Ellipse Width="84" Height="84">
+        <!-- Soft gradient glow (pulsing) -->
+        <Ellipse Name="GlowEllipse" Width="120" Height="120" Opacity="0.0"
+                 IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center">
           <Ellipse.Fill>
-            <RadialGradientBrush GradientOrigin="0.5,0.4">
-              <GradientStop Color="#00223A" Offset="0" />
-              <GradientStop Color="#001219" Offset="1" />
+            <RadialGradientBrush GradientOrigin="0.5,0.5">
+              <GradientStop Color="#001F2B" Offset="0" />
+              <GradientStop Color="#16E6A6" Offset="0.4" />
+              <GradientStop Color="#16E6A6" Offset="0.6" />
+              <GradientStop Color="#001F2B" Offset="1" />
             </RadialGradientBrush>
           </Ellipse.Fill>
         </Ellipse>
 
-        <!-- Stroke ring (add margin so stroke isn't clipped) -->
-        <Ellipse Name="StrokeRing" Width="76" Height="76" StrokeThickness="6" StrokeDashArray="4,200" Margin="3">
-          <Ellipse.Stroke>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-              <GradientStop Color="#17E0A0" Offset="0" />
-              <GradientStop Color="#00BFA5" Offset="1" />
-            </LinearGradientBrush>
-          </Ellipse.Stroke>
-        </Ellipse>
+        <!-- Ring group: scales slightly during pulse animation -->
+        <Grid Name="RingGroup" RenderTransformOrigin="0.5,0.5">
+          <Grid.RenderTransform>
+            <ScaleTransform ScaleX="1" ScaleY="1" />
+          </Grid.RenderTransform>
 
-        <!-- Inner circle -->
-        <Ellipse Width="56" Height="56" Fill="#0F2540" />
+          <!-- Outer backdrop -->
+          <Ellipse Width="84" Height="84">
+            <Ellipse.Fill>
+              <RadialGradientBrush GradientOrigin="0.5,0.4">
+                <GradientStop Color="#00223A" Offset="0" />
+                <GradientStop Color="#001219" Offset="1" />
+              </RadialGradientBrush>
+            </Ellipse.Fill>
+          </Ellipse>
 
-        <!-- Phone icon scaled inside a Viewbox to avoid clipping -->
-        <Viewbox Width="44" Height="44" HorizontalAlignment="Center" VerticalAlignment="Center">
-          <Canvas Width="24" Height="24">
-            <Path Data="M17.707,12.293c-0.39-0.39-1.023-0.39-1.414,0l-2.586,2.586c-1.158-0.616-2.438-1.896-3.054-3.054l2.586-2.586c0.39-0.39,0.39-1.024,0-1.414l-1.414-1.414c-0.39-0.39-1.024-0.39-1.414,0L6.586,8.586c-0.78,0.78-1.152,1.948-0.938,3.078,0.367,2.191,1.621,4.282,3.708,6.369,2.087,2.087,4.178,3.341,6.369,3.708,1.13,0.214,2.298-0.158,3.078-0.938l3.172-3.172c0.39-0.39,0.39-1.024,0-1.414L17.707,12.293z"
-                  Fill="#FF2A6F" Stretch="Uniform" />
-          </Canvas>
-        </Viewbox>
-      </Grid>
+          <!-- Teal stroke ring (pulsing) -->
+          <Ellipse Name="StrokeRing" Width="76" Height="76"
+                   StrokeThickness="5" Opacity="0.4" Margin="3">
+            <Ellipse.Stroke>
+              <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#17E0A0" Offset="0" />
+                <GradientStop Color="#00BFA5" Offset="1" />
+              </LinearGradientBrush>
+            </Ellipse.Stroke>
+          </Ellipse>
 
-      <!-- Status dot -->
-      <Ellipse Width="14" Height="14" Fill="#1ED760" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0" />
+          <!-- Inner circle -->
+          <Ellipse Width="56" Height="56" Fill="#0F2540" />
+
+          <!-- Phone handset icon (Material Design, centered in inner circle) -->
+          <Viewbox Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Path Fill="#FFFFFF" Width="24" Height="24" Stretch="Uniform"
+                  Data="M6.62,10.79C8.06,13.62 10.38,15.93 13.21,17.38L15.41,15.18C15.68,14.91 16.08,14.82 16.43,14.94C17.55,15.31 18.76,15.51 20,15.51C20.55,15.51 21,15.96 21,16.51V20C21,20.55 20.55,21 20,21C10.61,21 3,13.39 3,4C3,3.45 3.45,3 4,3H7.5C8.05,3 8.5,3.45 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
+          </Viewbox>
+
         </Grid>
-      </Border>
-    </Grid>
 
-    <!-- Caption removed -->
+        <!-- Status dot: positioned at top-right of ring circumference (≈45°) -->
+        <!-- Ring backdrop is 84px, centered in 120px GlowEllipse area; r=42 at 45° → offset ≈ 30px -->
+        <Grid Width="120" Height="120" IsHitTestVisible="False">
+          <!-- Dark halo for contrast against the ring -->
+          <Ellipse Width="14" Height="14" Fill="#001219"
+                   HorizontalAlignment="Right" VerticalAlignment="Top"
+                   Margin="0,23,23,0" />
+          <!-- Green dot -->
+          <Ellipse Name="StatusDot" Width="10" Height="10" Fill="#1ED760"
+                   HorizontalAlignment="Right" VerticalAlignment="Top"
+                   Margin="0,25,25,0" />
+        </Grid>
+
+      </Grid>
+    </Border>
+  </Grid>
 </UserControl>
