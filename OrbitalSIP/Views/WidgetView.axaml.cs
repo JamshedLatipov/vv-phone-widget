@@ -1,10 +1,8 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.Markup.Xaml;
-using OrbitalSIP.Services;
 using System.Diagnostics;
 
 namespace OrbitalSIP.Views

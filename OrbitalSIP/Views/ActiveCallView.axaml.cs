@@ -14,6 +14,11 @@ namespace OrbitalSIP.Views
         private TimeSpan _elapsed = TimeSpan.Zero;
         private bool _muted;
 
+        public ActiveCallView()
+            : this("Unknown", false)
+        {
+        }
+
         public ActiveCallView(string callerId, bool isOutgoing = false)
         {
             InitializeComponent();

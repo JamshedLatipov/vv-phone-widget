@@ -98,6 +98,31 @@
             </Border>
           </StackPanel>
 
+          <!-- Divider -->
+          <Border Height="1" Background="#1A2D42" Margin="0,4,0,4" />
+
+          <!-- Speaker -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="Speaker / Output" FontSize="11" Foreground="#5F7A96" />
+            <Border Background="#0F2540" CornerRadius="8" Padding="4,2">
+              <ComboBox Name="SpeakerBox"
+                        Background="Transparent" Foreground="#FFFFFF"
+                        BorderThickness="0" Padding="8,6"
+                        HorizontalAlignment="Stretch" />
+            </Border>
+          </StackPanel>
+
+          <!-- Microphone -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="Microphone / Input" FontSize="11" Foreground="#5F7A96" />
+            <Border Background="#0F2540" CornerRadius="8" Padding="4,2">
+              <ComboBox Name="MicBox"
+                        Background="Transparent" Foreground="#FFFFFF"
+                        BorderThickness="0" Padding="8,6"
+                        HorizontalAlignment="Stretch" />
+            </Border>
+          </StackPanel>
+
         </StackPanel>
       </ScrollViewer>
 

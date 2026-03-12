@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using NAudio.Wave;
 using OrbitalSIP.Services;
 
 namespace OrbitalSIP.Views
@@ -51,6 +53,32 @@ namespace OrbitalSIP.Views
                     _     => 0
                 };
             }
+
+            PopulateAudioDevices();
+        }
+
+        private void PopulateAudioDevices()
+        {
+            var speakerBox = this.FindControl<ComboBox>("SpeakerBox");
+            var micBox     = this.FindControl<ComboBox>("MicBox");
+            if (speakerBox == null || micBox == null) return;
+
+            // Build output device list  (-1 = system default)
+            var outItems = new List<string> { "System Default" };
+            for (int i = 0; i < WaveOut.DeviceCount; i++)
+                outItems.Add(WaveOut.GetCapabilities(i).ProductName);
+            speakerBox.ItemsSource  = outItems;
+            // Saved index -1 → list position 0; index N → list position N+1
+            speakerBox.SelectedIndex = _settings.AudioOutDeviceIndex + 1;
+            if (speakerBox.SelectedIndex < 0) speakerBox.SelectedIndex = 0;
+
+            // Build input device list  (-1 = system default)
+            var inItems = new List<string> { "System Default" };
+            for (int i = 0; i < WaveIn.DeviceCount; i++)
+                inItems.Add(WaveIn.GetCapabilities(i).ProductName);
+            micBox.ItemsSource   = inItems;
+            micBox.SelectedIndex = _settings.AudioInDeviceIndex + 1;
+            if (micBox.SelectedIndex < 0) micBox.SelectedIndex = 0;
         }
 
         private void SetText(string name, string value)
@@ -88,6 +116,15 @@ namespace OrbitalSIP.Views
                 2 => "TLS",
                 _ => "UDP"
             };
+
+            // Audio device indices: list position 0 → device -1 (default), N+1 → device N
+            var speakerBox = this.FindControl<ComboBox>("SpeakerBox");
+            if (speakerBox != null)
+                _settings.AudioOutDeviceIndex = (speakerBox.SelectedIndex <= 0 ? -1 : speakerBox.SelectedIndex - 1);
+
+            var micBox = this.FindControl<ComboBox>("MicBox");
+            if (micBox != null)
+                _settings.AudioInDeviceIndex = (micBox.SelectedIndex <= 0 ? -1 : micBox.SelectedIndex - 1);
 
             _settings.Save();
             OnBackRequested?.Invoke(this, System.EventArgs.Empty);

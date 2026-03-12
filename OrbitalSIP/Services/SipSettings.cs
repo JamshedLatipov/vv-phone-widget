@@ -12,6 +12,11 @@ namespace OrbitalSIP.Services
         public string DisplayName { get; set; } = "";
         public string Transport { get; set; } = "UDP";  // UDP | TCP | TLS
 
+        /// <summary>NAudio WaveOut device index. -1 = system default.</summary>
+        public int AudioOutDeviceIndex { get; set; } = -1;
+        /// <summary>NAudio WaveIn device index. -1 = system default.</summary>
+        public int AudioInDeviceIndex  { get; set; } = -1;
+
         // ----------------------------------------------------------------
         private static readonly string FilePath = Path.Combine(
             System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData),
