@@ -13,7 +13,7 @@ using SIPSorceryMedia.Windows;
 
 namespace OrbitalSIP.Services
 {
-    public enum CallState { Idle, Ringing, IncomingRinging, Active }
+    public enum CallState { Idle, Ringing, IncomingRinging, Active, OnHold }
 
     public class SipService : IDisposable
     {
@@ -372,10 +372,24 @@ namespace OrbitalSIP.Services
                 await _mediaSession.SendDtmf(code, CancellationToken.None);
         }
 
+        private void ApplyAudioState()
+        {
+            if (IsMuted)
+            {
+                _audioEndPoint?.PauseAudio();
+            }
+            else
+            {
+                _audioEndPoint?.ResumeAudio();
+            }
+        }
+
+        public bool IsMuted { get; private set; }
+
         public void SetMuted(bool muted)
         {
-            if (muted) _audioEndPoint?.PauseAudio();
-            else       _audioEndPoint?.ResumeAudio();
+            IsMuted = muted;
+            ApplyAudioState();
         }
 
         public bool IsOnHold { get; private set; }
@@ -384,20 +398,20 @@ namespace OrbitalSIP.Services
         {
             SIPUserAgent? ua;
             lock (_lock) { ua = _activeCall; }
-            if (ua == null || State != CallState.Active) return;
+            if (ua == null || (State != CallState.Active && State != CallState.OnHold)) return;
 
             if (IsOnHold)
             {
                 ua.TakeOffHold();
-                _audioEndPoint?.ResumeAudio();
                 IsOnHold = false;
+                SetState(CallState.Active);
                 Log("Call taken off hold.");
             }
             else
             {
                 ua.PutOnHold();
-                _audioEndPoint?.PauseAudio();
                 IsOnHold = true;
+                SetState(CallState.OnHold);
                 Log("Call put on hold.");
             }
         }

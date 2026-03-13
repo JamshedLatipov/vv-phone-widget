@@ -13,6 +13,7 @@ namespace OrbitalSIP.Views
     {
         private DispatcherTimer? _timer;
         private TimeSpan _elapsed = TimeSpan.Zero;
+        public TimeSpan Elapsed => _elapsed;
         private bool _muted;
         private bool _onHold;
 
@@ -21,7 +22,7 @@ namespace OrbitalSIP.Views
         {
         }
 
-        public ActiveCallView(string callerId, bool isOutgoing = false)
+        public ActiveCallView(string callerId, bool isOutgoing = false, TimeSpan? initialElapsed = null)
         {
             InitializeComponent();
 
@@ -33,6 +34,8 @@ namespace OrbitalSIP.Views
             if (statusLabel != null) statusLabel.Text = isOutgoing ? "CALLING" : "IN CALL";
 
             WireButtons();
+            if (initialElapsed.HasValue) _elapsed = initialElapsed.Value;
+            SetStatus(App.SipService.IsOnHold);
             StartTimer();
         }
 
@@ -67,6 +70,14 @@ namespace OrbitalSIP.Views
 
             if (secondsLabel != null)
                 secondsLabel.Text = seconds.ToString("00");
+        }
+
+        public void SetStatus(bool isOnHold)
+        {
+            var label = this.FindControl<TextBlock>("StatusLabel");
+            var dot = this.FindControl<Ellipse>("StatusDot");
+            if (label != null) label.Text = isOnHold ? "ON HOLD" : "IN CALL";
+            if (dot != null) dot.Fill = new SolidColorBrush(isOnHold ? Color.Parse("#F59E0B") : Color.Parse("#3B82F6"));
         }
 
         public void MarkConnected()
@@ -105,6 +116,10 @@ namespace OrbitalSIP.Views
             var keypad = this.FindControl<Button>("KeypadBtn");
             if (keypad != null)
                 keypad.Click += (_, __) => OnKeypadRequested?.Invoke(this, EventArgs.Empty);
+
+            var minimize = this.FindControl<Button>("MinimizeBtn");
+            if (minimize != null)
+                minimize.Click += (_, __) => OnMinimizeRequested?.Invoke(this, EventArgs.Empty);
 
             var copy = this.FindControl<Button>("CopyCallerBtn");
             if (copy != null)
@@ -190,5 +205,6 @@ namespace OrbitalSIP.Views
         public event EventHandler<bool>?  OnHoldToggled;      // arg = isOnHold
         public event EventHandler<string>? OnTransferRequested; // arg = destination
         public event EventHandler?        OnKeypadRequested;
+        public event EventHandler?        OnMinimizeRequested;
     }
 }

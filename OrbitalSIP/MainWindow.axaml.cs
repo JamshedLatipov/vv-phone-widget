@@ -169,9 +169,39 @@ namespace OrbitalSIP
             StartAnimation(Width, Height, IncomingWidth, IncomingHeight);
         }
 
-        private void ShowActiveCallView(string callerId)
+        private void ShowActiveCallWidgetView(string callerId, TimeSpan elapsed)
         {
-            var callView = new Views.ActiveCallView(callerId);
+            var widget = new Views.ActiveCallWidgetView(callerId, elapsed, App.SipService.IsMuted, App.SipService.IsOnHold);
+            WireActiveCallWidgetView(widget);
+
+            _anchorX = Position.X + (int)Width;
+            _anchorY = Position.Y + (int)Height;
+            _isExpanded = true;
+            StartAnimation(Width, Height, IncomingWidth, IncomingHeight, widget);
+        }
+
+        private void WireActiveCallWidgetView(Views.ActiveCallWidgetView widget)
+        {
+            widget.OnHangup += (_, __) =>
+            {
+                App.SipService.Hangup();
+                CollapseWidget();
+            };
+            widget.OnMuteToggled += (_, muted) => App.SipService.SetMuted(muted);
+            widget.OnHoldToggled += (_, __) => App.SipService.ToggleHold();
+            widget.OnTransferRequested += (_, __) =>
+            {
+                ShowActiveCallView(App.SipService.ActiveCallerId, widget.Elapsed);
+            };
+            widget.OnExpandRequested += (_, __) =>
+            {
+                ShowActiveCallView(App.SipService.ActiveCallerId, widget.Elapsed);
+            };
+        }
+
+        private void ShowActiveCallView(string callerId, TimeSpan? elapsed = null)
+        {
+            var callView = new Views.ActiveCallView(callerId, initialElapsed: elapsed);
             WireActiveCallView(callView);
             SetMainContent(callView);
         }
@@ -182,6 +212,10 @@ namespace OrbitalSIP
             {
                 App.SipService.Hangup();
                 CollapseWidget();
+            };
+            callView.OnMinimizeRequested += (_, __) =>
+            {
+                ShowActiveCallWidgetView(App.SipService.ActiveCallerId, callView.Elapsed);
             };
             callView.OnMuteToggled += (_, muted) => App.SipService.SetMuted(muted);
             callView.OnHoldToggled += (_, __) => App.SipService.ToggleHold();
@@ -196,14 +230,21 @@ namespace OrbitalSIP
             if (state == CallState.Idle && _isExpanded)
             {
                 // Call ended remotely — return to dialer
-                ShowDialer();
+                ExpandWidget();
             }
-            else if (state == CallState.Active)
+            else if (state == CallState.Active || state == CallState.OnHold)
             {
-                // Outbound call was answered — mark connected in ActiveCallView
                 var host = this.FindControl<ContentControl>("Host");
+                bool isOnHold = (state == CallState.OnHold);
                 if (host?.Content is Views.ActiveCallView av)
+                {
                     av.MarkConnected();
+                    av.SetStatus(isOnHold);
+                }
+                else if (host?.Content is Views.ActiveCallWidgetView awv)
+                {
+                    awv.SetStatus(isOnHold);
+                }
             }
         }
 
@@ -360,4 +401,3 @@ namespace OrbitalSIP
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
     }
 }
-
