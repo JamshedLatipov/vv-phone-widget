@@ -56,9 +56,22 @@ namespace OrbitalSIP
             sip.CallStateChanged += state =>
                 Dispatcher.UIThread.InvokeAsync(() => OnCallStateChanged(state));
 
-            // Start SIP stack with saved settings
+            // Initial view
             var settings = SipSettings.Load();
-            sip.Start(settings);
+            // SipSettings.Load() won't have Username/Password because of [JsonIgnore]
+            // We check the in-memory settings in SipService instead (though on startup they'll be empty anyway)
+            if (string.IsNullOrEmpty(sip.CurrentSettings.Username) || string.IsNullOrEmpty(sip.CurrentSettings.Password))
+            {
+                _isExpanded = true;
+                Width = ExpandedWidth;
+                Height = ExpandedHeight;
+                ShowLogin();
+            }
+            else
+            {
+                sip.Start(settings);
+                SetMainContent(new Views.WidgetView());
+            }
         }
 
         // ── Drag ──────────────────────────────────────────────────────
@@ -127,6 +140,20 @@ namespace OrbitalSIP
             }
         }
 
+        // ── Login ─────────────────────────────────────────────────────
+        private void ShowLogin()
+        {
+            var login = new Views.LoginView();
+            login.OnLoginSuccess += (_, __) =>
+            {
+                _isExpanded = false;
+                _preferredMode = PreferredMode.Widget;
+                StartAnimation(Width, Height, WidgetSize, WidgetSize, new Views.WidgetView());
+            };
+            login.OnSettingsRequested += (_, __) => ShowSettings(isFromLogin: true);
+            SetMainContent(login);
+        }
+
         // ── Dialer ────────────────────────────────────────────────────
         private void ShowDialer()
         {
@@ -134,15 +161,33 @@ namespace OrbitalSIP
         }
 
         // ── Settings ──────────────────────────────────────────────────
-        private void ShowSettings()
+        private void ShowSettings(bool isFromLogin = false)
         {
-            var settings = new Views.SettingsView();
-            settings.OnBackRequested += (_, __) =>
+            var settingsView = new Views.SettingsView();
+            settingsView.OnBackRequested += (_, __) =>
             {
-                App.SipService.Start(SipSettings.Load());
-                ShowDialer();
+                // Reload persistent settings
+                var settings = SipSettings.Load();
+
+                // Re-apply in-memory credentials from the active session
+                var current = App.SipService.CurrentSettings;
+                if (!string.IsNullOrEmpty(current.Username))
+                {
+                    settings.Username = current.Username;
+                    settings.Password = current.Password;
+                }
+
+                if (isFromLogin)
+                {
+                    ShowLogin();
+                }
+                else
+                {
+                    App.SipService.Start(settings);
+                    ShowDialer();
+                }
             };
-            SetMainContent(settings);
+            SetMainContent(settingsView);
         }
 
         // ── Outgoing call ─────────────────────────────────────────────
@@ -156,7 +201,6 @@ namespace OrbitalSIP
             SetMainContent(callView);
 
             await App.SipService.CallAsync(number);
-            // SipService.CallStateChanged will handle the "call ended" path
         }
 
         // ── Incoming call ─────────────────────────────────────────────
@@ -262,7 +306,11 @@ namespace OrbitalSIP
         {
             if (state == CallState.Idle && _isExpanded)
             {
-                ReturnToPreferredMode();
+                var host = this.FindControl<ContentControl>("Host");
+                if (!(host?.Content is Views.LoginView) && !(host?.Content is Views.SettingsView))
+                {
+                    ReturnToPreferredMode();
+                }
             }
             else if (state == CallState.Active || state == CallState.OnHold)
             {
@@ -315,10 +363,7 @@ namespace OrbitalSIP
 
         private void OnAnimTick(object? sender, EventArgs e)
         {
-            if (_animStopwatch == null)
-            {
-                return;
-            }
+            if (_animStopwatch == null) return;
 
             _animProgress = Math.Clamp(_animStopwatch.Elapsed.TotalMilliseconds / AnimDurationMs, 0.0, 1.0);
             if (_animProgress >= 1.0)
@@ -355,17 +400,10 @@ namespace OrbitalSIP
             }
         }
 
-        private static double EaseOutCubic(double value)
-        {
-            return 1.0 - Math.Pow(1.0 - value, 3.0);
-        }
+        private static double EaseOutCubic(double value) => 1.0 - Math.Pow(1.0 - value, 3.0);
 
-        private static double EaseInOutCubic(double value)
-        {
-            return value < 0.5
-                ? 4.0 * value * value * value
-                : 1.0 - Math.Pow(-2.0 * value + 2.0, 3.0) / 2.0;
-        }
+        private static double EaseInOutCubic(double value) =>
+            value < 0.5 ? 4.0 * value * value * value : 1.0 - Math.Pow(-2.0 * value + 2.0, 3.0) / 2.0;
 
         private Views.ExpandedView CreateDialerView()
         {
@@ -380,24 +418,9 @@ namespace OrbitalSIP
         {
             var host = this.FindControl<ContentControl>("Host");
             var overlay = this.FindControl<ContentControl>("OverlayHost");
-
-            if (overlay != null && ReferenceEquals(overlay.Content, content))
-            {
-                overlay.Content = null;
-            }
-
-            if (host != null)
-            {
-                host.Content = content;
-                host.Opacity = 1;
-            }
-
-            if (overlay != null)
-            {
-                overlay.Content = null;
-                overlay.Opacity = 0;
-            }
-
+            if (overlay != null && ReferenceEquals(overlay.Content, content)) overlay.Content = null;
+            if (host != null) { host.Content = content; host.Opacity = 1; }
+            if (overlay != null) { overlay.Content = null; overlay.Opacity = 0; }
             _pendingContent = null;
         }
 
@@ -405,28 +428,11 @@ namespace OrbitalSIP
         {
             var host = this.FindControl<ContentControl>("Host");
             var overlay = this.FindControl<ContentControl>("OverlayHost");
-
             object? nextContent = overlay?.Content;
-            if (overlay != null)
-            {
-                overlay.Content = null;
-            }
-
-            if (host != null && nextContent != null)
-            {
-                host.Content = nextContent;
-                host.Opacity = 1;
-            }
-            else if (host != null)
-            {
-                host.Opacity = 1;
-            }
-
-            if (overlay != null)
-            {
-                overlay.Opacity = 0;
-            }
-
+            if (overlay != null) overlay.Content = null;
+            if (host != null && nextContent != null) { host.Content = nextContent; host.Opacity = 1; }
+            else if (host != null) host.Opacity = 1;
+            if (overlay != null) overlay.Opacity = 0;
             _pendingContent = null;
         }
 

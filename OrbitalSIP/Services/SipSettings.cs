@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace OrbitalSIP.Services
 {
@@ -7,10 +8,16 @@ namespace OrbitalSIP.Services
     {
         public string Server   { get; set; } = "";
         public string Port     { get; set; } = "5060";
+
+        [JsonIgnore]
         public string Username { get; set; } = "";
+
+        [JsonIgnore]
         public string Password { get; set; } = "";
+
         public string DisplayName { get; set; } = "";
         public string Transport { get; set; } = "UDP";  // UDP | TCP | TLS
+        public string BackendUrl { get; set; } = "";
 
         /// <summary>NAudio WaveOut device index. -1 = system default.</summary>
         public int AudioOutDeviceIndex { get; set; } = -1;

@@ -14,7 +14,18 @@ namespace OrbitalSIP.Views
         public SettingsView()
         {
             InitializeComponent();
+
+            // Load persistent settings
             _settings = SipSettings.Load();
+
+            // Re-apply in-memory credentials from the active session (if any)
+            var current = App.SipService.CurrentSettings;
+            if (!string.IsNullOrEmpty(current.Username))
+            {
+                _settings.Username = current.Username;
+                _settings.Password = current.Password;
+            }
+
             PopulateFields();
             WireButtons();
 
@@ -37,6 +48,7 @@ namespace OrbitalSIP.Views
 
         private void PopulateFields()
         {
+            SetText("BackendUrlBox",   _settings.BackendUrl);
             SetText("ServerBox",      _settings.Server);
             SetText("PortBox",        _settings.Port);
             SetText("UsernameBox",    _settings.Username);
@@ -103,6 +115,7 @@ namespace OrbitalSIP.Views
 
         private void SaveAndClose()
         {
+            _settings.BackendUrl  = GetText("BackendUrlBox");
             _settings.Server      = GetText("ServerBox");
             _settings.Port        = GetText("PortBox");
             _settings.Username    = GetText("UsernameBox");

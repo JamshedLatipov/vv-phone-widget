@@ -35,6 +35,7 @@ namespace OrbitalSIP.Services
         public string    LastRegistrationError { get; private set; } = "";
         public CallState State              { get; private set; } = CallState.Idle;
         public string    ActiveCallerId     { get; private set; } = "";
+        public SipSettings CurrentSettings => _settings;
 
         // ── Events ────────────────────────────────────────────────────
         public event Action<RegistrationState>? RegistrationStatusChanged;

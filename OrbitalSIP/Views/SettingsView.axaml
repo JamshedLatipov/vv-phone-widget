@@ -1,32 +1,43 @@
-<?xml version="1.0" encoding="utf-8"?>
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="OrbitalSIP.Views.SettingsView">
-  <Border Background="#0F172A" CornerRadius="16" Padding="20" Width="280">
+             x:Class="OrbitalSIP.Views.SettingsView"
+             Background="#0F172A">
+  <Border Padding="20">
     <Grid RowDefinitions="Auto,*,Auto">
 
       <!-- Header -->
-      <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,20">
-        <TextBlock Text="SIP Settings" FontSize="15" FontWeight="SemiBold"
-                   Foreground="#FFFFFF" VerticalAlignment="Center" />
-        <Button Grid.Column="1" Name="BackBtn"
-                Width="28" Height="28" CornerRadius="14"
-                Background="#1A2D42" Foreground="#8FA6BE"
-                Padding="0"
-                HorizontalContentAlignment="Center"
-                VerticalContentAlignment="Center">
-          <Viewbox Width="12" Height="12">
-            <Path Fill="#8FA6BE" Stretch="Uniform"
-                  Data="M20,11H7.83L13.42,5.41L12,4L4,12L12,20L13.41,18.59L7.83,13H20V11Z" />
-          </Viewbox>
+      <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,20">
+        <Button Name="BackBtn" Grid.Column="0"
+                Width="36" Height="36" CornerRadius="18"
+                Background="#1E293B" BorderThickness="0" Padding="0">
+          <PathIcon Data="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"
+                    Width="18" Height="18" Foreground="#FFFFFF" />
         </Button>
+        <TextBlock Grid.Column="1" Text="Settings"
+                   FontSize="18" FontWeight="SemiBold" Foreground="#FFFFFF"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" />
       </Grid>
 
-      <!-- Fields -->
-      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-        <StackPanel Spacing="14">
+      <!-- Content -->
+      <ScrollViewer Grid.Row="1">
+        <StackPanel Spacing="16">
 
-          <!-- Server -->
+          <!-- Backend URL -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="Backend URL" FontSize="11" Foreground="#5F7A96" />
+            <Border Background="#1E293B" CornerRadius="8">
+              <TextBox Name="BackendUrlBox"
+                       Background="Transparent" Foreground="#FFFFFF"
+                       BorderThickness="0" Padding="12,10"
+                       Watermark="https://api.example.com"
+                       CaretBrush="#17E0A0" />
+            </Border>
+          </StackPanel>
+
+          <!-- Divider -->
+          <Border Height="1" Background="#1A2D42" Margin="0,4,0,4" />
+
+          <!-- SIP Server -->
           <StackPanel Spacing="4">
             <TextBlock Text="SIP Server" FontSize="11" Foreground="#5F7A96" />
             <Border Background="#1E293B" CornerRadius="8">
