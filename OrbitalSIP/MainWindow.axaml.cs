@@ -37,17 +37,6 @@ namespace OrbitalSIP
             InitializeComponent();
 
             var workArea = Screens?.Primary?.WorkingArea ?? new PixelRect(0, 0, 1920, 1080);
-            var left = workArea.Right - (int)WidgetSize - 24;
-            var top  = workArea.Bottom - (int)WidgetSize - 48;
-            Position = new PixelPoint(left, top);
-
-            _anchorX = left + (int)WidgetSize;
-            _anchorY = top  + (int)WidgetSize;
-
-            this.SystemDecorations = SystemDecorations.None;
-            this.PointerPressed   += MainWindow_PointerPressed;
-            this.PointerReleased  += MainWindow_PointerReleased;
-            this.DoubleTapped     += (_, __) => ExpandOnDoubleTap();
 
             // Wire SIP events
             var sip = App.SipService;
@@ -56,19 +45,39 @@ namespace OrbitalSIP
             sip.CallStateChanged += state =>
                 Dispatcher.UIThread.InvokeAsync(() => OnCallStateChanged(state));
 
+            this.SystemDecorations = SystemDecorations.None;
+            this.PointerPressed   += MainWindow_PointerPressed;
+            this.PointerReleased  += MainWindow_PointerReleased;
+            this.DoubleTapped     += (_, __) => ExpandOnDoubleTap();
+
             // Initial view
             var settings = SipSettings.Load();
-            // SipSettings.Load() won't have Username/Password because of [JsonIgnore]
-            // We check the in-memory settings in SipService instead (though on startup they'll be empty anyway)
             if (string.IsNullOrEmpty(sip.CurrentSettings.Username) || string.IsNullOrEmpty(sip.CurrentSettings.Password))
             {
+                // Show Login centered
                 _isExpanded = true;
                 Width = ExpandedWidth;
                 Height = ExpandedHeight;
+
+                var left = workArea.X + (workArea.Width - (int)ExpandedWidth) / 2;
+                var top  = workArea.Y + (workArea.Height - (int)ExpandedHeight) / 2;
+                Position = new PixelPoint(left, top);
+
+                _anchorX = left + (int)ExpandedWidth;
+                _anchorY = top  + (int)ExpandedHeight;
+
                 ShowLogin();
             }
             else
             {
+                // Show Widget at bottom right
+                var left = workArea.Right - (int)WidgetSize - 24;
+                var top  = workArea.Bottom - (int)WidgetSize - 48;
+                Position = new PixelPoint(left, top);
+
+                _anchorX = left + (int)WidgetSize;
+                _anchorY = top  + (int)WidgetSize;
+
                 sip.Start(settings);
                 SetMainContent(new Views.WidgetView());
             }
@@ -99,11 +108,7 @@ namespace OrbitalSIP
 
         private void ExpandOnDoubleTap()
         {
-            if (_isExpanded)
-            {
-                return;
-            }
-
+            if (_isExpanded) return;
             ExpandWidget();
         }
 
@@ -166,10 +171,7 @@ namespace OrbitalSIP
             var settingsView = new Views.SettingsView();
             settingsView.OnBackRequested += (_, __) =>
             {
-                // Reload persistent settings
                 var settings = SipSettings.Load();
-
-                // Re-apply in-memory credentials from the active session
                 var current = App.SipService.CurrentSettings;
                 if (!string.IsNullOrEmpty(current.Username))
                 {
@@ -177,10 +179,7 @@ namespace OrbitalSIP
                     settings.Password = current.Password;
                 }
 
-                if (isFromLogin)
-                {
-                    ShowLogin();
-                }
+                if (isFromLogin) ShowLogin();
                 else
                 {
                     App.SipService.Start(settings);
@@ -256,14 +255,8 @@ namespace OrbitalSIP
             };
             widget.OnMuteToggled += (_, muted) => App.SipService.SetMuted(muted);
             widget.OnHoldToggled += (_, __) => App.SipService.ToggleHold();
-            widget.OnTransferRequested += (_, __) =>
-            {
-                ShowActiveCallView(App.SipService.ActiveCallerId, widget.Elapsed);
-            };
-            widget.OnExpandRequested += (_, __) =>
-            {
-                ShowActiveCallView(App.SipService.ActiveCallerId, widget.Elapsed);
-            };
+            widget.OnTransferRequested += (_, __) => ShowActiveCallView(App.SipService.ActiveCallerId, widget.Elapsed);
+            widget.OnExpandRequested += (_, __) => ShowActiveCallView(App.SipService.ActiveCallerId, widget.Elapsed);
         }
 
         private void ShowActiveCallView(string callerId, TimeSpan? elapsed = null)
@@ -277,10 +270,7 @@ namespace OrbitalSIP
                 _anchorY = Position.Y + (int)Height;
                 StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight, callView);
             }
-            else
-            {
-                SetMainContent(callView);
-            }
+            else SetMainContent(callView);
         }
 
         private void WireActiveCallView(Views.ActiveCallView callView)
@@ -290,14 +280,10 @@ namespace OrbitalSIP
                 App.SipService.Hangup();
                 ReturnToPreferredMode();
             };
-            callView.OnMinimizeRequested += (_, __) =>
-            {
-                ShowActiveCallWidgetView(App.SipService.ActiveCallerId, callView.Elapsed);
-            };
+            callView.OnMinimizeRequested += (_, __) => ShowActiveCallWidgetView(App.SipService.ActiveCallerId, callView.Elapsed);
             callView.OnMuteToggled += (_, muted) => App.SipService.SetMuted(muted);
             callView.OnHoldToggled += (_, __) => App.SipService.ToggleHold();
-            callView.OnTransferRequested += async (_, dest) =>
-                await App.SipService.BlindTransferAsync(dest);
+            callView.OnTransferRequested += async (_, dest) => await App.SipService.BlindTransferAsync(dest);
             callView.OnKeypadRequested += (_, __) => ShowDialer();
         }
 
@@ -316,15 +302,8 @@ namespace OrbitalSIP
             {
                 var host = this.FindControl<ContentControl>("Host");
                 bool isOnHold = (state == CallState.OnHold);
-                if (host?.Content is Views.ActiveCallView av)
-                {
-                    av.MarkConnected();
-                    av.SetStatus(isOnHold);
-                }
-                else if (host?.Content is Views.ActiveCallWidgetView awv)
-                {
-                    awv.SetStatus(isOnHold);
-                }
+                if (host?.Content is Views.ActiveCallView av) { av.MarkConnected(); av.SetStatus(isOnHold); }
+                else if (host?.Content is Views.ActiveCallWidgetView awv) awv.SetStatus(isOnHold);
             }
         }
 
@@ -344,20 +323,10 @@ namespace OrbitalSIP
 
             var overlay = this.FindControl<ContentControl>("OverlayHost");
             var host = this.FindControl<ContentControl>("Host");
-            if (overlay != null)
-            {
-                overlay.Content = nextContent;
-                overlay.Opacity = 0;
-            }
-            if (host != null)
-            {
-                host.Opacity = 1;
-            }
+            if (overlay != null) { overlay.Content = nextContent; overlay.Opacity = 0; }
+            if (host != null) host.Opacity = 1;
 
-            _animTimer = new DispatcherTimer(
-                TimeSpan.FromMilliseconds(16),
-                DispatcherPriority.Normal,
-                OnAnimTick);
+            _animTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Normal, OnAnimTick);
             _animTimer.Start();
         }
 
@@ -366,12 +335,7 @@ namespace OrbitalSIP
             if (_animStopwatch == null) return;
 
             _animProgress = Math.Clamp(_animStopwatch.Elapsed.TotalMilliseconds / AnimDurationMs, 0.0, 1.0);
-            if (_animProgress >= 1.0)
-            {
-                _animTimer!.Stop();
-                _animTimer = null;
-                _animStopwatch = null;
-            }
+            if (_animProgress >= 1.0) { _animTimer!.Stop(); _animTimer = null; _animStopwatch = null; }
 
             var t = EaseOutCubic(_animProgress);
             var w = _fromW + (_toW - _fromW) * t;
@@ -387,21 +351,13 @@ namespace OrbitalSIP
                 overlay.Opacity = fade;
             }
 
-            Position = new PixelPoint(
-                (int)Math.Round(_anchorX - w),
-                (int)Math.Round(_anchorY - h));
-            Width  = w;
-            Height = h;
+            Position = new PixelPoint((int)Math.Round(_anchorX - w), (int)Math.Round(_anchorY - h));
+            Width  = w; Height = h;
 
-            if (_animProgress >= 1.0)
-            {
-                CompleteAnimatedContentSwap();
-                _onAnimComplete?.Invoke();
-            }
+            if (_animProgress >= 1.0) { CompleteAnimatedContentSwap(); _onAnimComplete?.Invoke(); }
         }
 
         private static double EaseOutCubic(double value) => 1.0 - Math.Pow(1.0 - value, 3.0);
-
         private static double EaseInOutCubic(double value) =>
             value < 0.5 ? 4.0 * value * value * value : 1.0 - Math.Pow(-2.0 * value + 2.0, 3.0) / 2.0;
 
