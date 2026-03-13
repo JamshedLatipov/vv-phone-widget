@@ -4,6 +4,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.Markup.Xaml;
 using System.Diagnostics;
+using OrbitalSIP.Services;
 
 namespace OrbitalSIP.Views
 {
@@ -27,11 +28,12 @@ namespace OrbitalSIP.Views
 
             // Subscribe to registration state
             var sip = App.SipService;
-            sip.RegistrationStateChanged += reg =>
-                Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(reg));
+            sip.RegistrationStatusChanged += state =>
+                Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
             sip.RegistrationError += reason =>
-                Dispatcher.UIThread.InvokeAsync(() => UpdateStatusTip(false, reason));
-            UpdateStatus(sip.IsRegistered);
+                Dispatcher.UIThread.InvokeAsync(() => UpdateStatusTip(sip.RegistrationStatus, reason));
+
+            UpdateStatus(sip.RegistrationStatus);
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
@@ -45,22 +47,57 @@ namespace OrbitalSIP.Views
             _strokeRing.StrokeThickness = 4.0 + pulse * 4.0;
         }
 
-        private void UpdateStatus(bool registered)
+        private void UpdateStatus(RegistrationState state)
         {
             if (_statusDot == null) return;
-            _statusDot.Fill = new SolidColorBrush(
-                registered ? Color.Parse("#1ED760") : Color.Parse("#FF4444"));
-            UpdateStatusTip(registered, registered ? "Registered" : App.SipService.LastRegistrationError);
+
+            Color color;
+            string label;
+
+            switch (state)
+            {
+                case RegistrationState.Registered:
+                    color = Color.Parse("#10B981"); // Emerald
+                    label = "Registered";
+                    break;
+                case RegistrationState.Failed:
+                    color = Color.Parse("#EF4444"); // Red
+                    label = App.SipService.LastRegistrationError;
+                    break;
+                case RegistrationState.Paused:
+                    color = Color.Parse("#F59E0B"); // Amber
+                    label = "Paused";
+                    break;
+                case RegistrationState.Unregistered:
+                default:
+                    color = Color.Parse("#89A0B8"); // Slate/Gray
+                    label = "Offline";
+                    break;
+            }
+
+            _statusDot.Fill = new SolidColorBrush(color);
+            UpdateStatusTip(state, label);
         }
 
-        private void UpdateStatusTip(bool registered, string message)
+        private void UpdateStatusTip(RegistrationState state, string message)
         {
             var tip = this.FindControl<Avalonia.Controls.TextBlock>("StatusTip");
             if (tip == null) return;
-            tip.Text = string.IsNullOrWhiteSpace(message)
-                ? (registered ? "Registered" : "Not registered")
-                : message;
+
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                tip.Text = state switch
+                {
+                    RegistrationState.Registered => "Registered",
+                    RegistrationState.Failed => "Registration Failed",
+                    RegistrationState.Paused => "Paused",
+                    _ => "Offline"
+                };
+            }
+            else
+            {
+                tip.Text = message;
+            }
         }
     }
 }
-
