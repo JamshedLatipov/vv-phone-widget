@@ -230,7 +230,7 @@ namespace OrbitalSIP
             if (state == CallState.Idle && _isExpanded)
             {
                 // Call ended remotely — return to dialer
-                ShowDialer();
+                ExpandWidget();
             }
             else if (state == CallState.Active)
             {
