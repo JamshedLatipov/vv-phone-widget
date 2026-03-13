@@ -49,33 +49,55 @@ namespace OrbitalSIP.Views
 
         private void UpdateStatus(RegistrationState state)
         {
-            if (_statusDot == null) return;
+            if (_statusDot == null || _strokeRing == null) return;
 
             Color color;
+            Color pulseColorStart;
+            Color pulseColorEnd;
             string label;
 
             switch (state)
             {
                 case RegistrationState.Registered:
                     color = Color.Parse("#10B981"); // Emerald
+                    pulseColorStart = Color.Parse("#17E0A0");
+                    pulseColorEnd   = Color.Parse("#00BFA5");
                     label = "Registered";
                     break;
                 case RegistrationState.Failed:
                     color = Color.Parse("#EF4444"); // Red
+                    pulseColorStart = Color.Parse("#F87171");
+                    pulseColorEnd   = Color.Parse("#DC2626");
                     label = App.SipService.LastRegistrationError;
                     break;
                 case RegistrationState.Paused:
                     color = Color.Parse("#F59E0B"); // Amber
+                    pulseColorStart = Color.Parse("#FBBF24");
+                    pulseColorEnd   = Color.Parse("#D97706");
                     label = "Paused";
                     break;
                 case RegistrationState.Unregistered:
                 default:
                     color = Color.Parse("#89A0B8"); // Slate/Gray
+                    pulseColorStart = Color.Parse("#94A3B8");
+                    pulseColorEnd   = Color.Parse("#64748B");
                     label = "Offline";
                     break;
             }
 
             _statusDot.Fill = new SolidColorBrush(color);
+
+            _strokeRing.Stroke = new LinearGradientBrush
+            {
+                StartPoint = new Avalonia.RelativePoint(0, 0, Avalonia.RelativeUnit.Relative),
+                EndPoint = new Avalonia.RelativePoint(1, 1, Avalonia.RelativeUnit.Relative),
+                GradientStops = new GradientStops
+                {
+                    new GradientStop(pulseColorStart, 0),
+                    new GradientStop(pulseColorEnd, 1)
+                }
+            };
+
             UpdateStatusTip(state, label);
         }
 
