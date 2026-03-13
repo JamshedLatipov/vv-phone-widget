@@ -22,21 +22,35 @@
             </StackPanel>
           </StackPanel>
 
-          <Button Name="CopyCallerBtn"
-                  Grid.Column="1"
-                  MinWidth="52"
-                  Height="28"
-                  Margin="0,10,14,10"
-                  CornerRadius="14"
-                  Padding="10,0"
-                  Background="#152338"
-                  BorderBrush="#294461"
-                  BorderThickness="1"
-                  Foreground="#E2E8F0"
-                  FontSize="10"
-                  FontWeight="Bold"
-                  Content="Copy"
-                  VerticalAlignment="Center" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,10,14,10" Spacing="6">
+            <Button Name="CopyCallerBtn"
+                    MinWidth="52"
+                    Height="28"
+                    CornerRadius="14"
+                    Padding="10,0"
+                    Background="#152338"
+                    BorderBrush="#294461"
+                    BorderThickness="1"
+                    Foreground="#E2E8F0"
+                    FontSize="10"
+                    FontWeight="Bold"
+                    Content="Copy"
+                    VerticalAlignment="Center" />
+            <Button Name="MinimizeBtn"
+                    Width="28" Height="28"
+                    CornerRadius="14"
+                    Background="#152338"
+                    BorderBrush="#294461"
+                    BorderThickness="1"
+                    Padding="0"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center">
+              <Viewbox Width="12" Height="12">
+                <Path Fill="#E2E8F0" Stretch="Uniform"
+                      Data="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z" />
+              </Viewbox>
+            </Button>
+          </StackPanel>
         </Grid>
 
         <StackPanel Margin="18,0,18,0" Spacing="14">

@@ -1,0 +1,113 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="OrbitalSIP.Views.ActiveCallWidgetView">
+  <Grid Width="412" Height="108" ClipToBounds="False">
+    <Border CornerRadius="32"
+            Padding="14,10"
+            Background="#D9101722"
+            BorderBrush="#663B82F6"
+            BorderThickness="1">
+
+      <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+        <!-- Caller Avatar / Icon -->
+        <Grid Width="44" Height="44" Margin="0,0,12,0">
+          <Ellipse Fill="#FF182231" Width="44" Height="44"/>
+          <Ellipse Fill="#FF1E3A5F" Width="38" Height="38" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          <Viewbox Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Path Fill="#FFF8FAFC" Stretch="Uniform"
+                  Data="M12,12A5,5 0 1,0 7,7A5,5 0 0,0 12,12M12,14C8.13,14 5,17.13 5,21H7C7,18.24 9.24,16 12,16C14.76,16 17,18.24 17,21H19C19,17.13 15.87,14 12,14Z"/>
+          </Viewbox>
+          <Ellipse Width="10" Height="10"
+                   Fill="#FF22C55E"
+                   Stroke="#FF101722"
+                   StrokeThickness="2"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Bottom"/>
+        </Grid>
+
+        <!-- Caller Info & Timer -->
+        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+          <TextBlock Name="CallerText"
+                     Text="Jonathan Doe"
+                     FontSize="15"
+                     FontWeight="SemiBold"
+                     Foreground="#FFF8FAFC"
+                     TextTrimming="CharacterEllipsis"/>
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="ACTIVE CALL"
+                       FontSize="10"
+                       FontWeight="Bold"
+                       LetterSpacing="1.8"
+                       Foreground="#FF60A5FA"/>
+            <TextBlock Name="TimerText"
+                       Text="00:00"
+                       FontSize="10"
+                       FontWeight="Bold"
+                       Foreground="#FFF8FAFC"/>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,5,0,0">
+            <Viewbox Width="12" Height="12">
+              <Path Fill="#FF22C55E" Stretch="Uniform"
+                    Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M10.6,16.6L17.2,10L15.8,8.6L10.6,13.8L8.2,11.4L6.8,12.8L10.6,16.6Z"/>
+            </Viewbox>
+            <TextBlock Text="Encrypted"
+                       FontSize="10"
+                       FontWeight="Bold"
+                       Foreground="#FF64748B"/>
+          </StackPanel>
+        </StackPanel>
+
+        <!-- Action Buttons -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
+          <Button Name="MuteBtn"
+                  Width="40" Height="40" CornerRadius="20"
+                  Background="#1A2D42"
+                  BorderThickness="0"
+                  HorizontalContentAlignment="Center"
+                  VerticalContentAlignment="Center">
+            <Viewbox Width="18" Height="18">
+              <Path Name="MuteIcon" Fill="#DDE7F3" Stretch="Uniform"
+                    Data="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z"/>
+            </Viewbox>
+          </Button>
+
+          <Button Name="HoldBtn"
+                  Width="40" Height="40" CornerRadius="20"
+                  Background="#1E4270"
+                  BorderThickness="0"
+                  HorizontalContentAlignment="Center"
+                  VerticalContentAlignment="Center">
+            <Viewbox Width="18" Height="18">
+              <Path Name="HoldIcon" Fill="#FFFFFF" Stretch="Uniform"
+                    Data="M14,19H18V5H14M6,19H10V5H6V19Z"/>
+            </Viewbox>
+          </Button>
+
+          <Button Name="TransferBtn"
+                  Width="40" Height="40" CornerRadius="20"
+                  Background="#1A2D42"
+                  BorderThickness="0"
+                  HorizontalContentAlignment="Center"
+                  VerticalContentAlignment="Center">
+            <Viewbox Width="18" Height="18">
+              <Path Fill="#DDE7F3" Stretch="Uniform"
+                    Data="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"/>
+            </Viewbox>
+          </Button>
+
+          <Button Name="HangupBtn"
+                  Width="40" Height="40" CornerRadius="20"
+                  Background="#FFEF4444"
+                  BorderThickness="0"
+                  HorizontalContentAlignment="Center"
+                  VerticalContentAlignment="Center">
+            <Viewbox Width="18" Height="18">
+              <Path Fill="#FFFFFFFF" Stretch="Uniform"
+                    Data="M21,15.46L18.46,12.93C18.15,12.61 17.68,12.54 17.29,12.75C16.02,13.41 14.56,13.76 13,13.76C11.44,13.76 9.98,13.41 8.71,12.75C8.32,12.54 7.85,12.61 7.54,12.93L5,15.46C4.41,16.05 4.53,17.04 5.24,17.46C7.5,18.8 10.15,19.5 13,19.5C15.85,19.5 18.5,18.8 20.76,17.46C21.47,17.04 21.59,16.05 21,15.46Z"/>
+            </Viewbox>
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

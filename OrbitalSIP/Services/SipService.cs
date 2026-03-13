@@ -372,8 +372,11 @@ namespace OrbitalSIP.Services
                 await _mediaSession.SendDtmf(code, CancellationToken.None);
         }
 
+        public bool IsMuted { get; private set; }
+
         public void SetMuted(bool muted)
         {
+            IsMuted = muted;
             if (muted) _audioEndPoint?.PauseAudio();
             else       _audioEndPoint?.ResumeAudio();
         }

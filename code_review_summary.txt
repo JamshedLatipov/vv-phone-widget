@@ -1,0 +1,21 @@
+Summary of changes:
+1. SipService.cs:
+   - Added IsMuted property.
+   - Updated SetMuted to track the property.
+
+2. ActiveCallView.axaml / ActiveCallView.axaml.cs:
+   - Added a Minimize button in the header.
+   - Added OnMinimizeRequested event.
+   - Added public Elapsed property to share call duration.
+   - Updated constructor to allow initializing with a specific duration.
+
+3. ActiveCallWidgetView.axaml / ActiveCallWidgetView.axaml.cs:
+   - Created a new compact view for active calls.
+   - Styled it similarly to IncomingView.
+   - Includes Caller name, Timer, Mute, Hold, Transfer, and Hangup buttons.
+   - Supports expanding back to full view on double-tap or Transfer request.
+
+4. MainWindow.axaml.cs:
+   - Implemented transitions between ActiveCallView and ActiveCallWidgetView.
+   - Shared call state (elapsed time, mute, hold) during transitions.
+   - Handled events from the new widget view.
