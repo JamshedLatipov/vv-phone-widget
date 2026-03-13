@@ -49,7 +49,7 @@ namespace OrbitalSIP.Views
                     break;
                 case RegistrationState.Unregistered:
                 default:
-                    dot.Fill = new SolidColorBrush(Color.Parse("#89A0B8")); // Slate/Gray
+                    dot.Fill = new SolidColorBrush(Color.Parse("#EF4444")); // Red for Offline
                     lbl.Text = "Offline";
                     break;
             }

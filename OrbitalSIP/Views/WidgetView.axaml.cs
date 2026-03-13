@@ -78,9 +78,9 @@ namespace OrbitalSIP.Views
                     break;
                 case RegistrationState.Unregistered:
                 default:
-                    color = Color.Parse("#89A0B8"); // Slate/Gray
-                    pulseColorStart = Color.Parse("#94A3B8");
-                    pulseColorEnd   = Color.Parse("#64748B");
+                    color = Color.Parse("#EF4444"); // Red for Offline
+                    pulseColorStart = Color.Parse("#F87171");
+                    pulseColorEnd   = Color.Parse("#DC2626");
                     label = "Offline";
                     break;
             }
