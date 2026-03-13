@@ -47,7 +47,7 @@ namespace OrbitalSIP.Views
             {
                 if (child is Button btn)
                 {
-                    var digit = btn.Content?.ToString() ?? "";
+                    var digit = btn.Tag?.ToString() ?? btn.Content?.ToString() ?? "";
                     btn.Click += (_, __) =>
                     {
                         var d = this.FindControl<TextBlock>("DisplayText");

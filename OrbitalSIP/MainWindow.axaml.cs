@@ -11,8 +11,8 @@ namespace OrbitalSIP
     public partial class MainWindow : Window
     {
         private const double WidgetSize     = 96;
-        private const double ExpandedWidth  = 300;
-        private const double ExpandedHeight = 480;
+        private const double ExpandedWidth  = 320;
+        private const double ExpandedHeight = 560;
         private const double IncomingWidth  = 436;
         private const double IncomingHeight = 132;
         private const double AnimDurationMs = 220;
@@ -40,7 +40,7 @@ namespace OrbitalSIP
             this.SystemDecorations = SystemDecorations.None;
             this.PointerPressed   += MainWindow_PointerPressed;
             this.PointerReleased  += MainWindow_PointerReleased;
-            this.DoubleTapped     += (_, __) => ToggleExpanded();
+            this.DoubleTapped     += (_, __) => ExpandOnDoubleTap();
 
             // Wire SIP events
             var sip = App.SipService;
@@ -75,6 +75,16 @@ namespace OrbitalSIP
         {
             if (_isExpanded) CollapseWidget();
             else             ExpandWidget();
+        }
+
+        private void ExpandOnDoubleTap()
+        {
+            if (_isExpanded)
+            {
+                return;
+            }
+
+            ExpandWidget();
         }
 
         private void ExpandWidget()
