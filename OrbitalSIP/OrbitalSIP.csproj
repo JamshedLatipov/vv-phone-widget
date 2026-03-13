@@ -9,6 +9,16 @@
     <AssemblyName>OrbitalSIP</AssemblyName>
   </PropertyGroup>
 
+  <!-- Sound files: place ring.mp3 / ring-calling.mp3 / busy.mp3 /
+       call_end.mp3 / call_fail.mp3 in public/sounds and they will be
+       copied to sounds/ next to the executable automatically. -->
+  <ItemGroup>
+    <Content Include="..\public\sounds\*.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>sounds\%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.0.0" />
     <PackageReference Include="Avalonia.Desktop" Version="11.0.0" />

@@ -201,10 +201,12 @@ namespace OrbitalSIP.Services
             {
                 Debug.WriteLine("[SipService] Call failed / rejected.");
                 Log("Call failed or rejected.");
-                ua.OnCallHungup -= _ => OnCallEnded(); // clean up subscription
-                CleanupMedia();
+                // Set Idle BEFORE CleanupMedia so that the OnRtpClosed callback
+                // (which fires synchronously inside mediaSession.Close) sees
+                // State == Idle and the OnCallEnded guard skips the duplicate transition.
                 _activeCall = null;
                 SetState(CallState.Idle);
+                CleanupMedia();
             }
             return ok;
         }
