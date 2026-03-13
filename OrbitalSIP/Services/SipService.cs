@@ -372,13 +372,24 @@ namespace OrbitalSIP.Services
                 await _mediaSession.SendDtmf(code, CancellationToken.None);
         }
 
+        private void ApplyAudioState()
+        {
+            if (IsMuted || IsOnHold)
+            {
+                _audioEndPoint?.PauseAudio();
+            }
+            else
+            {
+                _audioEndPoint?.ResumeAudio();
+            }
+        }
+
         public bool IsMuted { get; private set; }
 
         public void SetMuted(bool muted)
         {
             IsMuted = muted;
-            if (muted) _audioEndPoint?.PauseAudio();
-            else       _audioEndPoint?.ResumeAudio();
+            ApplyAudioState();
         }
 
         public bool IsOnHold { get; private set; }
@@ -392,15 +403,15 @@ namespace OrbitalSIP.Services
             if (IsOnHold)
             {
                 ua.TakeOffHold();
-                _audioEndPoint?.ResumeAudio();
                 IsOnHold = false;
+                ApplyAudioState();
                 Log("Call taken off hold.");
             }
             else
             {
                 ua.PutOnHold();
-                _audioEndPoint?.PauseAudio();
                 IsOnHold = true;
+                ApplyAudioState();
                 Log("Call put on hold.");
             }
         }
