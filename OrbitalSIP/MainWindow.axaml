@@ -14,5 +14,8 @@
     <ContentControl Name="Host">
       <Views:WidgetView />
     </ContentControl>
+    <ContentControl Name="OverlayHost"
+                    Opacity="0"
+                    IsHitTestVisible="False" />
   </Grid>
 </Window>

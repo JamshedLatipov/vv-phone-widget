@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using System.Diagnostics;
 using OrbitalSIP.Services;
 
 namespace OrbitalSIP
@@ -15,14 +16,16 @@ namespace OrbitalSIP
         private const double ExpandedHeight = 560;
         private const double IncomingWidth  = 436;
         private const double IncomingHeight = 132;
-        private const double AnimDurationMs = 220;
+        private const double AnimDurationMs = 280;
 
         private int  _anchorX, _anchorY;
         private bool _isExpanded;
 
         private DispatcherTimer? _animTimer;
+        private Stopwatch? _animStopwatch;
         private double _animProgress;
         private double _fromW, _fromH, _toW, _toH;
+        private object? _pendingContent;
         private Action? _onAnimComplete;
 
         public MainWindow()
@@ -90,49 +93,33 @@ namespace OrbitalSIP
         private void ExpandWidget()
         {
             _isExpanded = true;
-            ShowDialer();
             _anchorX = Position.X + (int)Width;
             _anchorY = Position.Y + (int)Height;
-            StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight);
+            StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight, CreateDialerView());
         }
 
         private void CollapseWidget()
         {
             _isExpanded = false;
-            StartAnimation(Width, Height, WidgetSize, WidgetSize, onComplete: () =>
-            {
-                var host = this.FindControl<ContentControl>("Host");
-                if (host != null) host.Content = new Views.WidgetView();
-            });
+            StartAnimation(Width, Height, WidgetSize, WidgetSize, new Views.WidgetView());
         }
 
         // ── Dialer ────────────────────────────────────────────────────
         private void ShowDialer()
         {
-            var host = this.FindControl<ContentControl>("Host");
-            if (host == null) return;
-
-            var dialer = new Views.ExpandedView();
-            dialer.OnCloseRequested    += (_, __) => CollapseWidget();
-            dialer.OnSettingsRequested += (_, __) => ShowSettings();
-            dialer.OutgoingCallRequested += (_, number) => StartOutgoingCall(number);
-            host.Content = dialer;
+            SetMainContent(CreateDialerView());
         }
 
         // ── Settings ──────────────────────────────────────────────────
         private void ShowSettings()
         {
-            var host = this.FindControl<ContentControl>("Host");
-            if (host == null) return;
-
             var settings = new Views.SettingsView();
             settings.OnBackRequested += (_, __) =>
             {
-                // Re-start SIP with new settings after save
                 App.SipService.Start(SipSettings.Load());
                 ShowDialer();
             };
-            host.Content = settings;
+            SetMainContent(settings);
         }
 
         // ── Outgoing call ─────────────────────────────────────────────
@@ -143,7 +130,7 @@ namespace OrbitalSIP
 
             var callView = new Views.ActiveCallView(number, isOutgoing: true);
             WireActiveCallView(callView);
-            host.Content = callView;
+            SetMainContent(callView);
 
             await App.SipService.CallAsync(number);
             // SipService.CallStateChanged will handle the "call ended" path
@@ -152,18 +139,6 @@ namespace OrbitalSIP
         // ── Incoming call ─────────────────────────────────────────────
         private void ShowIncomingCall(string callerId)
         {
-            // Expand window if collapsed
-            if (!_isExpanded)
-            {
-                _isExpanded = true;
-                _anchorX = Position.X + (int)Width;
-                _anchorY = Position.Y + (int)Height;
-                StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight);
-            }
-
-            var host = this.FindControl<ContentControl>("Host");
-            if (host == null) return;
-
             var incoming = new Views.IncomingView();
             incoming.SetCaller(callerId);
 
@@ -181,20 +156,24 @@ namespace OrbitalSIP
                 CollapseWidget();
             };
 
-            host.Content = incoming;
             _anchorX = Position.X + (int)Width;
             _anchorY = Position.Y + (int)Height;
+            if (!_isExpanded)
+            {
+                _isExpanded = true;
+                StartAnimation(Width, Height, IncomingWidth, IncomingHeight, incoming);
+                return;
+            }
+
+            SetMainContent(incoming);
             StartAnimation(Width, Height, IncomingWidth, IncomingHeight);
         }
 
         private void ShowActiveCallView(string callerId)
         {
-            var host = this.FindControl<ContentControl>("Host");
-            if (host == null) return;
-
             var callView = new Views.ActiveCallView(callerId);
             WireActiveCallView(callView);
-            host.Content = callView;
+            SetMainContent(callView);
         }
 
         private void WireActiveCallView(Views.ActiveCallView callView)
@@ -228,13 +207,28 @@ namespace OrbitalSIP
         // ── Resize animation ──────────────────────────────────────────
         private void StartAnimation(double fromW, double fromH,
                                     double toW,   double toH,
+                                    object? nextContent = null,
                                     Action? onComplete = null)
         {
             _animTimer?.Stop();
             _fromW = fromW; _fromH = fromH;
             _toW   = toW;   _toH   = toH;
             _animProgress   = 0;
+            _pendingContent = nextContent;
             _onAnimComplete = onComplete;
+            _animStopwatch = Stopwatch.StartNew();
+
+            var overlay = this.FindControl<ContentControl>("OverlayHost");
+            var host = this.FindControl<ContentControl>("Host");
+            if (overlay != null)
+            {
+                overlay.Content = nextContent;
+                overlay.Opacity = 0;
+            }
+            if (host != null)
+            {
+                host.Opacity = 1;
+            }
 
             _animTimer = new DispatcherTimer(
                 TimeSpan.FromMilliseconds(16),
@@ -245,19 +239,119 @@ namespace OrbitalSIP
 
         private void OnAnimTick(object? sender, EventArgs e)
         {
-            _animProgress += 16.0 / AnimDurationMs;
-            if (_animProgress >= 1.0) { _animProgress = 1.0; _animTimer!.Stop(); _animTimer = null; }
+            if (_animStopwatch == null)
+            {
+                return;
+            }
 
-            var t = 1.0 - Math.Pow(1.0 - _animProgress, 3);
+            _animProgress = Math.Clamp(_animStopwatch.Elapsed.TotalMilliseconds / AnimDurationMs, 0.0, 1.0);
+            if (_animProgress >= 1.0)
+            {
+                _animTimer!.Stop();
+                _animTimer = null;
+                _animStopwatch = null;
+            }
+
+            var t = EaseOutCubic(_animProgress);
             var w = _fromW + (_toW - _fromW) * t;
             var h = _fromH + (_toH - _fromH) * t;
 
-            Position = new PixelPoint(_anchorX - (int)w, _anchorY - (int)h);
+            var host = this.FindControl<ContentControl>("Host");
+            var overlay = this.FindControl<ContentControl>("OverlayHost");
+            if (host != null && overlay?.Content != null)
+            {
+                var fadeProgress = Math.Clamp((_animProgress - 0.08) / 0.62, 0.0, 1.0);
+                var fade = EaseInOutCubic(fadeProgress);
+                host.Opacity = 1.0 - fade;
+                overlay.Opacity = fade;
+            }
+
+            Position = new PixelPoint(
+                (int)Math.Round(_anchorX - w),
+                (int)Math.Round(_anchorY - h));
             Width  = w;
             Height = h;
 
             if (_animProgress >= 1.0)
+            {
+                CompleteAnimatedContentSwap();
                 _onAnimComplete?.Invoke();
+            }
+        }
+
+        private static double EaseOutCubic(double value)
+        {
+            return 1.0 - Math.Pow(1.0 - value, 3.0);
+        }
+
+        private static double EaseInOutCubic(double value)
+        {
+            return value < 0.5
+                ? 4.0 * value * value * value
+                : 1.0 - Math.Pow(-2.0 * value + 2.0, 3.0) / 2.0;
+        }
+
+        private Views.ExpandedView CreateDialerView()
+        {
+            var dialer = new Views.ExpandedView();
+            dialer.OnCloseRequested += (_, __) => CollapseWidget();
+            dialer.OnSettingsRequested += (_, __) => ShowSettings();
+            dialer.OutgoingCallRequested += (_, number) => StartOutgoingCall(number);
+            return dialer;
+        }
+
+        private void SetMainContent(object content)
+        {
+            var host = this.FindControl<ContentControl>("Host");
+            var overlay = this.FindControl<ContentControl>("OverlayHost");
+
+            if (overlay != null && ReferenceEquals(overlay.Content, content))
+            {
+                overlay.Content = null;
+            }
+
+            if (host != null)
+            {
+                host.Content = content;
+                host.Opacity = 1;
+            }
+
+            if (overlay != null)
+            {
+                overlay.Content = null;
+                overlay.Opacity = 0;
+            }
+
+            _pendingContent = null;
+        }
+
+        private void CompleteAnimatedContentSwap()
+        {
+            var host = this.FindControl<ContentControl>("Host");
+            var overlay = this.FindControl<ContentControl>("OverlayHost");
+
+            object? nextContent = overlay?.Content;
+            if (overlay != null)
+            {
+                overlay.Content = null;
+            }
+
+            if (host != null && nextContent != null)
+            {
+                host.Content = nextContent;
+                host.Opacity = 1;
+            }
+            else if (host != null)
+            {
+                host.Opacity = 1;
+            }
+
+            if (overlay != null)
+            {
+                overlay.Opacity = 0;
+            }
+
+            _pendingContent = null;
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
