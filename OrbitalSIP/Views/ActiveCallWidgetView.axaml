@@ -34,7 +34,7 @@
                      Foreground="#FFF8FAFC"
                      TextTrimming="CharacterEllipsis"/>
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <TextBlock Text="ACTIVE CALL"
+            <TextBlock Name="StatusText" Text="ACTIVE CALL"
                        FontSize="10"
                        FontWeight="Bold"
                        LetterSpacing="1.8"

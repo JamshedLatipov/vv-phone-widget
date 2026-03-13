@@ -35,6 +35,7 @@ namespace OrbitalSIP.Views
 
             WireButtons();
             if (initialElapsed.HasValue) _elapsed = initialElapsed.Value;
+            SetStatus(App.SipService.IsOnHold);
             StartTimer();
         }
 
@@ -69,6 +70,14 @@ namespace OrbitalSIP.Views
 
             if (secondsLabel != null)
                 secondsLabel.Text = seconds.ToString("00");
+        }
+
+        public void SetStatus(bool isOnHold)
+        {
+            var label = this.FindControl<TextBlock>("StatusLabel");
+            var dot = this.FindControl<Ellipse>("StatusDot");
+            if (label != null) label.Text = isOnHold ? "ON HOLD" : "IN CALL";
+            if (dot != null) dot.Fill = new SolidColorBrush(isOnHold ? Color.Parse("#F59E0B") : Color.Parse("#3B82F6"));
         }
 
         public void MarkConnected()

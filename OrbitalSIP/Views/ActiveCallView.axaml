@@ -82,7 +82,7 @@
               </WrapPanel>
 
               <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                <Ellipse Width="8" Height="8" Fill="#3B82F6" VerticalAlignment="Center" />
+                <Ellipse Name="StatusDot" Width="8" Height="8" Fill="#3B82F6" VerticalAlignment="Center" />
                 <TextBlock Name="StatusLabel" Text="IN CALL" FontSize="11" FontWeight="Bold" LetterSpacing="1.4" Foreground="#60A5FA" VerticalAlignment="Center" />
               </StackPanel>
             </StackPanel>

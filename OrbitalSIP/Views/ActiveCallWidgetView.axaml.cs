@@ -30,11 +30,18 @@ namespace OrbitalSIP.Views
 
             UpdateMuteUI();
             UpdateHoldUI();
+            SetStatus(_onHold);
             UpdateTimeUI();
             WireButtons();
             StartTimer();
 
             this.DoubleTapped += (_, __) => OnExpandRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void SetStatus(bool isOnHold)
+        {
+            var statusText = this.FindControl<TextBlock>("StatusText");
+            if (statusText != null) statusText.Text = isOnHold ? "ON HOLD" : "ACTIVE CALL";
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
@@ -99,6 +106,7 @@ namespace OrbitalSIP.Views
         {
             _onHold = !_onHold;
             UpdateHoldUI();
+            SetStatus(_onHold);
             OnHoldToggled?.Invoke(this, _onHold);
         }
 

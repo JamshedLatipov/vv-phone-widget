@@ -232,13 +232,18 @@ namespace OrbitalSIP
                 // Call ended remotely — return to dialer
                 ExpandWidget();
             }
-            else if (state == CallState.Active)
+            else if (state == CallState.Active || state == CallState.OnHold)
             {
-                // Outbound call was answered — mark connected in ActiveCallView
                 var host = this.FindControl<ContentControl>("Host");
+                bool isOnHold = (state == CallState.OnHold);
                 if (host?.Content is Views.ActiveCallView av)
                 {
                     av.MarkConnected();
+                    av.SetStatus(isOnHold);
+                }
+                else if (host?.Content is Views.ActiveCallWidgetView awv)
+                {
+                    awv.SetStatus(isOnHold);
                 }
             }
         }

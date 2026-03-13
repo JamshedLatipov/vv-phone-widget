@@ -13,7 +13,7 @@ using SIPSorceryMedia.Windows;
 
 namespace OrbitalSIP.Services
 {
-    public enum CallState { Idle, Ringing, IncomingRinging, Active }
+    public enum CallState { Idle, Ringing, IncomingRinging, Active, OnHold }
 
     public class SipService : IDisposable
     {
@@ -398,13 +398,14 @@ namespace OrbitalSIP.Services
         {
             SIPUserAgent? ua;
             lock (_lock) { ua = _activeCall; }
-            if (ua == null || State != CallState.Active) return;
+            if (ua == null || (State != CallState.Active && State != CallState.OnHold)) return;
 
             if (IsOnHold)
             {
                 ua.TakeOffHold();
                 IsOnHold = false;
                 ApplyAudioState();
+                SetState(CallState.Active);
                 Log("Call taken off hold.");
             }
             else
@@ -412,6 +413,7 @@ namespace OrbitalSIP.Services
                 ua.PutOnHold();
                 IsOnHold = true;
                 ApplyAudioState();
+                SetState(CallState.OnHold);
                 Log("Call put on hold.");
             }
         }
