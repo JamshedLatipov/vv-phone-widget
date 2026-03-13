@@ -12,7 +12,16 @@ namespace OrbitalSIP.Views
 {
     public partial class LoginView : UserControl
     {
-        private static readonly HttpClient _httpClient = new HttpClient();
+        private static readonly HttpClient _httpClient;
+
+        static LoginView()
+        {
+            // The backend is often accessed via IP and may use self-signed certificates.
+            // For this specific internal use case, we ignore certificate validation errors.
+            var handler = new HttpClientHandler();
+            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
+            _httpClient = new HttpClient(handler);
+        }
 
         public LoginView()
         {
