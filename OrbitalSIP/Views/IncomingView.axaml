@@ -5,8 +5,8 @@
   <Grid Width="412" Height="108" ClipToBounds="False">
     <Border CornerRadius="32"
             Padding="14,10"
-            Background="#D9101722"
-            BorderBrush="#663B82F6"
+            Background="#F20F172A"
+            BorderBrush="#3B82F6"
             BorderThickness="1">
 
       <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">

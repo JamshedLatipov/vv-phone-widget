@@ -3,15 +3,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="OrbitalSIP.Views.ExpandedView">
   <Border Width="320"
-          Background="#0B1320"
-          BorderBrush="#1D2A3A"
+          Background="#0F172A"
+          BorderBrush="#1E293B"
           BorderThickness="1"
           CornerRadius="16"
           ClipToBounds="True">
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
 
       <!-- Header -->
-      <Grid ColumnDefinitions="*,Auto,Auto" Background="#101D2C" Margin="0,0,0,8">
+      <Grid ColumnDefinitions="*,Auto,Auto" Background="#1E293B">
         <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,10,0,10">
           <Grid Width="34" Height="34">
             <Ellipse Fill="#1D2D42" />
@@ -54,7 +54,7 @@
 
       <!-- Dialer display -->
       <Grid Grid.Row="1" Margin="14,0,14,10" ColumnDefinitions="*,Auto,Auto">
-        <Border Grid.Column="0" Background="#0F1B2A" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="12" Padding="12,9">
+        <Border Grid.Column="0" Background="#020617" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="12" Padding="12,9">
           <TextBlock Name="DisplayText" Text="" FontSize="22" FontWeight="SemiBold"
                      Foreground="#F8FAFC" HorizontalAlignment="Center"
                      TextTrimming="CharacterEllipsis" LetterSpacing="1.5" MinHeight="30" />
@@ -78,73 +78,73 @@
 
       <!-- Numeric keypad -->
       <UniformGrid Grid.Row="2" Name="DialPad" Rows="4" Columns="3" Margin="14,2,14,10">
-        <Button Tag="1" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+        <Button Tag="1" Background="#1E293B" BorderThickness="0" Margin="6" Height="58" CornerRadius="28" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="1" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
             <TextBlock Text="" FontSize="9" Foreground="#7F96AF" HorizontalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Tag="2" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+        <Button Tag="2" Background="#1E293B" BorderThickness="0" Margin="6" Height="58" CornerRadius="28" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="2" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
             <TextBlock Text="ABC" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Tag="3" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+        <Button Tag="3" Background="#1E293B" BorderThickness="0" Margin="6" Height="58" CornerRadius="28" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="3" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
             <TextBlock Text="DEF" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Tag="4" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+        <Button Tag="4" Background="#1E293B" BorderThickness="0" Margin="6" Height="58" CornerRadius="28" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="4" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
             <TextBlock Text="GHI" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Tag="5" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+        <Button Tag="5" Background="#1E293B" BorderThickness="0" Margin="6" Height="58" CornerRadius="28" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="5" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
             <TextBlock Text="JKL" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Tag="6" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+        <Button Tag="6" Background="#1E293B" BorderThickness="0" Margin="6" Height="58" CornerRadius="28" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="6" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
             <TextBlock Text="MNO" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Tag="7" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+        <Button Tag="7" Background="#1E293B" BorderThickness="0" Margin="6" Height="58" CornerRadius="28" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="7" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
             <TextBlock Text="PQRS" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Tag="8" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+        <Button Tag="8" Background="#1E293B" BorderThickness="0" Margin="6" Height="58" CornerRadius="28" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="8" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
             <TextBlock Text="TUV" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Tag="9" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+        <Button Tag="9" Background="#1E293B" BorderThickness="0" Margin="6" Height="58" CornerRadius="28" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="9" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
             <TextBlock Text="WXYZ" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Tag="*" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+        <Button Tag="*" Background="#1E293B" BorderThickness="0" Margin="6" Height="58" CornerRadius="28" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="*" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
             <TextBlock Text="" FontSize="9" Foreground="#7F96AF" HorizontalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Tag="0" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+        <Button Tag="0" Background="#1E293B" BorderThickness="0" Margin="6" Height="58" CornerRadius="28" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="0" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
             <TextBlock Text="+" FontSize="10" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Tag="#" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+        <Button Tag="#" Background="#1E293B" BorderThickness="0" Margin="6" Height="58" CornerRadius="28" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="#" FontSize="21" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
             <TextBlock Text="" FontSize="9" Foreground="#7F96AF" HorizontalAlignment="Center"/>
@@ -156,7 +156,7 @@
       <Button Grid.Row="3" Name="CallBtn"
               Margin="14,0,14,10"
               Height="48" CornerRadius="24"
-              Background="#22C55E" BorderThickness="0"
+              Background="#10B981" BorderThickness="0"
               HorizontalAlignment="Stretch"
               HorizontalContentAlignment="Center"
               VerticalContentAlignment="Center">
@@ -170,7 +170,7 @@
       </Button>
 
       <!-- Recent activity -->
-      <Border Grid.Row="4" Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1,1,1,0" Padding="12,7,12,5" Height="84">
+      <Border Grid.Row="4" Background="#020617" BorderBrush="#1E293B" BorderThickness="1,1,1,0" Padding="12,7,12,5" Height="84">
         <StackPanel Spacing="6">
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Text="RECENT ACTIVITY" FontSize="10" FontWeight="Bold" LetterSpacing="1.2" Foreground="#7B92AA"/>
@@ -178,7 +178,7 @@
           </Grid>
 
           <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2,0,0">
-            <Border Width="24" Height="24" CornerRadius="12" Background="#152338">
+            <Border Width="24" Height="24" CornerRadius="12" Background="#1E293B">
               <Viewbox Width="12" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Path Fill="#22C55E" Stretch="Uniform" Data="M7,7H17V17H7V7M5,5V19H19V5H5Z"/>
               </Viewbox>
@@ -196,7 +196,7 @@
       </Border>
 
       <!-- Bottom tab bar -->
-      <Border Grid.Row="5" Background="#0B1320" Height="46" BorderBrush="#1B2B3F" BorderThickness="1,1,1,0">
+      <Border Grid.Row="5" Background="#0F172A" Height="46" BorderBrush="#1E293B" BorderThickness="1,1,1,0">
         <Grid ColumnDefinitions="*,*,*,*">
           <StackPanel Grid.Column="0" Spacing="1" HorizontalAlignment="Center" VerticalAlignment="Center">
             <Viewbox Width="13" Height="13">

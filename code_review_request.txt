@@ -1,0 +1,10 @@
+I have modernized the UI design of OrbitalSIP by updating the color palette and refining the layout across all main views.
+
+Key changes:
+- Harmonized the color scheme using a dark navy palette (#0F172A, #1E293B, #020617).
+- Updated the dial pad buttons in ExpandedView.axaml with larger corner radii (28) and removed borders for a cleaner look.
+- Improved contrast in the dialer display and recent activity sections.
+- Updated ActiveCallView.axaml to match the new panel design, including consistent button styling and timer backgrounds.
+- Synchronized the compact views (IncomingView and ActiveCallWidgetView) with the main panel's design language.
+- Refined the SettingsView.axaml with the new theme and a more prominent save button.
+- Verified that the project builds successfully with the design changes.
