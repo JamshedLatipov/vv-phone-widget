@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using OrbitalSIP.Services;
@@ -16,8 +17,6 @@ namespace OrbitalSIP.Views
 
         static LoginView()
         {
-            // The backend is often accessed via IP and may use self-signed certificates.
-            // For this specific internal use case, we ignore certificate validation errors.
             var handler = new HttpClientHandler();
             handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
             _httpClient = new HttpClient(handler);
@@ -40,13 +39,20 @@ namespace OrbitalSIP.Views
             var settingsBtn = this.FindControl<Button>("SettingsBtn");
             if (settingsBtn != null)
                 settingsBtn.Click += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
+
+            var userBox = this.FindControl<TextBox>("UsernameBox");
+            if (userBox != null)
+                userBox.KeyDown += async (s, e) => { if (e.Key == Key.Enter) await AttemptLogin(); };
+
+            var passBox = this.FindControl<TextBox>("PasswordBox");
+            if (passBox != null)
+                passBox.KeyDown += async (s, e) => { if (e.Key == Key.Enter) await AttemptLogin(); };
         }
 
         private async Task AttemptLogin()
         {
             var username = this.FindControl<TextBox>("UsernameBox")?.Text?.Trim();
             var password = this.FindControl<TextBox>("PasswordBox")?.Text?.Trim();
-            var errorLabel = this.FindControl<TextBlock>("ErrorLabel");
 
             if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
             {
@@ -76,24 +82,14 @@ namespace OrbitalSIP.Views
                     var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
                     if (result != null)
                     {
-                        // Update SipSettings with credentials but DON'T SAVE them (persistence is handled by JsonIgnore)
                         settings.Username = result.SipLogin;
                         settings.Password = result.SipPassword;
-
-                        // We also need to update the global SipService settings
                         App.SipService.Start(settings);
-
                         OnLoginSuccess?.Invoke(this, EventArgs.Empty);
                     }
-                    else
-                    {
-                        ShowError("Invalid response from server.");
-                    }
+                    else ShowError("Invalid response from server.");
                 }
-                else
-                {
-                    ShowError($"Login failed: {response.ReasonPhrase}");
-                }
+                else ShowError($"Login failed: {response.ReasonPhrase}");
             }
             catch (Exception ex)
             {
@@ -108,11 +104,7 @@ namespace OrbitalSIP.Views
         private void ShowError(string message)
         {
             var errorLabel = this.FindControl<TextBlock>("ErrorLabel");
-            if (errorLabel != null)
-            {
-                errorLabel.Text = message;
-                errorLabel.IsVisible = true;
-            }
+            if (errorLabel != null) { errorLabel.Text = message; errorLabel.IsVisible = true; }
         }
 
         private void SetBusy(bool busy)
