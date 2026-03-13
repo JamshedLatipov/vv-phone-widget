@@ -374,7 +374,7 @@ namespace OrbitalSIP.Services
 
         private void ApplyAudioState()
         {
-            if (IsMuted || IsOnHold)
+            if (IsMuted)
             {
                 _audioEndPoint?.PauseAudio();
             }
@@ -404,7 +404,6 @@ namespace OrbitalSIP.Services
             {
                 ua.TakeOffHold();
                 IsOnHold = false;
-                ApplyAudioState();
                 SetState(CallState.Active);
                 Log("Call taken off hold.");
             }
@@ -412,7 +411,6 @@ namespace OrbitalSIP.Services
             {
                 ua.PutOnHold();
                 IsOnHold = true;
-                ApplyAudioState();
                 SetState(CallState.OnHold);
                 Log("Call put on hold.");
             }
