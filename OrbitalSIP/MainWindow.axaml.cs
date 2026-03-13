@@ -11,12 +11,16 @@ namespace OrbitalSIP
 {
     public partial class MainWindow : Window
     {
+        private enum PreferredMode { Widget, Panel }
+
         private const double WidgetSize     = 96;
         private const double ExpandedWidth  = 320;
         private const double ExpandedHeight = 560;
         private const double IncomingWidth  = 436;
         private const double IncomingHeight = 132;
         private const double AnimDurationMs = 280;
+
+        private PreferredMode _preferredMode = PreferredMode.Widget;
 
         private int  _anchorX, _anchorY;
         private bool _isExpanded;
@@ -93,6 +97,7 @@ namespace OrbitalSIP
         private void ExpandWidget()
         {
             _isExpanded = true;
+            _preferredMode = PreferredMode.Panel;
             _anchorX = Position.X + (int)Width;
             _anchorY = Position.Y + (int)Height;
             StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight, CreateDialerView());
@@ -101,7 +106,25 @@ namespace OrbitalSIP
         private void CollapseWidget()
         {
             _isExpanded = false;
+            _preferredMode = PreferredMode.Widget;
             StartAnimation(Width, Height, WidgetSize, WidgetSize, new Views.WidgetView());
+        }
+
+        private void ReturnToPreferredMode()
+        {
+            _anchorX = Position.X + (int)Width;
+            _anchorY = Position.Y + (int)Height;
+
+            if (_preferredMode == PreferredMode.Panel)
+            {
+                _isExpanded = true;
+                StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight, CreateDialerView());
+            }
+            else
+            {
+                _isExpanded = false;
+                StartAnimation(Width, Height, WidgetSize, WidgetSize, new Views.WidgetView());
+            }
         }
 
         // ── Dialer ────────────────────────────────────────────────────
@@ -153,7 +176,7 @@ namespace OrbitalSIP
             incoming.OnDecline += (_, __) =>
             {
                 App.SipService.Decline();
-                CollapseWidget();
+                ReturnToPreferredMode();
             };
 
             _anchorX = Position.X + (int)Width;
@@ -185,7 +208,7 @@ namespace OrbitalSIP
             widget.OnHangup += (_, __) =>
             {
                 App.SipService.Hangup();
-                CollapseWidget();
+                ReturnToPreferredMode();
             };
             widget.OnMuteToggled += (_, muted) => App.SipService.SetMuted(muted);
             widget.OnHoldToggled += (_, __) => App.SipService.ToggleHold();
@@ -203,7 +226,17 @@ namespace OrbitalSIP
         {
             var callView = new Views.ActiveCallView(callerId, initialElapsed: elapsed);
             WireActiveCallView(callView);
-            SetMainContent(callView);
+
+            if (Math.Abs(Width - ExpandedWidth) > 1 || Math.Abs(Height - ExpandedHeight) > 1)
+            {
+                _anchorX = Position.X + (int)Width;
+                _anchorY = Position.Y + (int)Height;
+                StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight, callView);
+            }
+            else
+            {
+                SetMainContent(callView);
+            }
         }
 
         private void WireActiveCallView(Views.ActiveCallView callView)
@@ -211,7 +244,7 @@ namespace OrbitalSIP
             callView.OnHangup += (_, __) =>
             {
                 App.SipService.Hangup();
-                CollapseWidget();
+                ReturnToPreferredMode();
             };
             callView.OnMinimizeRequested += (_, __) =>
             {
@@ -229,8 +262,7 @@ namespace OrbitalSIP
         {
             if (state == CallState.Idle && _isExpanded)
             {
-                // Call ended remotely — return to dialer
-                ExpandWidget();
+                ReturnToPreferredMode();
             }
             else if (state == CallState.Active || state == CallState.OnHold)
             {
