@@ -19,11 +19,11 @@
               <Path Fill="#DDE7F3" Stretch="Uniform"
                     Data="M12,12A5,5 0 1,0 7,7A5,5 0 0,0 12,12M12,14C8.13,14 5,17.13 5,21H7C7,18.24 9.24,16 12,16C14.76,16 17,18.24 17,21H19C19,17.13 15.87,14 12,14Z" />
             </Viewbox>
-            <Ellipse Width="9" Height="9" Fill="#22C55E" Stroke="#101D2C" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+            <Ellipse Name="StatusDot" Width="9" Height="9" Fill="#22C55E" Stroke="#101D2C" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
           </Grid>
           <StackPanel Spacing="1" VerticalAlignment="Center">
             <TextBlock Text="Dialer" FontSize="13" FontWeight="Bold" Foreground="#F8FAFC" />
-            <TextBlock Text="Available" FontSize="10" FontWeight="Medium" Foreground="#89A0B8" />
+            <TextBlock Name="StatusLabel" Text="Available" FontSize="10" FontWeight="Medium" Foreground="#89A0B8" />
           </StackPanel>
         </StackPanel>
 

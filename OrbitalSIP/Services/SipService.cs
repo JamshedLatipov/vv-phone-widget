@@ -14,6 +14,7 @@ using SIPSorceryMedia.Windows;
 namespace OrbitalSIP.Services
 {
     public enum CallState { Idle, Ringing, IncomingRinging, Active, OnHold }
+    public enum RegistrationState { Unregistered, Registered, Failed, Paused }
 
     public class SipService : IDisposable
     {
@@ -30,14 +31,13 @@ namespace OrbitalSIP.Services
         private SipSettings                  _settings = new();
 
         // ── Public state ──────────────────────────────────────────────
-        public bool      IsRegistered       { get; private set; }
+        public RegistrationState RegistrationStatus { get; private set; } = RegistrationState.Unregistered;
         public string    LastRegistrationError { get; private set; } = "";
         public CallState State              { get; private set; } = CallState.Idle;
         public string    ActiveCallerId     { get; private set; } = "";
 
         // ── Events ────────────────────────────────────────────────────
-        /// <summary>true = registered, false = unregistered/failed</summary>
-        public event Action<bool>?   RegistrationStateChanged;
+        public event Action<RegistrationState>? RegistrationStatusChanged;
         /// <summary>Fired when registration fails with the server's reason phrase.</summary>
         public event Action<string>? RegistrationError;
         /// <summary>Fired on the SIPSorcery thread — dispatch to UI before touching controls</summary>
@@ -65,6 +65,9 @@ namespace OrbitalSIP.Services
         {
             _settings = settings;
             Log($"Start requested. Server={settings.Server}, Port={settings.Port}, User={settings.Username}, Transport={settings.Transport}.");
+
+            // Set to unregistered until we actually start the agent
+            SetRegistrationStatus(RegistrationState.Unregistered);
 
             // Tear down any existing stack
             _reg?.Stop();
@@ -133,20 +136,24 @@ namespace OrbitalSIP.Services
                 Debug.WriteLine($"[SipService] Registered: {uri}");
                 Log($"Registration successful: {uri}");
                 LastRegistrationError = "";
-                IsRegistered = true;
-                RegistrationStateChanged?.Invoke(true);
+                SetRegistrationStatus(RegistrationState.Registered);
             };
             _reg.RegistrationFailed += (uri, __, reason) =>
             {
                 Debug.WriteLine($"[SipService] Registration FAILED: {uri} — {reason}");
                 Log($"Registration failed: {uri}, reason={reason}");
                 LastRegistrationError = reason ?? "Unknown error";
-                IsRegistered = false;
-                RegistrationStateChanged?.Invoke(false);
+                SetRegistrationStatus(RegistrationState.Failed);
                 RegistrationError?.Invoke(LastRegistrationError);
             };
             _reg.Start();
             Debug.WriteLine("[SipService] Registration agent started.");
+        }
+
+        private void SetRegistrationStatus(RegistrationState status)
+        {
+            RegistrationStatus = status;
+            RegistrationStatusChanged?.Invoke(status);
         }
 
         // ── Outbound call ─────────────────────────────────────────────

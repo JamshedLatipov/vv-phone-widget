@@ -1,8 +1,12 @@
 using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Shapes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
+using Avalonia.Threading;
 using System.Threading.Tasks;
+using OrbitalSIP.Services;
 
 namespace OrbitalSIP.Views
 {
@@ -12,9 +16,44 @@ namespace OrbitalSIP.Views
         {
             InitializeComponent();
             WireButtons();
+
+            // Subscribe to registration state
+            var sip = App.SipService;
+            sip.RegistrationStatusChanged += state =>
+                Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
+
+            UpdateStatus(sip.RegistrationStatus);
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+
+        private void UpdateStatus(RegistrationState state)
+        {
+            var dot = this.FindControl<Ellipse>("StatusDot");
+            var lbl = this.FindControl<TextBlock>("StatusLabel");
+            if (dot == null || lbl == null) return;
+
+            switch (state)
+            {
+                case RegistrationState.Registered:
+                    dot.Fill = new SolidColorBrush(Color.Parse("#10B981")); // Emerald
+                    lbl.Text = "Available";
+                    break;
+                case RegistrationState.Failed:
+                    dot.Fill = new SolidColorBrush(Color.Parse("#EF4444")); // Red
+                    lbl.Text = "Connection Error";
+                    break;
+                case RegistrationState.Paused:
+                    dot.Fill = new SolidColorBrush(Color.Parse("#F59E0B")); // Amber
+                    lbl.Text = "Paused";
+                    break;
+                case RegistrationState.Unregistered:
+                default:
+                    dot.Fill = new SolidColorBrush(Color.Parse("#EF4444")); // Red for Offline
+                    lbl.Text = "Offline";
+                    break;
+            }
+        }
 
         private void WireButtons()
         {
@@ -104,4 +143,3 @@ namespace OrbitalSIP.Views
         public event EventHandler<string>? OutgoingCallRequested;
     }
 }
-
