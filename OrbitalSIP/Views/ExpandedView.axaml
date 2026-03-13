@@ -12,7 +12,7 @@
 
       <!-- Header -->
       <Grid ColumnDefinitions="*,Auto,Auto" Background="#1E293B">
-        <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,10,0,10">
+        <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,16,0,12">
           <Grid Width="34" Height="34">
             <Ellipse Fill="#1D2D42" />
             <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -30,7 +30,7 @@
         <Button Grid.Column="1" Name="SettingsBtn"
                 Width="28" Height="28" CornerRadius="14"
                 Background="#1A2D42" BorderBrush="#2A415B" BorderThickness="1"
-          Padding="0" Margin="0,10,6,10"
+          Padding="0" Margin="0,16,6,12"
                 HorizontalContentAlignment="Center"
                 VerticalContentAlignment="Center">
           <Viewbox Width="14" Height="14">
@@ -42,7 +42,7 @@
         <Button Grid.Column="2" Name="CloseBtn"
                 Width="28" Height="28" CornerRadius="14"
                 Background="#1A2D42" BorderBrush="#2A415B" BorderThickness="1"
-          Padding="0" Margin="0,10,0,10"
+          Padding="0" Margin="0,16,0,12"
                 HorizontalContentAlignment="Center"
                 VerticalContentAlignment="Center">
           <Viewbox Width="12" Height="12">
@@ -154,7 +154,7 @@
 
       <!-- Primary call action -->
       <Button Grid.Row="3" Name="CallBtn"
-              Margin="14,0,14,10"
+              Margin="14,8,14,20"
               Height="48" CornerRadius="24"
               Background="#10B981" BorderThickness="0"
               HorizontalAlignment="Stretch"
@@ -170,7 +170,7 @@
       </Button>
 
       <!-- Recent activity -->
-      <Border Grid.Row="4" Background="#020617" BorderBrush="#1E293B" BorderThickness="1,1,1,0" Padding="12,7,12,5" Height="84">
+      <Border Grid.Row="4" Background="#020617" BorderBrush="#1E293B" BorderThickness="1,1,1,0" Padding="12,7,12,5" MinHeight="84">
         <StackPanel Spacing="6">
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Text="RECENT ACTIVITY" FontSize="10" FontWeight="Bold" LetterSpacing="1.2" Foreground="#7B92AA"/>
