@@ -1,0 +1,8 @@
+I have modernized the UI design and fixed layout issues (clipping and spacing) in OrbitalSIP.
+
+Key improvements:
+- Modernized the theme using a Slate-based color palette (#0F172A, #1E293B, #020617).
+- Fixed clipping of the "Call" button by adjusting its margins and making the "Recent Activity" section flexible.
+- Added "air" (spacing) to the header for a more balanced look.
+- Synchronized design across Expanded, Active Call, Incoming, and Settings views.
+- Verified build success on the target platform.

@@ -2,13 +2,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="OrbitalSIP.Views.ActiveCallView">
-  <Border Width="320" Background="#0B1320" BorderBrush="#1D2A3A" BorderThickness="1" CornerRadius="16" ClipToBounds="True">
+  <Border Width="320" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16" ClipToBounds="True">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Margin="0,0,0,14">
 
-        <Grid ColumnDefinitions="*,Auto" Background="#101D2C" Margin="0,0,0,12">
+        <Grid ColumnDefinitions="*,Auto" Background="#1E293B" Margin="0,0,0,12">
           <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,10,0,10">
-            <Border Width="34" Height="34" CornerRadius="17" Background="#16263B">
+            <Border Width="34" Height="34" CornerRadius="17" Background="#1D2D42">
               <Grid>
                 <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
                   <Path Fill="#E2E8F0" Stretch="Uniform"
@@ -28,9 +28,9 @@
                     Height="28"
                     CornerRadius="14"
                     Padding="10,0"
-                    Background="#152338"
+                    Background="#1E293B"
                     BorderBrush="#294461"
-                    BorderThickness="1"
+                    BorderThickness="0"
                     Foreground="#E2E8F0"
                     FontSize="10"
                     FontWeight="Bold"
@@ -39,9 +39,9 @@
             <Button Name="MinimizeBtn"
                     Width="28" Height="28"
                     CornerRadius="14"
-                    Background="#152338"
+                    Background="#1E293B"
                     BorderBrush="#294461"
-                    BorderThickness="1"
+                    BorderThickness="0"
                     Padding="0"
                     HorizontalContentAlignment="Center"
                     VerticalContentAlignment="Center">
@@ -56,8 +56,8 @@
         <StackPanel Margin="18,0,18,0" Spacing="14">
           <StackPanel HorizontalAlignment="Center" Spacing="10">
             <Grid Width="104" Height="104">
-              <Ellipse Fill="#132131" />
-              <Ellipse Width="94" Height="94" Fill="#1A2D42" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              <Ellipse Fill="#1D2D42" />
+              <Ellipse Width="94" Height="94" Fill="#0F172A" HorizontalAlignment="Center" VerticalAlignment="Center" />
               <Viewbox Width="34" Height="34" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Path Fill="#F8FAFC" Stretch="Uniform"
                       Data="M12,12A5,5 0 1,0 7,7A5,5 0 0,0 12,12M12,14C8.13,14 5,17.13 5,21H7C7,18.24 9.24,16 12,16C14.76,16 17,18.24 17,21H19C19,17.13 15.87,14 12,14Z" />
@@ -70,14 +70,14 @@
               <TextBlock Name="CallerNumberLabel" Text="" FontSize="14" FontWeight="Medium" Foreground="#8FA6BE" HorizontalAlignment="Center" TextAlignment="Center" />
 
               <WrapPanel HorizontalAlignment="Center" ItemHeight="20">
-                <Border Background="#0F1B2A" BorderBrush="#1F3045" BorderThickness="1" CornerRadius="10" Padding="8,3" Margin="0,0,6,6">
+                <Border Background="#1E293B" BorderThickness="0" CornerRadius="10" Padding="8,3" Margin="0,0,6,6">
                   <TextBlock Text="Orbital SIP" FontSize="9" FontWeight="Bold" Foreground="#94A3B8" />
                 </Border>
-                <Border Background="#0F1B2A" BorderBrush="#1F3045" BorderThickness="1" CornerRadius="10" Padding="8,3" Margin="0,0,6,6">
+                <Border Background="#1E293B" BorderThickness="0" CornerRadius="10" Padding="8,3" Margin="0,0,6,6">
                   <TextBlock Text="Secure Call" FontSize="9" FontWeight="Bold" Foreground="#94A3B8" />
                 </Border>
-                <Border Background="#143154" BorderBrush="#285A94" BorderThickness="1" CornerRadius="10" Padding="8,3" Margin="0,0,0,6">
-                  <TextBlock Text="Live" FontSize="9" FontWeight="Bold" Foreground="#60A5FA" />
+                <Border Background="#064E3B" BorderThickness="0" CornerRadius="10" Padding="8,3" Margin="0,0,0,6">
+                  <TextBlock Text="Live" FontSize="9" FontWeight="Bold" Foreground="#10B981" />
                 </Border>
               </WrapPanel>
 
@@ -88,7 +88,7 @@
             </StackPanel>
           </StackPanel>
 
-          <Border Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="16" Padding="18,14">
+          <Border Background="#020617" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16" Padding="18,14">
             <Grid ColumnDefinitions="*,Auto,*">
               <StackPanel Grid.Column="0" Spacing="2" HorizontalAlignment="Center">
                 <TextBlock Name="TimerMinutesLabel" Text="00" FontSize="30" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" />
@@ -136,11 +136,11 @@
           </StackPanel>
 
           <UniformGrid Columns="4" Rows="1" Margin="0,2,0,0">
-            <Border Margin="4" Background="#101A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="14" Padding="10,10,10,8">
+            <Border Margin="4" Background="#1E293B" BorderThickness="0" CornerRadius="14" Padding="10,10,10,8">
               <StackPanel Spacing="8" HorizontalAlignment="Center">
                 <Button Name="MuteBtn"
                         Width="42" Height="42" CornerRadius="21"
-                        Background="#1A2D42"
+                        Background="Transparent"
                         BorderThickness="0"
                         HorizontalAlignment="Center"
                         HorizontalContentAlignment="Center"
@@ -154,11 +154,11 @@
               </StackPanel>
             </Border>
 
-            <Border Margin="4" Background="#101A28" BorderBrush="#2C4D7A" BorderThickness="1" CornerRadius="14" Padding="10,10,10,8">
+            <Border Margin="4" Background="#1E293B" BorderThickness="0" CornerRadius="14" Padding="10,10,10,8">
               <StackPanel Spacing="8" HorizontalAlignment="Center">
                 <Button Name="HoldBtn"
                         Width="42" Height="42" CornerRadius="21"
-                        Background="#1E4270"
+                        Background="Transparent"
                         BorderThickness="0"
                         HorizontalAlignment="Center"
                         HorizontalContentAlignment="Center"
@@ -172,11 +172,11 @@
               </StackPanel>
             </Border>
 
-            <Border Margin="4" Background="#101A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="14" Padding="10,10,10,8">
+            <Border Margin="4" Background="#1E293B" BorderThickness="0" CornerRadius="14" Padding="10,10,10,8">
               <StackPanel Spacing="8" HorizontalAlignment="Center">
                 <Button Name="KeypadBtn"
                         Width="42" Height="42" CornerRadius="21"
-                        Background="#1A2D42"
+                        Background="Transparent"
                         BorderThickness="0"
                         HorizontalAlignment="Center"
                         HorizontalContentAlignment="Center"
@@ -190,11 +190,11 @@
               </StackPanel>
             </Border>
 
-            <Border Margin="4" Background="#101A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="14" Padding="10,10,10,8">
+            <Border Margin="4" Background="#1E293B" BorderThickness="0" CornerRadius="14" Padding="10,10,10,8">
               <StackPanel Spacing="8" HorizontalAlignment="Center">
                 <Button Name="TransferBtn"
                         Width="42" Height="42" CornerRadius="21"
-                        Background="#1A2D42"
+                        Background="Transparent"
                         BorderThickness="0"
                         HorizontalAlignment="Center"
                         HorizontalContentAlignment="Center"
@@ -243,7 +243,7 @@
           </Border>
 
           <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
-            <Border Grid.Column="0" Margin="0,0,6,0" Background="#0E2440" BorderBrush="#285A94" BorderThickness="1" CornerRadius="14" Padding="12,12">
+            <Border Grid.Column="0" Margin="0,0,6,0" Background="#1E293B" BorderThickness="0" CornerRadius="14" Padding="12,12">
               <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                 <Viewbox Width="18" Height="18" VerticalAlignment="Center">
                   <Path Fill="#60A5FA" Stretch="Uniform"
@@ -271,7 +271,7 @@
             </Button>
           </Grid>
 
-          <Border Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="14" Padding="12,10">
+          <Border Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="14" Padding="12,10">
             <Grid ColumnDefinitions="*,*">
               <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                 <Viewbox Width="14" Height="14" VerticalAlignment="Center">

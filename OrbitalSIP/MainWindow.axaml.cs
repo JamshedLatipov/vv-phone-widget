@@ -15,7 +15,7 @@ namespace OrbitalSIP
 
         private const double WidgetSize     = 96;
         private const double ExpandedWidth  = 320;
-        private const double ExpandedHeight = 560;
+        private const double ExpandedHeight = 600;
         private const double IncomingWidth  = 436;
         private const double IncomingHeight = 132;
         private const double AnimDurationMs = 280;
