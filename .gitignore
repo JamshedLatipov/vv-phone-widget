@@ -1,0 +1,6 @@
+.vs/*
+.vscode/*
+OrbitalSIP/bin/*
+OrbitalSIP/obj/*
+dist/*
+publish/*

@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="OrbitalSIP.Views.ExpandedView">
+  <Border Width="320"
+          Background="#0B1320"
+          BorderBrush="#1D2A3A"
+          BorderThickness="1"
+          CornerRadius="16"
+          ClipToBounds="True">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+
+      <!-- Header -->
+      <Grid ColumnDefinitions="*,Auto,Auto" Background="#101D2C" Margin="0,0,0,8">
+        <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,10,0,10">
+          <Grid Width="34" Height="34">
+            <Ellipse Fill="#1D2D42" />
+            <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Path Fill="#DDE7F3" Stretch="Uniform"
+                    Data="M12,12A5,5 0 1,0 7,7A5,5 0 0,0 12,12M12,14C8.13,14 5,17.13 5,21H7C7,18.24 9.24,16 12,16C14.76,16 17,18.24 17,21H19C19,17.13 15.87,14 12,14Z" />
+            </Viewbox>
+            <Ellipse Width="9" Height="9" Fill="#22C55E" Stroke="#101D2C" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+          </Grid>
+          <StackPanel Spacing="1" VerticalAlignment="Center">
+            <TextBlock Text="Dialer" FontSize="13" FontWeight="Bold" Foreground="#F8FAFC" />
+            <TextBlock Text="Available" FontSize="10" FontWeight="Medium" Foreground="#89A0B8" />
+          </StackPanel>
+        </StackPanel>
+
+        <Button Grid.Column="1" Name="SettingsBtn"
+                Width="28" Height="28" CornerRadius="14"
+                Background="#1A2D42" BorderBrush="#2A415B" BorderThickness="1"
+          Padding="0" Margin="0,10,6,10"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center">
+          <Viewbox Width="14" Height="14">
+            <Path Fill="#9AB0C7" Stretch="Uniform"
+                  Data="M12,8.8A3.2,3.2 0 0,1 15.2,12A3.2,3.2 0 0,1 12,15.2A3.2,3.2 0 0,1 8.8,12A3.2,3.2 0 0,1 12,8.8M12,2L14.09,4.17C14.73,4.33 15.34,4.58 15.89,4.92L18.8,4.04L19.96,6.96L17.8,9.08C17.87,9.38 17.91,9.69 17.91,10C17.91,10.31 17.87,10.62 17.8,10.92L19.96,13.04L18.8,15.96L15.89,15.08C15.34,15.42 14.73,15.67 14.09,15.83L12,18L9.91,15.83C9.27,15.67 8.66,15.42 8.11,15.08L5.2,15.96L4.04,13.04L6.2,10.92C6.13,10.62 6.09,10.31 6.09,10C6.09,9.69 6.13,9.38 6.2,9.08L4.04,6.96L5.2,4.04L8.11,4.92C8.66,4.58 9.27,4.33 9.91,4.17L12,2Z" />
+          </Viewbox>
+        </Button>
+
+        <Button Grid.Column="2" Name="CloseBtn"
+                Width="28" Height="28" CornerRadius="14"
+                Background="#1A2D42" BorderBrush="#2A415B" BorderThickness="1"
+          Padding="0" Margin="0,10,0,10"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center">
+          <Viewbox Width="12" Height="12">
+            <Path Fill="#9AB0C7" Stretch="Uniform"
+                  Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
+          </Viewbox>
+        </Button>
+      </Grid>
+
+      <!-- Dialer display -->
+      <Grid Grid.Row="1" Margin="14,0,14,10" ColumnDefinitions="*,Auto,Auto">
+        <Border Grid.Column="0" Background="#0F1B2A" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="12" Padding="12,9">
+          <TextBlock Name="DisplayText" Text="" FontSize="22" FontWeight="SemiBold"
+                     Foreground="#F8FAFC" HorizontalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" LetterSpacing="1.5" MinHeight="30" />
+        </Border>
+        <Button Grid.Column="1" Name="BackspaceBtn"
+                Width="34" Height="34" Margin="8,0,0,0" CornerRadius="17"
+                Background="#151F2E" BorderBrush="#28374A" BorderThickness="1"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center">
+          <Viewbox Width="16" Height="16">
+            <Path Fill="#9AB0C7" Stretch="Uniform"
+                  Data="M22,3H7L1,12L7,21H22C23.11,21 24,20.11 24,19V5C24,3.89 23.11,3 22,3M19,16.59L17.59,18L13.5,13.91L9.41,18L8,16.59L12.09,12.5L8,8.41L9.41,7L13.5,11.09L17.59,7L19,8.41L14.91,12.5L19,16.59Z" />
+          </Viewbox>
+        </Button>
+        <Button Grid.Column="2" Name="CopyBtn"
+                Width="46" Height="34" Margin="6,0,0,0" CornerRadius="17"
+                Background="#151F2E" BorderBrush="#28374A" BorderThickness="1"
+                Foreground="#DDE7F3" FontSize="10" FontWeight="Bold"
+                Content="Copy" />
+      </Grid>
+
+      <!-- Numeric keypad -->
+      <UniformGrid Grid.Row="2" Name="DialPad" Rows="4" Columns="3" Margin="14,2,14,10">
+        <Button Tag="1" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="1" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
+            <TextBlock Text="" FontSize="9" Foreground="#7F96AF" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button Tag="2" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="2" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
+            <TextBlock Text="ABC" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button Tag="3" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="3" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
+            <TextBlock Text="DEF" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button Tag="4" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="4" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
+            <TextBlock Text="GHI" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button Tag="5" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="5" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
+            <TextBlock Text="JKL" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button Tag="6" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="6" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
+            <TextBlock Text="MNO" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button Tag="7" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="7" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
+            <TextBlock Text="PQRS" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button Tag="8" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="8" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
+            <TextBlock Text="TUV" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button Tag="9" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="9" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
+            <TextBlock Text="WXYZ" FontSize="9" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button Tag="*" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="*" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
+            <TextBlock Text="" FontSize="9" Foreground="#7F96AF" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button Tag="0" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="0" FontSize="22" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
+            <TextBlock Text="+" FontSize="10" FontWeight="Bold" Foreground="#7F96AF" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button Tag="#" Background="#14253A" BorderBrush="#284766" BorderThickness="1" Margin="6" Height="58" CornerRadius="18" Padding="0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="#" FontSize="21" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
+            <TextBlock Text="" FontSize="9" Foreground="#7F96AF" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+      </UniformGrid>
+
+      <!-- Primary call action -->
+      <Button Grid.Row="3" Name="CallBtn"
+              Margin="14,0,14,10"
+              Height="48" CornerRadius="24"
+              Background="#22C55E" BorderThickness="0"
+              HorizontalAlignment="Stretch"
+              HorizontalContentAlignment="Center"
+              VerticalContentAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Viewbox Width="18" Height="18">
+            <Path Fill="#FFFFFF" Stretch="Uniform"
+                  Data="M6.62,10.79C8.06,13.62 10.38,15.93 13.21,17.38L15.41,15.18C15.68,14.91 16.08,14.82 16.43,14.94C17.55,15.31 18.76,15.51 20,15.51C20.55,15.51 21,15.96 21,16.51V20C21,20.55 20.55,21 20,21C10.61,21 3,13.39 3,4C3,3.45 3.45,3 4,3H7.5C8.05,3 8.5,3.45 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
+          </Viewbox>
+          <TextBlock Text="Call" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+        </StackPanel>
+      </Button>
+
+      <!-- Recent activity -->
+      <Border Grid.Row="4" Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1,1,1,0" Padding="12,7,12,5" Height="84">
+        <StackPanel Spacing="6">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="RECENT ACTIVITY" FontSize="10" FontWeight="Bold" LetterSpacing="1.2" Foreground="#7B92AA"/>
+            <TextBlock Grid.Column="1" Text="View all" FontSize="10" FontWeight="SemiBold" Foreground="#60A5FA"/>
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2,0,0">
+            <Border Width="24" Height="24" CornerRadius="12" Background="#152338">
+              <Viewbox Width="12" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Path Fill="#22C55E" Stretch="Uniform" Data="M7,7H17V17H7V7M5,5V19H19V5H5Z"/>
+              </Viewbox>
+            </Border>
+            <StackPanel Grid.Column="1" Spacing="0" Margin="8,0,0,0">
+              <TextBlock Text="Alice Smith" FontSize="11" FontWeight="SemiBold" Foreground="#E2E8F0"/>
+              <TextBlock Text="Today, 10:45 AM" FontSize="9" Foreground="#6E859D"/>
+            </StackPanel>
+            <Viewbox Grid.Column="2" Width="14" Height="14" VerticalAlignment="Center">
+              <Path Fill="#60A5FA" Stretch="Uniform"
+                    Data="M6.62,10.79C8.06,13.62 10.38,15.93 13.21,17.38L15.41,15.18C15.68,14.91 16.08,14.82 16.43,14.94C17.55,15.31 18.76,15.51 20,15.51C20.55,15.51 21,15.96 21,16.51V20C21,20.55 20.55,21 20,21C10.61,21 3,13.39 3,4C3,3.45 3.45,3 4,3H7.5C8.05,3 8.5,3.45 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
+            </Viewbox>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- Bottom tab bar -->
+      <Border Grid.Row="5" Background="#0B1320" Height="46" BorderBrush="#1B2B3F" BorderThickness="1,1,1,0">
+        <Grid ColumnDefinitions="*,*,*,*">
+          <StackPanel Grid.Column="0" Spacing="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Viewbox Width="13" Height="13">
+              <Path Fill="#60A5FA" Stretch="Uniform" Data="M5,8H9V12H5V8M11,8H15V12H11V8M5,14H9V18H5V14M11,14H15V18H11V14Z"/>
+            </Viewbox>
+            <TextBlock Text="Dialer" FontSize="9" FontWeight="Bold" Foreground="#60A5FA"/>
+          </StackPanel>
+          <StackPanel Grid.Column="1" Spacing="1" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.65">
+            <Viewbox Width="13" Height="13">
+              <Path Fill="#8AA0B8" Stretch="Uniform" Data="M13,3A9,9 0 1,0 22,12H20A7,7 0 1,1 13,5V3M12,7V13L17,16L18,14.3L14,12V7H12Z"/>
+            </Viewbox>
+            <TextBlock Text="Recents" FontSize="9" FontWeight="Bold" Foreground="#8AA0B8"/>
+          </StackPanel>
+          <StackPanel Grid.Column="2" Spacing="1" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.65">
+            <Viewbox Width="13" Height="13">
+              <Path Fill="#8AA0B8" Stretch="Uniform" Data="M16,11C17.66,11 19,9.66 19,8C19,6.34 17.66,5 16,5C14.34,5 13,6.34 13,8C13,9.66 14.34,11 16,11M8,11C9.66,11 11,9.66 11,8C11,6.34 9.66,5 8,5C6.34,5 5,6.34 5,8C5,9.66 6.34,11 8,11M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M16,13C15.71,13 15.38,13 15.03,13.03C16.19,13.87 17,15.07 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13Z"/>
+            </Viewbox>
+            <TextBlock Text="Contacts" FontSize="9" FontWeight="Bold" Foreground="#8AA0B8"/>
+          </StackPanel>
+          <StackPanel Grid.Column="3" Spacing="1" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.65">
+            <Viewbox Width="13" Height="13">
+              <Path Fill="#8AA0B8" Stretch="Uniform" Data="M12,8.8A3.2,3.2 0 0,1 15.2,12A3.2,3.2 0 0,1 12,15.2A3.2,3.2 0 0,1 8.8,12A3.2,3.2 0 0,1 12,8.8M12,2L14.09,4.17C14.73,4.33 15.34,4.58 15.89,4.92L18.8,4.04L19.96,6.96L17.8,9.08C17.87,9.38 17.91,9.69 17.91,10C17.91,10.31 17.87,10.62 17.8,10.92L19.96,13.04L18.8,15.96L15.89,15.08C15.34,15.42 14.73,15.67 14.09,15.83L12,18L9.91,15.83C9.27,15.67 8.66,15.42 8.11,15.08L5.2,15.96L4.04,13.04L6.2,10.92C6.13,10.62 6.09,10.31 6.09,10C6.09,9.69 6.13,9.38 6.2,9.08L4.04,6.96L5.2,4.04L8.11,4.92C8.66,4.58 9.27,4.33 9.91,4.17L12,2Z"/>
+            </Viewbox>
+            <TextBlock Text="Settings" FontSize="9" FontWeight="Bold" Foreground="#8AA0B8"/>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+    </Grid>
+  </Border>
+</UserControl>

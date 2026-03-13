@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="OrbitalSIP.Views.SettingsView">
+  <Border Background="#0A1929" CornerRadius="16" Padding="20" Width="280">
+    <Grid RowDefinitions="Auto,*,Auto">
+
+      <!-- Header -->
+      <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,20">
+        <TextBlock Text="SIP Settings" FontSize="15" FontWeight="SemiBold"
+                   Foreground="#FFFFFF" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Name="BackBtn"
+                Width="28" Height="28" CornerRadius="14"
+                Background="#1A2D42" Foreground="#8FA6BE"
+                Padding="0"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center">
+          <Viewbox Width="12" Height="12">
+            <Path Fill="#8FA6BE" Stretch="Uniform"
+                  Data="M20,11H7.83L13.42,5.41L12,4L4,12L12,20L13.41,18.59L7.83,13H20V11Z" />
+          </Viewbox>
+        </Button>
+      </Grid>
+
+      <!-- Fields -->
+      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="14">
+
+          <!-- Server -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="SIP Server" FontSize="11" Foreground="#5F7A96" />
+            <Border Background="#0F2540" CornerRadius="8">
+              <TextBox Name="ServerBox"
+                       Background="Transparent" Foreground="#FFFFFF"
+                       BorderThickness="0" Padding="12,10"
+                       Watermark="sip.example.com"
+                       CaretBrush="#17E0A0" />
+            </Border>
+          </StackPanel>
+
+          <!-- Port -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="Port" FontSize="11" Foreground="#5F7A96" />
+            <Border Background="#0F2540" CornerRadius="8">
+              <TextBox Name="PortBox"
+                       Background="Transparent" Foreground="#FFFFFF"
+                       BorderThickness="0" Padding="12,10"
+                       Watermark="5060"
+                       CaretBrush="#17E0A0" />
+            </Border>
+          </StackPanel>
+
+          <!-- Username -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="Username" FontSize="11" Foreground="#5F7A96" />
+            <Border Background="#0F2540" CornerRadius="8">
+              <TextBox Name="UsernameBox"
+                       Background="Transparent" Foreground="#FFFFFF"
+                       BorderThickness="0" Padding="12,10"
+                       Watermark="1001"
+                       CaretBrush="#17E0A0" />
+            </Border>
+          </StackPanel>
+
+          <!-- Display Name -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="Display Name" FontSize="11" Foreground="#5F7A96" />
+            <Border Background="#0F2540" CornerRadius="8">
+              <TextBox Name="DisplayNameBox"
+                       Background="Transparent" Foreground="#FFFFFF"
+                       BorderThickness="0" Padding="12,10"
+                       Watermark="John Doe"
+                       CaretBrush="#17E0A0" />
+            </Border>
+          </StackPanel>
+
+          <!-- Password -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="Password" FontSize="11" Foreground="#5F7A96" />
+            <Border Background="#0F2540" CornerRadius="8">
+              <TextBox Name="PasswordBox"
+                       Background="Transparent" Foreground="#FFFFFF"
+                       BorderThickness="0" Padding="12,10"
+                       Watermark="••••••••"
+                       PasswordChar="●"
+                       CaretBrush="#17E0A0" />
+            </Border>
+          </StackPanel>
+
+          <!-- Transport -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="Transport" FontSize="11" Foreground="#5F7A96" />
+            <Border Background="#0F2540" CornerRadius="8" Padding="4,2">
+              <ComboBox Name="TransportBox"
+                        Background="Transparent" Foreground="#FFFFFF"
+                        BorderThickness="0" Padding="8,6"
+                        HorizontalAlignment="Stretch">
+                <ComboBoxItem Content="UDP" />
+                <ComboBoxItem Content="TCP" />
+                <ComboBoxItem Content="TLS" />
+              </ComboBox>
+            </Border>
+          </StackPanel>
+
+          <!-- Divider -->
+          <Border Height="1" Background="#1A2D42" Margin="0,4,0,4" />
+
+          <!-- Speaker -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="Speaker / Output" FontSize="11" Foreground="#5F7A96" />
+            <Border Background="#0F2540" CornerRadius="8" Padding="4,2">
+              <ComboBox Name="SpeakerBox"
+                        Background="Transparent" Foreground="#FFFFFF"
+                        BorderThickness="0" Padding="8,6"
+                        HorizontalAlignment="Stretch" />
+            </Border>
+          </StackPanel>
+
+          <!-- Microphone -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="Microphone / Input" FontSize="11" Foreground="#5F7A96" />
+            <Border Background="#0F2540" CornerRadius="8" Padding="4,2">
+              <ComboBox Name="MicBox"
+                        Background="Transparent" Foreground="#FFFFFF"
+                        BorderThickness="0" Padding="8,6"
+                        HorizontalAlignment="Stretch" />
+            </Border>
+          </StackPanel>
+
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Save button + status -->
+      <StackPanel Grid.Row="2" Margin="0,16,0,0" Spacing="8">
+        <Button Name="SaveBtn"
+                Height="44" CornerRadius="10"
+                Background="#17E0A0" Foreground="#001219"
+                FontWeight="SemiBold" FontSize="14"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Center"
+                Content="Save" />
+        <TextBlock Name="StatusLabel" Text="" FontSize="11"
+                   Foreground="#FF6B6B" TextWrapping="Wrap"
+                   HorizontalAlignment="Center" IsVisible="False" />
+      </StackPanel>
+
+    </Grid>
+  </Border>
+</UserControl>
