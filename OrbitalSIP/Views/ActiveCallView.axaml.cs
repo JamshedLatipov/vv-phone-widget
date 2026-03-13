@@ -14,6 +14,7 @@ namespace OrbitalSIP.Views
         private DispatcherTimer? _timer;
         private TimeSpan _elapsed = TimeSpan.Zero;
         private bool _muted;
+        private bool _onHold;
 
         public ActiveCallView()
             : this("Unknown", false)
@@ -25,9 +26,11 @@ namespace OrbitalSIP.Views
             InitializeComponent();
 
             var callerLabel  = this.FindControl<TextBlock>("CallerLabel");
+            var callerNumberLabel = this.FindControl<TextBlock>("CallerNumberLabel");
             var statusLabel  = this.FindControl<TextBlock>("StatusLabel");
             if (callerLabel != null) callerLabel.Text = callerId;
-            if (statusLabel != null) statusLabel.Text = isOutgoing ? "CALLING…" : "CONNECTED";
+            if (callerNumberLabel != null) callerNumberLabel.Text = callerId;
+            if (statusLabel != null) statusLabel.Text = isOutgoing ? "CALLING" : "IN CALL";
 
             WireButtons();
             StartTimer();
@@ -49,16 +52,27 @@ namespace OrbitalSIP.Views
         {
             _elapsed = _elapsed.Add(TimeSpan.FromSeconds(1));
             var label = this.FindControl<TextBlock>("TimerLabel");
+            var minutesLabel = this.FindControl<TextBlock>("TimerMinutesLabel");
+            var secondsLabel = this.FindControl<TextBlock>("TimerSecondsLabel");
+            var totalMinutes = (int)_elapsed.TotalMinutes;
+            var seconds = _elapsed.Seconds;
+
             if (label != null)
                 label.Text = _elapsed.TotalHours >= 1
                     ? _elapsed.ToString(@"h\:mm\:ss")
                     : _elapsed.ToString(@"mm\:ss");
+
+            if (minutesLabel != null)
+                minutesLabel.Text = totalMinutes.ToString("00");
+
+            if (secondsLabel != null)
+                secondsLabel.Text = seconds.ToString("00");
         }
 
         public void MarkConnected()
         {
             var label = this.FindControl<TextBlock>("StatusLabel");
-            if (label != null) label.Text = "CONNECTED";
+            if (label != null) label.Text = "IN CALL";
         }
 
         // ── Buttons ───────────────────────────────────────────────────
@@ -75,6 +89,18 @@ namespace OrbitalSIP.Views
             var mute = this.FindControl<Button>("MuteBtn");
             if (mute != null)
                 mute.Click += (_, __) => ToggleMute();
+
+            var hold = this.FindControl<Button>("HoldBtn");
+            if (hold != null)
+                hold.Click += (_, __) => ToggleHold();
+
+            var transfer = this.FindControl<Button>("TransferBtn");
+            if (transfer != null)
+                transfer.Click += (_, __) => ShowTransferPanel();
+
+            var transferConfirm = this.FindControl<Button>("TransferConfirmBtn");
+            if (transferConfirm != null)
+                transferConfirm.Click += (_, __) => ConfirmTransfer();
 
             var keypad = this.FindControl<Button>("KeypadBtn");
             if (keypad != null)
@@ -118,19 +144,51 @@ namespace OrbitalSIP.Views
             _muted = !_muted;
             OnMuteToggled?.Invoke(this, _muted);
 
-            // Update icon colour to signal muted state
             var icon  = this.FindControl<AvaloniaPath>("MuteIcon");
             var label = this.FindControl<TextBlock>("MuteLabel");
             var btn   = this.FindControl<Button>("MuteBtn");
 
-            if (icon  != null) icon.Fill  = new SolidColorBrush(_muted ? Color.Parse("#FF4444") : Color.Parse("#8FA6BE"));
+            if (icon  != null) icon.Fill  = new SolidColorBrush(_muted ? Color.Parse("#FFFFFF") : Color.Parse("#DDE7F3"));
             if (label != null) label.Text  = _muted ? "Unmute" : "Mute";
-            if (btn   != null) btn.Background = new SolidColorBrush(_muted ? Color.Parse("#3A1010") : Color.Parse("#1A2D42"));
+            if (btn   != null) btn.Background = new SolidColorBrush(_muted ? Color.Parse("#B91C1C") : Color.Parse("#1A2D42"));
+        }
+
+        private void ToggleHold()
+        {
+            _onHold = !_onHold;
+            OnHoldToggled?.Invoke(this, _onHold);
+
+            var icon  = this.FindControl<AvaloniaPath>("HoldIcon");
+            var label = this.FindControl<TextBlock>("HoldLabel");
+            var btn   = this.FindControl<Button>("HoldBtn");
+
+            if (label != null) label.Text = _onHold ? "Resume" : "Hold";
+            if (btn   != null) btn.Background = new SolidColorBrush(_onHold ? Color.Parse("#B91C1C") : Color.Parse("#1E4270"));
+        }
+
+        private void ShowTransferPanel()
+        {
+            var panel = this.FindControl<Border>("TransferPanel");
+            if (panel != null) panel.IsVisible = !panel.IsVisible;
+        }
+
+        private void ConfirmTransfer()
+        {
+            var box    = this.FindControl<TextBox>("TransferNumberBox");
+            var number = box?.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(number)) return;
+
+            var panel = this.FindControl<Border>("TransferPanel");
+            if (panel != null) panel.IsVisible = false;
+
+            OnTransferRequested?.Invoke(this, number);
         }
 
         // ── Events ────────────────────────────────────────────────────
-        public event EventHandler?       OnHangup;
-        public event EventHandler<bool>? OnMuteToggled;   // arg = isMuted
-        public event EventHandler?       OnKeypadRequested;
+        public event EventHandler?        OnHangup;
+        public event EventHandler<bool>?  OnMuteToggled;      // arg = isMuted
+        public event EventHandler<bool>?  OnHoldToggled;      // arg = isOnHold
+        public event EventHandler<string>? OnTransferRequested; // arg = destination
+        public event EventHandler?        OnKeypadRequested;
     }
 }

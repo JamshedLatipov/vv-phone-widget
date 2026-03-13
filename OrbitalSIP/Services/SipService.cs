@@ -376,6 +376,59 @@ namespace OrbitalSIP.Services
             else       _audioEndPoint?.ResumeAudio();
         }
 
+        public bool IsOnHold { get; private set; }
+
+        public void ToggleHold()
+        {
+            SIPUserAgent? ua;
+            lock (_lock) { ua = _activeCall; }
+            if (ua == null || State != CallState.Active) return;
+
+            if (IsOnHold)
+            {
+                ua.TakeOffHold();
+                _audioEndPoint?.ResumeAudio();
+                IsOnHold = false;
+                Log("Call taken off hold.");
+            }
+            else
+            {
+                ua.PutOnHold();
+                _audioEndPoint?.PauseAudio();
+                IsOnHold = true;
+                Log("Call put on hold.");
+            }
+        }
+
+        public async Task<bool> BlindTransferAsync(string destination)
+        {
+            SIPUserAgent? ua;
+            lock (_lock) { ua = _activeCall; }
+            if (ua == null || State != CallState.Active) return false;
+
+            var dest = destination.Contains('@')
+                ? destination
+                : $"sip:{destination}@{_settings.Server}";
+
+            var destUri = SIPURI.ParseSIPURIRelaxed(dest);
+            if (destUri == null)
+            {
+                Log($"BlindTransfer: could not parse destination '{destination}'.");
+                return false;
+            }
+
+            Log($"Blind transfer to {destUri}.");
+            try
+            {
+                return await ua.BlindTransfer(destUri, TimeSpan.FromSeconds(5), CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Log($"BlindTransfer exception: {ex}");
+                return false;
+            }
+        }
+
         // ── Audio helpers ─────────────────────────────────────────────
         private bool TryCreateAudio()
         {

@@ -184,6 +184,9 @@ namespace OrbitalSIP
                 CollapseWidget();
             };
             callView.OnMuteToggled += (_, muted) => App.SipService.SetMuted(muted);
+            callView.OnHoldToggled += (_, __) => App.SipService.ToggleHold();
+            callView.OnTransferRequested += async (_, dest) =>
+                await App.SipService.BlindTransferAsync(dest);
             callView.OnKeypadRequested += (_, __) => ShowDialer();
         }
 

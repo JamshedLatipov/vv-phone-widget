@@ -2,111 +2,283 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="OrbitalSIP.Views.ActiveCallView">
-  <Border Background="#0A1929" CornerRadius="16" Padding="20" Width="280">
-    <StackPanel>
+  <Border Width="320" Background="#0B1320" BorderBrush="#1D2A3A" BorderThickness="1" CornerRadius="16" ClipToBounds="True">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="0,0,0,14">
 
-      <!-- Status label -->
-      <TextBlock Name="StatusLabel" Text="CONNECTED"
-                 FontSize="10" FontWeight="Bold" LetterSpacing="2"
-                 Foreground="#17E0A0" HorizontalAlignment="Center" />
+        <Grid ColumnDefinitions="*,Auto" Background="#101D2C" Margin="0,0,0,12">
+          <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,10,0,10">
+            <Border Width="34" Height="34" CornerRadius="17" Background="#16263B">
+              <Grid>
+                <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <Path Fill="#E2E8F0" Stretch="Uniform"
+                        Data="M12,12A5,5 0 1,0 7,7A5,5 0 0,0 12,12M12,14C8.13,14 5,17.13 5,21H7C7,18.24 9.24,16 12,16C14.76,16 17,18.24 17,21H19C19,17.13 15.87,14 12,14Z" />
+                </Viewbox>
+              </Grid>
+            </Border>
+            <StackPanel Spacing="1" VerticalAlignment="Center">
+              <TextBlock Text="Orbital SIP" FontSize="13" FontWeight="Bold" Foreground="#F8FAFC" />
+              <TextBlock Text="Active session" FontSize="10" FontWeight="Medium" Foreground="#89A0B8" />
+            </StackPanel>
+          </StackPanel>
 
-      <!-- Avatar circle -->
-      <Ellipse Width="72" Height="72" Margin="0,20,0,0" HorizontalAlignment="Center">
-        <Ellipse.Fill>
-          <RadialGradientBrush GradientOrigin="0.5,0.4">
-            <GradientStop Color="#1A3050" Offset="0" />
-            <GradientStop Color="#0F2540" Offset="1" />
-          </RadialGradientBrush>
-        </Ellipse.Fill>
-      </Ellipse>
+          <Button Name="CopyCallerBtn"
+                  Grid.Column="1"
+                  MinWidth="52"
+                  Height="28"
+                  Margin="0,10,14,10"
+                  CornerRadius="14"
+                  Padding="10,0"
+                  Background="#152338"
+                  BorderBrush="#294461"
+                  BorderThickness="1"
+                  Foreground="#E2E8F0"
+                  FontSize="10"
+                  FontWeight="Bold"
+                  Content="Copy"
+                  VerticalAlignment="Center" />
+        </Grid>
 
-      <!-- Caller ID -->
-      <Grid ColumnDefinitions="Auto,Auto" HorizontalAlignment="Center" Margin="0,14,0,0">
-        <TextBlock Name="CallerLabel" Text=""
-                   Grid.Column="0"
-                   FontSize="22" FontWeight="Medium" Foreground="#FFFFFF"
-                   VerticalAlignment="Center" />
-        <Button Name="CopyCallerBtn"
-                Grid.Column="1"
-                MinWidth="56"
-                Height="24"
-                Margin="8,0,0,0"
-                CornerRadius="12"
-                Padding="10,0"
-                Background="#1A2D42"
-                BorderBrush="#294461"
-                BorderThickness="1"
-                Foreground="#E2E8F0"
-                FontSize="10"
-                FontWeight="Bold"
-                Content="Copy"
-                VerticalAlignment="Center" />
-      </Grid>
+        <StackPanel Margin="18,0,18,0" Spacing="14">
+          <StackPanel HorizontalAlignment="Center" Spacing="10">
+            <Grid Width="104" Height="104">
+              <Ellipse Fill="#132131" />
+              <Ellipse Width="94" Height="94" Fill="#1A2D42" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              <Viewbox Width="34" Height="34" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Path Fill="#F8FAFC" Stretch="Uniform"
+                      Data="M12,12A5,5 0 1,0 7,7A5,5 0 0,0 12,12M12,14C8.13,14 5,17.13 5,21H7C7,18.24 9.24,16 12,16C14.76,16 17,18.24 17,21H19C19,17.13 15.87,14 12,14Z" />
+              </Viewbox>
+              <Ellipse Width="16" Height="16" Fill="#22C55E" Stroke="#0B1320" StrokeThickness="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+            </Grid>
 
-      <!-- Duration timer -->
-      <TextBlock Name="TimerLabel" Text="00:00"
-                 FontSize="13" Foreground="#5F7A96"
-                 HorizontalAlignment="Center" Margin="0,6,0,0" />
+            <StackPanel Spacing="4" HorizontalAlignment="Center">
+              <TextBlock Name="CallerLabel" Text="" FontSize="24" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" TextAlignment="Center" />
+              <TextBlock Name="CallerNumberLabel" Text="" FontSize="14" FontWeight="Medium" Foreground="#8FA6BE" HorizontalAlignment="Center" TextAlignment="Center" />
 
-      <!-- Action buttons -->
-      <Grid ColumnDefinitions="*,*,*" Margin="0,36,0,0">
+              <WrapPanel HorizontalAlignment="Center" ItemHeight="20">
+                <Border Background="#0F1B2A" BorderBrush="#1F3045" BorderThickness="1" CornerRadius="10" Padding="8,3" Margin="0,0,6,6">
+                  <TextBlock Text="Orbital SIP" FontSize="9" FontWeight="Bold" Foreground="#94A3B8" />
+                </Border>
+                <Border Background="#0F1B2A" BorderBrush="#1F3045" BorderThickness="1" CornerRadius="10" Padding="8,3" Margin="0,0,6,6">
+                  <TextBlock Text="Secure Call" FontSize="9" FontWeight="Bold" Foreground="#94A3B8" />
+                </Border>
+                <Border Background="#143154" BorderBrush="#285A94" BorderThickness="1" CornerRadius="10" Padding="8,3" Margin="0,0,0,6">
+                  <TextBlock Text="Live" FontSize="9" FontWeight="Bold" Foreground="#60A5FA" />
+                </Border>
+              </WrapPanel>
 
-        <!-- Mute -->
-        <StackPanel Grid.Column="0" Spacing="8" HorizontalAlignment="Center">
-          <Button Name="MuteBtn"
-                  Width="56" Height="56" CornerRadius="28"
-                  Background="#1A2D42"
-                  HorizontalAlignment="Center"
-                  HorizontalContentAlignment="Center"
-                  VerticalContentAlignment="Center">
-            <Viewbox Width="22" Height="22">
-              <Path Name="MuteIcon" Fill="#8FA6BE" Width="24" Height="24" Stretch="Uniform"
-                    Data="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z" />
-            </Viewbox>
-          </Button>
-          <TextBlock Name="MuteLabel" Text="Mute"
-                     FontSize="11" Foreground="#5F7A96"
-                     HorizontalAlignment="Center" />
+              <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                <Ellipse Width="8" Height="8" Fill="#3B82F6" VerticalAlignment="Center" />
+                <TextBlock Name="StatusLabel" Text="IN CALL" FontSize="11" FontWeight="Bold" LetterSpacing="1.4" Foreground="#60A5FA" VerticalAlignment="Center" />
+              </StackPanel>
+            </StackPanel>
+          </StackPanel>
+
+          <Border Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="16" Padding="18,14">
+            <Grid ColumnDefinitions="*,Auto,*">
+              <StackPanel Grid.Column="0" Spacing="2" HorizontalAlignment="Center">
+                <TextBlock Name="TimerMinutesLabel" Text="00" FontSize="30" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" />
+                <TextBlock Text="MINUTES" FontSize="9" FontWeight="Bold" LetterSpacing="1.5" Foreground="#6E859D" HorizontalAlignment="Center" />
+              </StackPanel>
+              <TextBlock Grid.Column="1" Text=":" FontSize="28" FontWeight="Bold" Foreground="#60748A" VerticalAlignment="Center" Margin="8,0" />
+              <StackPanel Grid.Column="2" Spacing="2" HorizontalAlignment="Center">
+                <TextBlock Name="TimerSecondsLabel" Text="00" FontSize="30" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" />
+                <TextBlock Text="SECONDS" FontSize="9" FontWeight="Bold" LetterSpacing="1.5" Foreground="#6E859D" HorizontalAlignment="Center" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="AUDIO ACTIVITY" FontSize="10" FontWeight="Bold" LetterSpacing="1.4" Foreground="#7B92AA" />
+              <TextBlock Grid.Column="1" Text="LIVE" FontSize="10" FontWeight="Bold" Foreground="#60A5FA" />
+            </Grid>
+            <Border Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="14" Padding="14,12">
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Width="5" Height="12" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
+                <Border Width="5" Height="22" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
+                <Border Width="5" Height="16" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
+                <Border Width="5" Height="28" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
+                <Border Width="5" Height="14" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
+                <Border Width="5" Height="24" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
+                <Border Width="5" Height="10" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
+                <Border Width="5" Height="19" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
+                <Border Width="5" Height="26" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
+                <Border Width="5" Height="15" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="TALK SCRIPT" FontSize="10" FontWeight="Bold" LetterSpacing="1.4" Foreground="#7B92AA" />
+              <TextBlock Grid.Column="1" Text="Orbital prompt" FontSize="10" FontWeight="SemiBold" Foreground="#60A5FA" />
+            </Grid>
+            <Border Background="#101A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="14" Padding="14,12">
+              <TextBlock TextWrapping="Wrap" FontSize="12" FontStyle="Italic" Foreground="#CBD5E1">
+                <Run Text="&quot;Hello, thanks for calling Orbital SIP support. I have your session open and I&apos;m ready to help you.&quot;" />
+              </TextBlock>
+            </Border>
+          </StackPanel>
+
+          <UniformGrid Columns="4" Rows="1" Margin="0,2,0,0">
+            <Border Margin="4" Background="#101A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="14" Padding="10,10,10,8">
+              <StackPanel Spacing="8" HorizontalAlignment="Center">
+                <Button Name="MuteBtn"
+                        Width="42" Height="42" CornerRadius="21"
+                        Background="#1A2D42"
+                        BorderThickness="0"
+                        HorizontalAlignment="Center"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center">
+                  <Viewbox Width="18" Height="18">
+                    <Path Name="MuteIcon" Fill="#DDE7F3" Stretch="Uniform"
+                          Data="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z" />
+                  </Viewbox>
+                </Button>
+                <TextBlock Name="MuteLabel" Text="Mute" FontSize="10" FontWeight="Bold" Foreground="#DDE7F3" HorizontalAlignment="Center" />
+              </StackPanel>
+            </Border>
+
+            <Border Margin="4" Background="#101A28" BorderBrush="#2C4D7A" BorderThickness="1" CornerRadius="14" Padding="10,10,10,8">
+              <StackPanel Spacing="8" HorizontalAlignment="Center">
+                <Button Name="HoldBtn"
+                        Width="42" Height="42" CornerRadius="21"
+                        Background="#1E4270"
+                        BorderThickness="0"
+                        HorizontalAlignment="Center"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center">
+                  <Viewbox Width="18" Height="18">
+                    <Path Name="HoldIcon" Fill="#FFFFFF" Stretch="Uniform"
+                          Data="M14,19H18V5H14M6,19H10V5H6V19Z" />
+                  </Viewbox>
+                </Button>
+                <TextBlock Name="HoldLabel" Text="Hold" FontSize="10" FontWeight="Bold" Foreground="#60A5FA" HorizontalAlignment="Center" />
+              </StackPanel>
+            </Border>
+
+            <Border Margin="4" Background="#101A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="14" Padding="10,10,10,8">
+              <StackPanel Spacing="8" HorizontalAlignment="Center">
+                <Button Name="KeypadBtn"
+                        Width="42" Height="42" CornerRadius="21"
+                        Background="#1A2D42"
+                        BorderThickness="0"
+                        HorizontalAlignment="Center"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center">
+                  <Viewbox Width="18" Height="18">
+                    <Path Fill="#DDE7F3" Stretch="Uniform"
+                          Data="M12,19A1,1 0 0,1 13,20A1,1 0 0,1 12,21A1,1 0 0,1 11,20A1,1 0 0,1 12,19M6,19A1,1 0 0,1 7,20A1,1 0 0,1 6,21A1,1 0 0,1 5,20A1,1 0 0,1 6,19M18,19A1,1 0 0,1 19,20A1,1 0 0,1 18,21A1,1 0 0,1 17,20A1,1 0 0,1 18,19M12,13A1,1 0 0,1 13,14A1,1 0 0,1 12,15A1,1 0 0,1 11,14A1,1 0 0,1 12,13M6,13A1,1 0 0,1 7,14A1,1 0 0,1 6,15A1,1 0 0,1 5,14A1,1 0 0,1 6,13M18,13A1,1 0 0,1 19,14A1,1 0 0,1 18,15A1,1 0 0,1 17,14A1,1 0 0,1 18,13M12,7A1,1 0 0,1 13,8A1,1 0 0,1 12,9A1,1 0 0,1 11,8A1,1 0 0,1 12,7M6,7A1,1 0 0,1 7,8A1,1 0 0,1 6,9A1,1 0 0,1 5,8A1,1 0 0,1 6,7M18,7A1,1 0 0,1 19,8A1,1 0 0,1 18,9A1,1 0 0,1 17,8A1,1 0 0,1 18,7M12,1A1,1 0 0,1 13,2A1,1 0 0,1 12,3A1,1 0 0,1 11,2A1,1 0 0,1 12,1M6,1A1,1 0 0,1 7,2A1,1 0 0,1 6,3A1,1 0 0,1 5,2A1,1 0 0,1 6,1M18,1A1,1 0 0,1 19,2A1,1 0 0,1 18,3A1,1 0 0,1 17,2A1,1 0 0,1 18,1Z" />
+                  </Viewbox>
+                </Button>
+                <TextBlock Text="Keypad" FontSize="10" FontWeight="Bold" Foreground="#DDE7F3" HorizontalAlignment="Center" />
+              </StackPanel>
+            </Border>
+
+            <Border Margin="4" Background="#101A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="14" Padding="10,10,10,8">
+              <StackPanel Spacing="8" HorizontalAlignment="Center">
+                <Button Name="TransferBtn"
+                        Width="42" Height="42" CornerRadius="21"
+                        Background="#1A2D42"
+                        BorderThickness="0"
+                        HorizontalAlignment="Center"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center">
+                  <Viewbox Width="18" Height="18">
+                    <Path Fill="#DDE7F3" Stretch="Uniform"
+                          Data="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z" />
+                  </Viewbox>
+                </Button>
+                <TextBlock Text="Transfer" FontSize="10" FontWeight="Bold" Foreground="#DDE7F3" HorizontalAlignment="Center" />
+              </StackPanel>
+            </Border>
+          </UniformGrid>
+
+          <Border Name="TransferPanel" IsVisible="False"
+                  Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1"
+                  CornerRadius="14" Padding="14,12" Margin="0,0,0,0">
+            <StackPanel Spacing="8">
+              <TextBlock Text="TRANSFER TO OPERATOR" FontSize="9" FontWeight="Bold"
+                         LetterSpacing="1.4" Foreground="#7B92AA" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox Name="TransferNumberBox"
+                         Margin="0,0,8,0"
+                         Background="#152132"
+                         BorderBrush="#1D3050"
+                         BorderThickness="1"
+                         CornerRadius="10"
+                         Padding="10,6"
+                         FontSize="13"
+                         Foreground="#F8FAFC"
+                         CaretBrush="#60A5FA"
+                         Watermark="Operator SIP or number…" />
+                <Button Name="TransferConfirmBtn"
+                        Grid.Column="1"
+                        Width="74" Height="34"
+                        CornerRadius="10"
+                        Background="#1E4270"
+                        BorderThickness="0"
+                        Foreground="#60A5FA"
+                        FontSize="11"
+                        FontWeight="Bold"
+                        Content="Transfer"
+                        HorizontalContentAlignment="Center" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+            <Border Grid.Column="0" Margin="0,0,6,0" Background="#0E2440" BorderBrush="#285A94" BorderThickness="1" CornerRadius="14" Padding="12,12">
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                <Viewbox Width="18" Height="18" VerticalAlignment="Center">
+                  <Path Fill="#60A5FA" Stretch="Uniform"
+                        Data="M15,14C12.33,14 7,15.34 7,18V20H23V18C23,15.34 17.67,14 15,14M15,12A4,4 0 1,0 11,8A4,4 0 0,0 15,12M5,8V11H0V13H5V16L9,12L5,8Z" />
+                </Viewbox>
+                <TextBlock Text="Create Lead" FontSize="12" FontWeight="Bold" Foreground="#60A5FA" VerticalAlignment="Center" />
+              </StackPanel>
+            </Border>
+
+            <Button Grid.Column="1" Name="HangupBtn"
+                    Margin="6,0,0,0"
+                    Background="#EF4444"
+                    BorderThickness="0"
+                    CornerRadius="14"
+                    Padding="12,12"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                <Viewbox Width="18" Height="18" VerticalAlignment="Center">
+                  <Path Fill="#FFFFFF" Stretch="Uniform"
+                        Data="M21,15.46L18.46,12.93C18.15,12.61 17.68,12.54 17.29,12.75C16.02,13.41 14.56,13.76 13,13.76C11.44,13.76 9.98,13.41 8.71,12.75C8.32,12.54 7.85,12.61 7.54,12.93L5,15.46C4.41,16.05 4.53,17.04 5.24,17.46C7.5,18.8 10.15,19.5 13,19.5C15.85,19.5 18.5,18.8 20.76,17.46C21.47,17.04 21.59,16.05 21,15.46Z" />
+                </Viewbox>
+                <TextBlock Text="End Call" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </Grid>
+
+          <Border Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="14" Padding="12,10">
+            <Grid ColumnDefinitions="*,*">
+              <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                <Viewbox Width="14" Height="14" VerticalAlignment="Center">
+                  <Path Fill="#94A3B8" Stretch="Uniform"
+                        Data="M12,3A9,9 0 0,0 3,12H5A7,7 0 0,1 12,5A7,7 0 0,1 19,12H21A9,9 0 0,0 12,3M11,8V14L16.25,17.15L17,15.92L12.5,13.25V8H11Z" />
+                </Viewbox>
+                <TextBlock Text="Signal Stable" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                <Viewbox Width="14" Height="14" VerticalAlignment="Center">
+                  <Path Fill="#94A3B8" Stretch="Uniform"
+                        Data="M12,2L4,5V11C4,16.55 7.84,21.74 12,23C16.16,21.74 20,16.55 20,11V5L12,2M11,17L7,13L8.41,11.59L11,14.17L15.59,9.58L17,11L11,17Z" />
+                </Viewbox>
+                <TextBlock Text="Encrypted" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <TextBlock Name="TimerLabel" Text="00:00" IsVisible="False" />
         </StackPanel>
-
-        <!-- Hangup -->
-        <StackPanel Grid.Column="1" Spacing="8" HorizontalAlignment="Center">
-          <Button Name="HangupBtn"
-                  Width="64" Height="64" CornerRadius="32"
-                  Background="#C62828"
-                  HorizontalAlignment="Center"
-                  HorizontalContentAlignment="Center"
-                  VerticalContentAlignment="Center">
-            <Viewbox Width="28" Height="28">
-              <Path Fill="#FFFFFF" Stretch="Uniform"
-                    Data="M21,15.46L18.46,12.93C18.15,12.61 17.68,12.54 17.29,12.75C16.02,13.41 14.56,13.76 13,13.76C11.44,13.76 9.98,13.41 8.71,12.75C8.32,12.54 7.85,12.61 7.54,12.93L5,15.46C4.41,16.05 4.53,17.04 5.24,17.46C7.5,18.8 10.15,19.5 13,19.5C15.85,19.5 18.5,18.8 20.76,17.46C21.47,17.04 21.59,16.05 21,15.46Z" />
-            </Viewbox>
-          </Button>
-          <TextBlock Text="Hang up"
-                     FontSize="11" Foreground="#5F7A96"
-                     HorizontalAlignment="Center" />
-        </StackPanel>
-
-        <!-- Keypad (show dialpad during call) -->
-        <StackPanel Grid.Column="2" Spacing="8" HorizontalAlignment="Center">
-          <Button Name="KeypadBtn"
-                  Width="56" Height="56" CornerRadius="28"
-                  Background="#1A2D42"
-                  HorizontalAlignment="Center"
-                  HorizontalContentAlignment="Center"
-                  VerticalContentAlignment="Center">
-            <Viewbox Width="22" Height="22">
-              <Path Fill="#8FA6BE" Width="24" Height="24" Stretch="Uniform"
-                    Data="M12,19A1,1 0 0,1 13,20A1,1 0 0,1 12,21A1,1 0 0,1 11,20A1,1 0 0,1 12,19M6,19A1,1 0 0,1 7,20A1,1 0 0,1 6,21A1,1 0 0,1 5,20A1,1 0 0,1 6,19M18,19A1,1 0 0,1 19,20A1,1 0 0,1 18,21A1,1 0 0,1 17,20A1,1 0 0,1 18,19M12,13A1,1 0 0,1 13,14A1,1 0 0,1 12,15A1,1 0 0,1 11,14A1,1 0 0,1 12,13M6,13A1,1 0 0,1 7,14A1,1 0 0,1 6,15A1,1 0 0,1 5,14A1,1 0 0,1 6,13M18,13A1,1 0 0,1 19,14A1,1 0 0,1 18,15A1,1 0 0,1 17,14A1,1 0 0,1 18,13M12,7A1,1 0 0,1 13,8A1,1 0 0,1 12,9A1,1 0 0,1 11,8A1,1 0 0,1 12,7M6,7A1,1 0 0,1 7,8A1,1 0 0,1 6,9A1,1 0 0,1 5,8A1,1 0 0,1 6,7M18,7A1,1 0 0,1 19,8A1,1 0 0,1 18,9A1,1 0 0,1 17,8A1,1 0 0,1 18,7M12,1A1,1 0 0,1 13,2A1,1 0 0,1 12,3A1,1 0 0,1 11,2A1,1 0 0,1 12,1M6,1A1,1 0 0,1 7,2A1,1 0 0,1 6,3A1,1 0 0,1 5,2A1,1 0 0,1 6,1M18,1A1,1 0 0,1 19,2A1,1 0 0,1 18,3A1,1 0 0,1 17,2A1,1 0 0,1 18,1Z" />
-            </Viewbox>
-          </Button>
-          <TextBlock Text="Keypad"
-                     FontSize="11" Foreground="#5F7A96"
-                     HorizontalAlignment="Center" />
-        </StackPanel>
-
-      </Grid>
-
-    </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
   </Border>
 </UserControl>
