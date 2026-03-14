@@ -14,6 +14,7 @@ namespace OrbitalSIP
         public static readonly SoundService SoundService = new SoundService();
         public static readonly StatusService StatusService = new StatusService();
         public static readonly ScriptService ScriptService = new ScriptService();
+        public static readonly LoggedCallService LoggedCallService = new LoggedCallService();
 
         public override void Initialize()
         {

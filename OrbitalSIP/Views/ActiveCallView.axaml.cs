@@ -5,6 +5,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
 using System.Threading.Tasks;
+using OrbitalSIP.Services;
 using AvaloniaPath = Avalonia.Controls.Shapes.Path;
 
 namespace OrbitalSIP.Views
@@ -198,7 +199,16 @@ namespace OrbitalSIP.Views
                 var callerLabel = this.FindControl<TextBlock>("CallerNumberLabel");
                 var number = callerLabel?.Text?.Trim() ?? "";
                 var uniqueId = await App.ScriptService.GetChannelUniqueIdAsync(number);
-                if (uniqueId != null) await App.ScriptService.RegisterScriptAsync(uniqueId, result.Id!);
+                if (uniqueId != null)
+                {
+                    bool success = await App.ScriptService.RegisterScriptAsync(uniqueId, result.Id!);
+                    if (success)
+                    {
+                        var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
+                        var operatorId = settings.DecodedToken?.Operator?.Username ?? settings.Username;
+                        App.LoggedCallService.MarkCallAsLogged(uniqueId, operatorId);
+                    }
+                }
             }
         }
 
