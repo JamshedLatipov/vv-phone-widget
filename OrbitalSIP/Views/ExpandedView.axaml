@@ -22,7 +22,7 @@
             <Ellipse Name="StatusDot" Width="9" Height="9" Fill="#22C55E" Stroke="#101D2C" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
           </Grid>
           <StackPanel Spacing="1" VerticalAlignment="Center">
-            <TextBlock Text="Dialer" FontSize="13" FontWeight="Bold" Foreground="#F8FAFC" />
+            <TextBlock Name="UsernameLabel" Text="Dialer" FontSize="13" FontWeight="Bold" Foreground="#F8FAFC" />
             <TextBlock Name="StatusLabel" Text="Available" FontSize="10" FontWeight="Medium" Foreground="#89A0B8" />
           </StackPanel>
         </StackPanel>

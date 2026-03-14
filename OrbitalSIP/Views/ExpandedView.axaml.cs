@@ -16,13 +16,24 @@ namespace OrbitalSIP.Views
         {
             InitializeComponent();
             WireButtons();
-
             // Subscribe to registration state
             var sip = App.SipService;
             sip.RegistrationStatusChanged += state =>
                 Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
 
             UpdateStatus(sip.RegistrationStatus);
+
+            var settings = sip.CurrentSettings;
+            var usernameLabel = this.FindControl<TextBlock>("UsernameLabel");
+            if (usernameLabel != null && settings != null)
+            {
+                var displayUser = settings.DecodedToken?.Username ?? settings.Username;
+                if (!string.IsNullOrWhiteSpace(displayUser))
+                {
+                    usernameLabel.Text = displayUser;
+                }
+            }
+
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
