@@ -1,8 +1,8 @@
-I have addressed the issue where input fields (TextBox) were becoming unreadable upon focus (white text on white background) and ComboBox options were not showing correctly.
+I have fixed the issue where ComboBoxes in the SettingsView (Transport, Speaker, Microphone) were not opening correctly.
 
 Changes:
-1. Modified App.axaml to set RequestedThemeVariant="Dark". This ensures Avalonia's FluentTheme uses dark-appropriate colors for focused states, popups, and dropdowns.
-2. Added global styles in App.axaml for TextBox to prevent its internal Border element from overriding the custom dark backgrounds used in the views during focus and pointerover states.
-3. Added a global style for ComboBox pointerover state to maintain consistency.
+1. In SettingsView.axaml, I removed the Border wrappers around the ComboBoxes and applied the styling (Background, Border, CornerRadius) directly to the ComboBox controls. This improves hit-testing and ensures the controls respond correctly to clicks.
+2. In App.axaml, I refined the global styles for ComboBox to ensure they use dark-compatible colors in both focus and pointerover states, preventing them from reverting to invisible or unreadable default colors.
+3. Kept the previously implemented fixes for TextBox focus visibility.
 
-The project builds successfully with these changes.
+The build is successful.

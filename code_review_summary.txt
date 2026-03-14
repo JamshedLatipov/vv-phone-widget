@@ -1,4 +1,3 @@
-The changes in App.axaml are correct and address the issue:
-- RequestedThemeVariant="Dark" is essential for the dark UI to ensure theme-dependent elements (like ComboBox popups and TextBox focus templates) use dark-compatible colors.
-- The global styles for TextBox:focus and TextBox:pointerover target the Avalonia template's PART_BorderElement, which is exactly what was causing the visual override.
-- Building the project confirmed that the XAML is valid.
+The fixes are sound:
+- Removing nested Border wrappers is a standard practice in Avalonia when hit-testing issues occur, as it simplifies the visual tree and ensures input events reach the target control.
+- Applying styles directly to ComboBox and updating global templates for focus/hover states ensures visual consistency in the dark theme.

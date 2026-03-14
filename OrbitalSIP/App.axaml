@@ -19,7 +19,12 @@
       <Setter Property="BorderThickness" Value="0" />
     </Style>
 
-    <Style Selector="ComboBox:pointerover /template/ Border#Background">
+    <!-- Ensure ComboBox doesn't override our custom background when hovered or focused -->
+    <Style Selector="ComboBox:pointerover /template/ Border#PART_ButtonLayoutBorder">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="ComboBox:focus /template/ Border#PART_ButtonLayoutBorder">
       <Setter Property="Background" Value="Transparent" />
     </Style>
   </Application.Styles>
