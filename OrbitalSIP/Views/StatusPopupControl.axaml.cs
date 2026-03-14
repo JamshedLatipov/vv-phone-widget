@@ -81,7 +81,7 @@ namespace OrbitalSIP.Views
                     }
                 }
             }
-            return 10;
+            return 0;
         }
 
         private void UpdateUIFromCurrentState()

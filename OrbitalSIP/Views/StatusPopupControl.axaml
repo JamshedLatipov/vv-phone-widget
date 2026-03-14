@@ -133,11 +133,12 @@
                 <StackPanel Spacing="10">
                     <TextBlock Text="SET DURATION" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" LetterSpacing="1" HorizontalAlignment="Center"/>
                     <Border Background="#1E293B" CornerRadius="8" Padding="2">
-                        <UniformGrid Columns="4" Name="DurationGrid">
-                            <RadioButton GroupName="DurationGroup" Content="5m" Tag="5" Foreground="#94A3B8" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,8"/>
-                            <RadioButton GroupName="DurationGroup" Content="10m" Tag="10" Foreground="#3B82F6" Background="#2B3A55" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" IsChecked="True" Padding="0,8"/>
-                            <RadioButton GroupName="DurationGroup" Content="30m" Tag="30" Foreground="#94A3B8" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,8"/>
-                            <RadioButton GroupName="DurationGroup" Content="60m" Tag="60" Foreground="#94A3B8" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,8"/>
+                        <UniformGrid Columns="5" Name="DurationGrid">
+                        <RadioButton GroupName="DurationGroup" Content="—" Tag="0" Foreground="#3B82F6" Background="#2B3A55" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" IsChecked="True" Padding="0,8"/>
+                        <RadioButton GroupName="DurationGroup" Content="5m" Tag="5" Foreground="#94A3B8" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,8"/>
+                        <RadioButton GroupName="DurationGroup" Content="10m" Tag="10" Foreground="#94A3B8" Background="Transparent" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Padding="0,8"/>
+                        <RadioButton GroupName="DurationGroup" Content="30m" Tag="30" Foreground="#94A3B8" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,8"/>
+                        <RadioButton GroupName="DurationGroup" Content="60m" Tag="60" Foreground="#94A3B8" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,8"/>
                         </UniformGrid>
                     </Border>
                 </StackPanel>
