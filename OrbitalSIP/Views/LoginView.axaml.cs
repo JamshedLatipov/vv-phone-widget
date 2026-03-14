@@ -66,6 +66,11 @@ namespace OrbitalSIP.Views
                 ShowError("Backend URL not configured in settings.");
                 return;
             }
+            if (string.IsNullOrEmpty(settings.Server))
+            {
+                ShowError("SIP Server not configured in settings.");
+                return;
+            }
 
             SetBusy(true);
             try
@@ -80,10 +85,10 @@ namespace OrbitalSIP.Views
                 if (response.IsSuccessStatusCode)
                 {
                     var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
-                    if (result != null)
+                    if (result?.Sip != null)
                     {
-                        settings.Username = result.SipLogin;
-                        settings.Password = result.SipPassword;
+                        settings.Username = result.Sip.Username;
+                        settings.Password = result.Sip.Password;
                         App.SipService.Start(settings);
                         OnLoginSuccess?.Invoke(this, EventArgs.Empty);
                     }
@@ -122,11 +127,20 @@ namespace OrbitalSIP.Views
 
         private class LoginResponse
         {
-            [JsonPropertyName("sipLogin")]
-            public string SipLogin { get; set; } = "";
+            [JsonPropertyName("access_token")]
+            public string AccessToken { get; set; } = "";
 
-            [JsonPropertyName("sipPassword")]
-            public string SipPassword { get; set; } = "";
+            [JsonPropertyName("sip")]
+            public SipCredentials? Sip { get; set; }
+        }
+
+        private class SipCredentials
+        {
+            [JsonPropertyName("username")]
+            public string Username { get; set; } = "";
+
+            [JsonPropertyName("password")]
+            public string Password { get; set; } = "";
         }
     }
 }

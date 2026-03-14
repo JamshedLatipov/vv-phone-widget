@@ -110,12 +110,8 @@ namespace OrbitalSIP.Services
 
             _transport.SIPTransportRequestReceived += OnSIPRequest;
 
-            if (string.IsNullOrWhiteSpace(settings.Server) ||
-                string.IsNullOrWhiteSpace(settings.Username))
+            if (!string.IsNullOrWhiteSpace(settings.Server) && !string.IsNullOrWhiteSpace(settings.Username))
             {
-                Debug.WriteLine("[SipService] Start skipped — server or username is empty.");
-                return;
-            }
 
             // Build the registrar address. Include transport override for non-UDP.
             var serverArg = settings.Transport switch
@@ -148,6 +144,7 @@ namespace OrbitalSIP.Services
                 RegistrationError?.Invoke(LastRegistrationError);
             };
             _reg.Start();
+            }
             Debug.WriteLine("[SipService] Registration agent started.");
         }
 
