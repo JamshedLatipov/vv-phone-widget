@@ -49,6 +49,7 @@ namespace OrbitalSIP
             this.PointerPressed   += MainWindow_PointerPressed;
             this.PointerReleased  += MainWindow_PointerReleased;
             this.DoubleTapped     += (_, __) => ExpandOnDoubleTap();
+            this.Closing += (s, e) => { e.Cancel = true; this.Hide(); };
 
             // Initial view
             var settings = SipSettings.Load();
