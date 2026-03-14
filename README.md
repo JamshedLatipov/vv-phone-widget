@@ -138,6 +138,42 @@
 
 ---
 
+## 11. Сборка и запуск
+
+### Требования
+
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Windows 10 версии 1809 (17763) или новее
+- (Опционально) [Inno Setup 6](https://jrsoftware.org/isdownload.php) — для создания установщика
+
+### Запуск в режиме разработки
+
+```powershell
+dotnet run --project OrbitalSIP\OrbitalSIP.csproj
+```
+
+### Публикация (self-contained EXE)
+
+```powershell
+dotnet publish OrbitalSIP\OrbitalSIP.csproj -c Release -r win-x64 --self-contained true `
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+  -o publish\win-x64
+```
+
+Результат — одиночный файл `publish\win-x64\OrbitalSIP.exe`, не требующий установленного .NET на целевой машине.
+
+### Создание установщика
+
+```powershell
+& "C:\Program Files (x86)\Inno Setup 6\iscc.exe" installer\OrbitalSIP.iss
+```
+
+Готовый установщик появится в папке `dist\OrbitalSIP-Setup-1.1.exe`.
+
+> **Примечание:** перед запуском Inno Setup необходимо выполнить публикацию (шаг выше), иначе компилятор не найдёт файлы в `publish\win-x64`.
+
+---
+
 Файл обновлён под стек `.NET 8/9 + Avalonia + SIPSorcery`. Для продолжения я могу:
 
 - сгенерировать базовую структуру проекта (уже начато в папке `OrbitalSIP`),
