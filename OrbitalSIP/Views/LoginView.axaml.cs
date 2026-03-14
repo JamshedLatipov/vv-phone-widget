@@ -89,6 +89,13 @@ namespace OrbitalSIP.Views
                     {
                         settings.Username = result.Sip.Username;
                         settings.Password = result.Sip.Password;
+
+                        if (!string.IsNullOrEmpty(result.AccessToken))
+                        {
+                            settings.AccessToken = result.AccessToken;
+                            settings.DecodedToken = JwtDecoder.Decode(result.AccessToken);
+                        }
+
                         App.SipService.Start(settings);
                         OnLoginSuccess?.Invoke(this, EventArgs.Empty);
                     }

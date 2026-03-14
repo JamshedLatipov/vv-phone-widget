@@ -14,6 +14,12 @@ namespace OrbitalSIP.Services
 
         [JsonIgnore]
         public string Password { get; set; } = "";
+        [JsonIgnore]
+        public string AccessToken { get; set; } = "";
+
+        [JsonIgnore]
+        public JwtPayload? DecodedToken { get; set; }
+
 
         public string DisplayName { get; set; } = "";
         public string Transport { get; set; } = "UDP";  // UDP | TCP | TLS
