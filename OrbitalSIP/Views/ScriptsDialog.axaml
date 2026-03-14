@@ -5,6 +5,7 @@
         Width="400" Height="500"
         WindowStartupLocation="CenterOwner"
         Background="#0F172A"
+        Topmost="True"
         SystemDecorations="None"
         CornerRadius="16">
   <Border BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16">
