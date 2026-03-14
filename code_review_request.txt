@@ -93,6 +93,18 @@ diff --git a/OrbitalSIP/Assets/icon.png b/OrbitalSIP/Assets/icon.png
 new file mode 100644
 index 0000000..48b0c9d
 Binary files /dev/null and b/OrbitalSIP/Assets/icon.png differ
+diff --git a/OrbitalSIP/MainWindow.axaml b/OrbitalSIP/MainWindow.axaml
+index c8394ae..3b4136b 100644
+--- a/OrbitalSIP/MainWindow.axaml
++++ b/OrbitalSIP/MainWindow.axaml
+@@ -8,6 +8,7 @@
+   TransparencyLevelHint="Transparent"
+   CanResize="False"
+   Topmost="True"
++  ShowInTaskbar="False"
+   Background="Transparent">
+
+   <Grid>
 diff --git a/OrbitalSIP/MainWindow.axaml.cs b/OrbitalSIP/MainWindow.axaml.cs
 index 37b2e0d..5adf37c 100644
 --- a/OrbitalSIP/MainWindow.axaml.cs
@@ -121,22 +133,142 @@ index 67ead5e..ecf47ae 100644
      <PackageReference Include="Avalonia" Version="11.0.0" />
      <PackageReference Include="Avalonia.Desktop" Version="11.0.0" />
 diff --git a/code_review_request.txt b/code_review_request.txt
-index af81bc0..52f3b19 100644
+index af81bc0..235efab 100644
 --- a/code_review_request.txt
 +++ b/code_review_request.txt
-@@ -1,18 +1,23 @@
+@@ -1,18 +1,183 @@
++diff --git a/OrbitalSIP/App.axaml b/OrbitalSIP/App.axaml
++index 24ef1f8..b283441 100644
++--- a/OrbitalSIP/App.axaml
+++++ b/OrbitalSIP/App.axaml
++@@ -1,4 +1,3 @@
++-<?xml version="1.0" encoding="utf-8"?>
++ <Application xmlns="https://github.com/avaloniaui"
++              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
++              xmlns:fluent="clr-namespace:Avalonia.Themes.Fluent;assembly=Avalonia.Themes.Fluent"
++@@ -6,4 +5,21 @@
++   <Application.Styles>
++     <fluent:FluentTheme />
++   </Application.Styles>
+++
+++  <TrayIcon.Icons>
+++    <TrayIcons>
+++      <TrayIcon Icon="/Assets/icon.png"
+++                ToolTipText="Orbital SIP"
+++                Clicked="TrayIcon_Clicked">
+++        <TrayIcon.Menu>
+++          <NativeMenu>
+++            <NativeMenuItem Header="Show" Click="MenuShow_Click" />
+++            <NativeMenuItem Header="Hide" Click="MenuHide_Click" />
+++            <NativeMenuItemSeparator />
+++            <NativeMenuItem Header="Exit" Click="MenuExit_Click" />
+++          </NativeMenu>
+++        </TrayIcon.Menu>
+++      </TrayIcon>
+++    </TrayIcons>
+++  </TrayIcon.Icons>
++ </Application>
++diff --git a/OrbitalSIP/App.axaml.cs b/OrbitalSIP/App.axaml.cs
++index 79a1535..9d27ec4 100644
++--- a/OrbitalSIP/App.axaml.cs
+++++ b/OrbitalSIP/App.axaml.cs
++@@ -1,3 +1,4 @@
+++using System;
++ using Avalonia;
++ using Avalonia.Markup.Xaml;
++ using Avalonia.Controls.ApplicationLifetimes;
++@@ -22,8 +23,6 @@ namespace OrbitalSIP
++             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
++             {
++                 // Forward call-state changes to the sound service.
++-                // SipService fires this event on SIPSorcery background threads,
++-                // but MediaPlayer is agile so no dispatcher hop is required.
++                 SipService.CallStateChanged += SoundService.OnStateChanged;
++
++                 desktop.MainWindow = new MainWindow();
++@@ -36,6 +35,40 @@ namespace OrbitalSIP
++
++             base.OnFrameworkInitializationCompleted();
++         }
+++
+++        private void TrayIcon_Clicked(object? sender, EventArgs e)
+++        {
+++            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+++            {
+++                if (desktop.MainWindow.IsVisible)
+++                    desktop.MainWindow.Hide();
+++                else
+++                    desktop.MainWindow.Show();
+++            }
+++        }
+++
+++        private void MenuShow_Click(object? sender, EventArgs e)
+++        {
+++            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+++            {
+++                desktop.MainWindow.Show();
+++            }
+++        }
+++
+++        private void MenuHide_Click(object? sender, EventArgs e)
+++        {
+++            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+++            {
+++                desktop.MainWindow.Hide();
+++            }
+++        }
+++
+++        private void MenuExit_Click(object? sender, EventArgs e)
+++        {
+++            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+++            {
+++                desktop.Shutdown();
+++            }
+++        }
++     }
++ }
++-
++diff --git a/OrbitalSIP/Assets/icon.png b/OrbitalSIP/Assets/icon.png
++new file mode 100644
++index 0000000..48b0c9d
++Binary files /dev/null and b/OrbitalSIP/Assets/icon.png differ
++diff --git a/OrbitalSIP/MainWindow.axaml.cs b/OrbitalSIP/MainWindow.axaml.cs
++index 37b2e0d..5adf37c 100644
++--- a/OrbitalSIP/MainWindow.axaml.cs
+++++ b/OrbitalSIP/MainWindow.axaml.cs
++@@ -49,6 +49,7 @@ namespace OrbitalSIP
++             this.PointerPressed   += MainWindow_PointerPressed;
++             this.PointerReleased  += MainWindow_PointerReleased;
++             this.DoubleTapped     += (_, __) => ExpandOnDoubleTap();
+++            this.Closing += (s, e) => { e.Cancel = true; this.Hide(); };
++
++             // Initial view
++             var settings = SipSettings.Load();
++diff --git a/OrbitalSIP/OrbitalSIP.csproj b/OrbitalSIP/OrbitalSIP.csproj
++index 67ead5e..ecf47ae 100644
++--- a/OrbitalSIP/OrbitalSIP.csproj
+++++ b/OrbitalSIP/OrbitalSIP.csproj
++@@ -19,6 +19,10 @@
++     </Content>
++   </ItemGroup>
++
+++  <ItemGroup>
+++    <AvaloniaResource Include="Assets\**" />
+++  </ItemGroup>
+++
++   <ItemGroup>
++     <PackageReference Include="Avalonia" Version="11.0.0" />
++     <PackageReference Include="Avalonia.Desktop" Version="11.0.0" />
  diff --git a/code_review_request.txt b/code_review_request.txt
 -index 8aa9902..e69de29 100644
-+index af81bc0..e69de29 100644
++index af81bc0..52f3b19 100644
  --- a/code_review_request.txt
  +++ b/code_review_request.txt
 -@@ -1,13 +0,0 @@
-+@@ -1,18 +0,0 @@
- -diff --git a/code_review_request.txt b/code_review_request.txt
+--diff --git a/code_review_request.txt b/code_review_request.txt
 --index 41079b9..e69de29 100644
-+-index 8aa9902..e69de29 100644
- ---- a/code_review_request.txt
- -+++ b/code_review_request.txt
+----- a/code_review_request.txt
+--+++ b/code_review_request.txt
 --@@ -1,8 +0,0 @@
 ---I have modernized the UI design and fixed layout issues (clipping and spacing) in OrbitalSIP.
 ---
@@ -146,11 +278,19 @@ index af81bc0..52f3b19 100644
 ---- Added "air" (spacing) to the header for a more balanced look.
 ---- Synchronized design across Expanded, Active Call, Incoming, and Settings views.
 ---- Verified build success on the target platform.
++@@ -1,18 +1,23 @@
++ diff --git a/code_review_request.txt b/code_review_request.txt
++-index 8aa9902..e69de29 100644
+++index af81bc0..e69de29 100644
++ --- a/code_review_request.txt
++ +++ b/code_review_request.txt
 +-@@ -1,13 +0,0 @@
-+--diff --git a/code_review_request.txt b/code_review_request.txt
+++@@ -1,18 +0,0 @@
++ -diff --git a/code_review_request.txt b/code_review_request.txt
 +--index 41079b9..e69de29 100644
-+----- a/code_review_request.txt
-+--+++ b/code_review_request.txt
+++-index 8aa9902..e69de29 100644
++ ---- a/code_review_request.txt
++ -+++ b/code_review_request.txt
 +--@@ -1,8 +0,0 @@
 +---I have modernized the UI design and fixed layout issues (clipping and spacing) in OrbitalSIP.
 +---
@@ -160,6 +300,73 @@ index af81bc0..52f3b19 100644
 +---- Added "air" (spacing) to the header for a more balanced look.
 +---- Synchronized design across Expanded, Active Call, Incoming, and Settings views.
 +---- Verified build success on the target platform.
+++-@@ -1,13 +0,0 @@
+++--diff --git a/code_review_request.txt b/code_review_request.txt
+++--index 41079b9..e69de29 100644
+++----- a/code_review_request.txt
+++--+++ b/code_review_request.txt
+++--@@ -1,8 +0,0 @@
+++---I have modernized the UI design and fixed layout issues (clipping and spacing) in OrbitalSIP.
+++---
+++---Key improvements:
+++---- Modernized the theme using a Slate-based color palette (#0F172A, #1E293B, #020617).
+++---- Fixed clipping of the "Call" button by adjusting its margins and making the "Recent Activity" section flexible.
+++---- Added "air" (spacing) to the header for a more balanced look.
+++---- Synchronized design across Expanded, Active Call, Incoming, and Settings views.
+++---- Verified build success on the target platform.
++diff --git a/fix_mainwindow.py b/fix_mainwindow.py
++new file mode 100644
++index 0000000..fbbcccf
++--- /dev/null
+++++ b/fix_mainwindow.py
++@@ -0,0 +1,15 @@
+++import sys
+++
+++with open('OrbitalSIP/MainWindow.axaml.cs', 'r') as f:
+++    lines = f.readlines()
+++
+++new_lines = []
+++inserted_closing = False
+++for line in lines:
+++    new_lines.append(line)
+++    if 'this.DoubleTapped' in line and not inserted_closing:
+++        new_lines.append('            this.Closing += (s, e) => { e.Cancel = true; this.Hide(); };\n')
+++        inserted_closing = True
+++
+++with open('OrbitalSIP/MainWindow.axaml.cs', 'w') as f:
+++    f.writelines(new_lines)
+diff --git a/code_review_summary.txt b/code_review_summary.txt
+index b19e0a5..fe5b284 100644
+--- a/code_review_summary.txt
++++ b/code_review_summary.txt
+@@ -1,21 +1,6 @@
+-Summary of changes:
+-1. SipService.cs:
+-   - Added IsMuted property.
+-   - Updated SetMuted to track the property.
+-
+-2. ActiveCallView.axaml / ActiveCallView.axaml.cs:
+-   - Added a Minimize button in the header.
+-   - Added OnMinimizeRequested event.
+-   - Added public Elapsed property to share call duration.
+-   - Updated constructor to allow initializing with a specific duration.
+-
+-3. ActiveCallWidgetView.axaml / ActiveCallWidgetView.axaml.cs:
+-   - Created a new compact view for active calls.
+-   - Styled it similarly to IncomingView.
+-   - Includes Caller name, Timer, Mute, Hold, Transfer, and Hangup buttons.
+-   - Supports expanding back to full view on double-tap or Transfer request.
+-
+-4. MainWindow.axaml.cs:
+-   - Implemented transitions between ActiveCallView and ActiveCallWidgetView.
+-   - Shared call state (elapsed time, mute, hold) during transitions.
+-   - Handled events from the new widget view.
++Implemented system tray integration for OrbitalSIP.
++- Added a placeholder icon in OrbitalSIP/Assets/icon.png.
++- Updated OrbitalSIP.csproj to include Assets as AvaloniaResource.
++- Modified App.axaml to define the TrayIcon and its context menu (Show, Hide, Exit).
++- Modified App.axaml.cs to implement tray icon logic (click to toggle, menu actions).
++- Updated MainWindow.axaml.cs to intercept the Closing event and hide the window instead of exiting.
 diff --git a/fix_mainwindow.py b/fix_mainwindow.py
 new file mode 100644
 index 0000000..fbbcccf

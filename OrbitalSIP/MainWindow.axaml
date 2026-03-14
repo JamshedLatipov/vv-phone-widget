@@ -8,6 +8,7 @@
   TransparencyLevelHint="Transparent"
   CanResize="False"
   Topmost="True"
+  ShowInTaskbar="False"
   Background="Transparent">
 
   <Grid>
