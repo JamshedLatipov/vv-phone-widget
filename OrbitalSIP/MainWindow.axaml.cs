@@ -299,6 +299,7 @@ namespace OrbitalSIP
             callView.OnHoldToggled += (_, __) => App.SipService.ToggleHold();
             callView.OnTransferRequested += async (_, dest) => await App.SipService.BlindTransferAsync(dest);
             callView.OnKeypadRequested += (_, __) => ShowDialer();
+            callView.OnSettingsRequested += (_, __) => ShowSettings();
         }
 
         // ── SIP state changes ─────────────────────────────────────────

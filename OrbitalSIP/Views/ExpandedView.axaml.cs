@@ -70,7 +70,9 @@ namespace OrbitalSIP.Views
         {
             // Header buttons
             Bind("CloseBtn",    () => OnCloseRequested?.Invoke(this, EventArgs.Empty));
-            Bind("SettingsBtn", () => OnSettingsRequested?.Invoke(this, EventArgs.Empty));
+            var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
+            if (bottomNav != null) bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
+            bottomNav?.SetActiveTab("Dialer");
             BindAsync("CopyBtn", CopyDisplayedNumberAsync);
 
             // Backspace

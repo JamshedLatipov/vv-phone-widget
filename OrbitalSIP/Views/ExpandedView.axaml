@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:Views="clr-namespace:OrbitalSIP.Views"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="OrbitalSIP.Views.ExpandedView">
   <Border Width="320"
@@ -186,30 +187,7 @@
       </Border>
 
       <!-- Bottom tab bar -->
-      <Border Grid.Row="5" Background="#0F172A" Height="46" BorderBrush="#1E293B" BorderThickness="1,1,1,0">
-        <Grid ColumnDefinitions="*,*,*,*">
-          <StackPanel Grid.Column="0" Spacing="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-            <Viewbox Width="18" Height="18">
-              <Path Fill="#60A5FA" Stretch="Uniform" Data="M12,19A1,1 0 0,1 13,20A1,1 0 0,1 12,21A1,1 0 0,1 11,20A1,1 0 0,1 12,19M6,19A1,1 0 0,1 7,20A1,1 0 0,1 6,21A1,1 0 0,1 5,20A1,1 0 0,1 6,19M18,19A1,1 0 0,1 19,20A1,1 0 0,1 18,21A1,1 0 0,1 17,20A1,1 0 0,1 18,19M12,13A1,1 0 0,1 13,14A1,1 0 0,1 12,15A1,1 0 0,1 11,14A1,1 0 0,1 12,13M6,13A1,1 0 0,1 7,14A1,1 0 0,1 6,15A1,1 0 0,1 5,14A1,1 0 0,1 6,13M18,13A1,1 0 0,1 19,14A1,1 0 0,1 18,15A1,1 0 0,1 17,14A1,1 0 0,1 18,13M12,7A1,1 0 0,1 13,8A1,1 0 0,1 12,9A1,1 0 0,1 11,8A1,1 0 0,1 12,7M6,7A1,1 0 0,1 7,8A1,1 0 0,1 6,9A1,1 0 0,1 5,8A1,1 0 0,1 6,7M18,7A1,1 0 0,1 19,8A1,1 0 0,1 18,9A1,1 0 0,1 17,8A1,1 0 0,1 18,7M12,1A1,1 0 0,1 13,2A1,1 0 0,1 12,3A1,1 0 0,1 11,2A1,1 0 0,1 12,1M6,1A1,1 0 0,1 7,2A1,1 0 0,1 6,3A1,1 0 0,1 5,2A1,1 0 0,1 6,1M18,1A1,1 0 0,1 19,2A1,1 0 0,1 18,3A1,1 0 0,1 17,2A1,1 0 0,1 18,1Z"/>
-            </Viewbox>
-          </StackPanel>
-          <StackPanel Grid.Column="1" Spacing="1" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.65">
-            <Viewbox Width="18" Height="18">
-              <Path Fill="#8AA0B8" Stretch="Uniform" Data="M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z"/>
-            </Viewbox>
-          </StackPanel>
-          <StackPanel Grid.Column="2" Spacing="1" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.65">
-            <Viewbox Width="18" Height="18">
-              <Path Fill="#8AA0B8" Stretch="Uniform" Data="M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,6C13.93,6 15.5,7.57 15.5,9.5C15.5,11.43 13.93,13 12,13C10.07,13 8.5,11.43 8.5,9.5C8.5,7.57 10.07,6 12,6M12,20C9.97,20 8.22,19.22 6.92,17.96C8.29,15.42 11.1,14 12,14C12.9,14 15.71,15.42 17.08,17.96C15.78,19.22 14.03,20 12,20Z"/>
-            </Viewbox>
-          </StackPanel>
-          <Button Grid.Column="3" Name="SettingsBtn" Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Opacity="0.65">
-            <Viewbox Width="18" Height="18">
-              <Path Fill="#8AA0B8" Stretch="Uniform" Data="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.35 19.43,11.03L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.97 19.05,5.05L16.56,6.05C16.04,5.65 15.48,5.32 14.87,5.07L14.49,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.51,2.42L9.13,5.07C8.52,5.32 7.96,5.65 7.44,6.05L4.95,5.05C4.73,4.97 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11.03C4.53,11.35 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.95C7.96,18.35 8.52,18.68 9.13,18.93L9.51,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.49,21.58L14.87,18.93C15.48,18.68 16.04,18.35 16.56,17.95L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
-            </Viewbox>
-          </Button>
-        </Grid>
-      </Border>
+      <Views:BottomNavControl Grid.Row="5" Name="BottomNav" />
 
     </Grid>
   </Border>
