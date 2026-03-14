@@ -129,7 +129,12 @@ namespace OrbitalSIP.Views
 
             var copy = this.FindControl<Button>("CopyCallerBtn");
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
-            if (bottomNav != null) bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
+            if (bottomNav != null)
+            {
+                bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
+                bottomNav.OnContactsRequested += (_, __) => OnContactsRequested?.Invoke(this, EventArgs.Empty);
+                bottomNav.OnRecentsRequested += (_, __) => OnRecentsRequested?.Invoke(this, EventArgs.Empty);
+            }
             if (copy != null)
                 copy.Click += async (_, __) => await CopyCallerAsync();
         }
@@ -216,5 +221,6 @@ namespace OrbitalSIP.Views
         public event EventHandler?        OnMinimizeRequested;
         public event EventHandler?        OnSettingsRequested;
         public event EventHandler?        OnRecentsRequested;
+        public event EventHandler? OnContactsRequested;
     }
 }

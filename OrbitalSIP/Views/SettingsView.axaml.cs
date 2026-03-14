@@ -9,6 +9,7 @@ namespace OrbitalSIP.Views
 {
     public partial class SettingsView : UserControl
     {
+        public event System.EventHandler? OnContactsRequested;
         private readonly SipSettings _settings;
 
         public SettingsView()
@@ -119,6 +120,8 @@ namespace OrbitalSIP.Views
             {
                 bottomNav.OnDialerRequested += (_, __) => OnBackRequested?.Invoke(this, System.EventArgs.Empty);
                 bottomNav.SetActiveTab("Settings");
+
+                bottomNav.OnContactsRequested += (_, __) => OnContactsRequested?.Invoke(this, EventArgs.Empty);
             }
         }
 

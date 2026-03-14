@@ -21,6 +21,7 @@ namespace OrbitalSIP.Views
 
         public event EventHandler? OnCloseRequested;
         public event EventHandler? OnSettingsRequested;
+        public event EventHandler? OnContactsRequested;
         public event EventHandler? OnDialerRequested;
         public event EventHandler<string>? OutgoingCallRequested;
 
@@ -69,6 +70,7 @@ namespace OrbitalSIP.Views
             if (bottomNav != null)
             {
                 bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
+                bottomNav.OnContactsRequested += (_, __) => OnContactsRequested?.Invoke(this, EventArgs.Empty);
                 bottomNav.OnDialerRequested += (_, __) => OnDialerRequested?.Invoke(this, EventArgs.Empty);
                 bottomNav.SetActiveTab("Recents");
             }
