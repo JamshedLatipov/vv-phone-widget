@@ -15,6 +15,11 @@
     <ContentControl Name="Host">
       <Views:WidgetView />
     </ContentControl>
+    <ContentControl Name="PopupHost"
+                    Opacity="0"
+                    IsVisible="False"
+                    IsHitTestVisible="False"
+                    ZIndex="100" />
     <ContentControl Name="OverlayHost"
                     Opacity="0"
                     IsVisible="False"

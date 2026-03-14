@@ -2,20 +2,22 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="OrbitalSIP.Views.TopBarControl">
   <Grid ColumnDefinitions="*,Auto" Background="#1E293B">
-    <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,12,0,12">
-      <Grid Width="34" Height="34">
-        <Ellipse Fill="#1D2D42" />
-        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
-          <Path Fill="#DDE7F3" Stretch="Uniform"
-                Data="M12,12A5,5 0 1,0 7,7A5,5 0 0,0 12,12M12,14C8.13,14 5,17.13 5,21H7C7,18.24 9.24,16 12,16C14.76,16 17,18.24 17,21H19C19,17.13 15.87,14 12,14Z" />
-        </Viewbox>
-        <Ellipse Name="StatusDot" Width="9" Height="9" Fill="#22C55E" Stroke="#101D2C" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
-      </Grid>
-      <StackPanel Spacing="1" VerticalAlignment="Center">
-        <TextBlock Name="UsernameLabel" Text="Dialer" FontSize="13" FontWeight="Bold" Foreground="#F8FAFC" />
-        <TextBlock Name="StatusLabel" Text="Available" FontSize="10" FontWeight="Medium" Foreground="#89A0B8" />
+    <Button Name="AvatarBtn" Background="Transparent" BorderThickness="0" Padding="0" Margin="14,12,0,12" HorizontalAlignment="Left">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Grid Width="34" Height="34">
+          <Ellipse Fill="#1D2D42" />
+          <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Path Fill="#DDE7F3" Stretch="Uniform"
+                  Data="M12,12A5,5 0 1,0 7,7A5,5 0 0,0 12,12M12,14C8.13,14 5,17.13 5,21H7C7,18.24 9.24,16 12,16C14.76,16 17,18.24 17,21H19C19,17.13 15.87,14 12,14Z" />
+          </Viewbox>
+          <Ellipse Name="StatusDot" Width="9" Height="9" Fill="#22C55E" Stroke="#101D2C" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+        </Grid>
+        <StackPanel Spacing="1" VerticalAlignment="Center">
+          <TextBlock Name="UsernameLabel" Text="Dialer" FontSize="13" FontWeight="Bold" Foreground="#F8FAFC" />
+          <TextBlock Name="StatusLabel" Text="Available" FontSize="10" FontWeight="Medium" Foreground="#89A0B8" />
+        </StackPanel>
       </StackPanel>
-    </StackPanel>
+    </Button>
 
     <Button Grid.Column="1" Name="MinimizeBtn"
             Width="28" Height="28" CornerRadius="14"
