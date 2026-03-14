@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
+using Avalonia;
 using Avalonia.Threading;
 using System;
 using System.Net.Http;
@@ -39,6 +40,12 @@ namespace OrbitalSIP.Views
             _ = LoadStatsAsync();
         }
 
+        protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            base.OnDetachedFromVisualTree(e);
+            _timer?.Stop();
+        }
+
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
         private void ToggleExpanded()
@@ -59,13 +66,13 @@ namespace OrbitalSIP.Views
             try
             {
                 var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
-                var operatorId = settings.DecodedToken?.Sub ?? settings.Username;
+                var operatorId = settings.DecodedToken?.Operator?.Username ?? settings.Username;
                 var backendUrl = settings.BackendUrl?.TrimEnd('/');
 
                 if (string.IsNullOrEmpty(operatorId) || string.IsNullOrEmpty(backendUrl))
                     return;
 
-                var url = $"{backendUrl}/api/operators/{Uri.EscapeDataString(operatorId)}/details?range=today";
+                var url = $"{backendUrl}/api/contact-center/operators/{Uri.EscapeDataString(operatorId)}/details?range=today";
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 if (!string.IsNullOrEmpty(settings.AccessToken))

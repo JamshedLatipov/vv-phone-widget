@@ -18,6 +18,18 @@ namespace OrbitalSIP.Services
 
         [JsonPropertyName("fullName")]
         public string? FullName { get; set; }
+        [JsonPropertyName("operator")]
+        public OperatorTokenInfo? Operator { get; set; }
+    }
+
+    public class OperatorTokenInfo
+    {
+        [JsonPropertyName("username")]
+        public string? Username { get; set; }
+
+        [JsonPropertyName("password")]
+        public string? Password { get; set; }
+
     }
 
     public static class JwtDecoder
