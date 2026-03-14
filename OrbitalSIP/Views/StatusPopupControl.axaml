@@ -37,116 +37,118 @@
         </Style>
     </UserControl.Styles>
 
-    <Border Background="#0B1120" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="16" Width="300" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <StackPanel Spacing="20">
-            <!-- Active Status (Visible if paused) -->
-            <Border Name="ActiveStatusPanel" IsVisible="False" Background="#1E293B" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="6" Padding="12">
-                <Grid ColumnDefinitions="Auto,*,Auto">
-                    <Viewbox Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,10,0">
-                        <Path Fill="#3B82F6" Stretch="Uniform" Data="M12,2A10,10 0 1,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 1,1 20,12A8,8 0 0,1 12,20M12.5,7H11V13L16.2,16.2L17,14.9L12.5,12.2V7Z" />
-                    </Viewbox>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="ACTIVE STATUS" FontSize="10" FontWeight="Bold" Foreground="#60A5FA" />
-                        <TextBlock Name="ActiveStatusText" Text="Break: 08:45 left" FontSize="12" FontWeight="Bold" Foreground="#F8FAFC" />
-                    </StackPanel>
-                    <Button Grid.Column="2" Name="EndNowBtn" Content="End Now" Background="Transparent" Foreground="#60A5FA" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" BorderThickness="0"/>
-                </Grid>
-            </Border>
-
-            <!-- Availability -->
-            <StackPanel Spacing="10">
-                <TextBlock Text="AVAILABILITY" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" LetterSpacing="1" />
-                <ListBox Name="AvailabilityList" Background="Transparent" BorderThickness="0">
-                    <ListBoxItem>
-                        <RadioButton GroupName="StatusGroup" Content="Online" Tag="online" IsChecked="True" BorderBrush="#1E293B" Background="#0F172A">
-                            <Grid ColumnDefinitions="Auto,*" Margin="12,10">
-                                <Ellipse Width="16" Height="16" Fill="#10B981" Margin="0,0,12,0"/>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Online" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC"/>
-                                    <TextBlock Text="Receiving calls" FontSize="11" Foreground="#94A3B8"/>
-                                </StackPanel>
-                            </Grid>
-                        </RadioButton>
-                    </ListBoxItem>
-                    <ListBoxItem>
-                        <RadioButton GroupName="StatusGroup" Content="Offline" Tag="offline" BorderBrush="#1E293B" Background="#0F172A">
-                            <Grid ColumnDefinitions="Auto,*" Margin="12,10">
-                                <Ellipse Width="16" Height="16" Fill="#EF4444" Margin="0,0,12,0"/>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Offline" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC"/>
-                                    <TextBlock Text="Do not disturb" FontSize="11" Foreground="#94A3B8"/>
-                                </StackPanel>
-                            </Grid>
-                        </RadioButton>
-                    </ListBoxItem>
-                </ListBox>
-            </StackPanel>
-
-            <!-- Away States -->
-            <StackPanel Spacing="10">
-                <TextBlock Text="AWAY STATES" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" LetterSpacing="1" />
-                <ListBox Name="AwayList" Background="Transparent" BorderThickness="0">
-                    <ListBoxItem>
-                        <RadioButton GroupName="StatusGroup" Content="Lunch" Tag="lunch" BorderBrush="#1E293B" Background="#0F172A">
-                            <Grid ColumnDefinitions="Auto,*" Margin="12,10">
-                                <Viewbox Width="16" Height="16" Margin="0,0,12,0">
-                                    <Path Fill="#F59E0B" Stretch="Uniform" Data="M11,9H9V2H7V9H5V2H3V9C3,11.12 4.66,12.84 6.75,12.97V22H9.25V12.97C11.34,12.84 13,11.12 13,9V2H11V9M16,6V14H18.5V22H21V2C18.24,2 16,4.24 16,6Z" />
-                                </Viewbox>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Lunch" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC"/>
-                                    <TextBlock Text="Scheduled break" FontSize="11" Foreground="#94A3B8"/>
-                                </StackPanel>
-                            </Grid>
-                        </RadioButton>
-                    </ListBoxItem>
-                    <ListBoxItem>
-                        <RadioButton GroupName="StatusGroup" Content="Break" Tag="break" BorderBrush="#1E293B" Background="#0F172A">
-                            <Grid ColumnDefinitions="Auto,*" Margin="12,10">
-                                <Viewbox Width="16" Height="16" Margin="0,0,12,0">
-                                    <Path Fill="#38BDF8" Stretch="Uniform" Data="M2,21H20V19H2M20,8H18V5H20M20,3H4V13A4,4 0 0,0 8,17H14A4,4 0 0,0 18,13V10H20A2,2 0 0,0 22,8V5C22,3.89 21.1,3 20,3Z" />
-                                </Viewbox>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Break" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC"/>
-                                    <TextBlock Text="Short rest" FontSize="11" Foreground="#94A3B8"/>
-                                </StackPanel>
-                            </Grid>
-                        </RadioButton>
-                    </ListBoxItem>
-                    <ListBoxItem>
-                        <RadioButton GroupName="StatusGroup" Content="Training" Tag="training" BorderBrush="#1E293B" Background="#0F172A">
-                            <Grid ColumnDefinitions="Auto,*" Margin="12,10">
-                                <Viewbox Width="16" Height="16" Margin="0,0,12,0">
-                                    <Path Fill="#C084FC" Stretch="Uniform" Data="M12,3L1,9L12,15L21,10.09V17H23V9M5,13.18V17.18L12,21L19,17.18V13.18L12,17L5,13.18Z" />
-                                </Viewbox>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Training" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC"/>
-                                    <TextBlock Text="Internal sessions" FontSize="11" Foreground="#94A3B8"/>
-                                </StackPanel>
-                            </Grid>
-                        </RadioButton>
-                    </ListBoxItem>
-                </ListBox>
-            </StackPanel>
-
-            <!-- Duration -->
-            <StackPanel Spacing="10">
-                <TextBlock Text="SET DURATION" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" LetterSpacing="1" HorizontalAlignment="Center"/>
-                <Border Background="#1E293B" CornerRadius="8" Padding="2">
-                    <UniformGrid Columns="4" Name="DurationGrid">
-                        <RadioButton GroupName="DurationGroup" Content="5m" Tag="5" Foreground="#94A3B8" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,8"/>
-                        <RadioButton GroupName="DurationGroup" Content="10m" Tag="10" Foreground="#3B82F6" Background="#2B3A55" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" IsChecked="True" Padding="0,8"/>
-                        <RadioButton GroupName="DurationGroup" Content="30m" Tag="30" Foreground="#94A3B8" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,8"/>
-                        <RadioButton GroupName="DurationGroup" Content="60m" Tag="60" Foreground="#94A3B8" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,8"/>
-                    </UniformGrid>
+    <Border Background="#0B1120" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="16" Width="300" MaxHeight="500" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="20" Margin="0,0,10,0">
+                <!-- Active Status (Visible if paused) -->
+                <Border Name="ActiveStatusPanel" IsVisible="False" Background="#1E293B" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="6" Padding="12">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Viewbox Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,10,0">
+                            <Path Fill="#3B82F6" Stretch="Uniform" Data="M12,2A10,10 0 1,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 1,1 20,12A8,8 0 0,1 12,20M12.5,7H11V13L16.2,16.2L17,14.9L12.5,12.2V7Z" />
+                        </Viewbox>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="ACTIVE STATUS" FontSize="10" FontWeight="Bold" Foreground="#60A5FA" />
+                            <TextBlock Name="ActiveStatusText" Text="Break: 08:45 left" FontSize="12" FontWeight="Bold" Foreground="#F8FAFC" />
+                        </StackPanel>
+                        <Button Grid.Column="2" Name="EndNowBtn" Content="End Now" Background="Transparent" Foreground="#60A5FA" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" BorderThickness="0"/>
+                    </Grid>
                 </Border>
+
+                <!-- Availability -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="AVAILABILITY" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" LetterSpacing="1" />
+                    <ListBox Name="AvailabilityList" Background="Transparent" BorderThickness="0">
+                        <ListBoxItem>
+                            <RadioButton GroupName="StatusGroup" Content="Online" Tag="online" IsChecked="True" BorderBrush="#1E293B" Background="#0F172A">
+                                <Grid ColumnDefinitions="Auto,*" Margin="12,10">
+                                    <Ellipse Width="16" Height="16" Fill="#10B981" Margin="0,0,12,0"/>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Online" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC"/>
+                                        <TextBlock Text="Receiving calls" FontSize="11" Foreground="#94A3B8"/>
+                                    </StackPanel>
+                                </Grid>
+                            </RadioButton>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <RadioButton GroupName="StatusGroup" Content="Offline" Tag="offline" BorderBrush="#1E293B" Background="#0F172A">
+                                <Grid ColumnDefinitions="Auto,*" Margin="12,10">
+                                    <Ellipse Width="16" Height="16" Fill="#EF4444" Margin="0,0,12,0"/>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Offline" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC"/>
+                                        <TextBlock Text="Do not disturb" FontSize="11" Foreground="#94A3B8"/>
+                                    </StackPanel>
+                                </Grid>
+                            </RadioButton>
+                        </ListBoxItem>
+                    </ListBox>
+                </StackPanel>
+
+                <!-- Away States -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="AWAY STATES" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" LetterSpacing="1" />
+                    <ListBox Name="AwayList" Background="Transparent" BorderThickness="0">
+                        <ListBoxItem>
+                            <RadioButton GroupName="StatusGroup" Content="Lunch" Tag="lunch" BorderBrush="#1E293B" Background="#0F172A">
+                                <Grid ColumnDefinitions="Auto,*" Margin="12,10">
+                                    <Viewbox Width="16" Height="16" Margin="0,0,12,0">
+                                        <Path Fill="#F59E0B" Stretch="Uniform" Data="M11,9H9V2H7V9H5V2H3V9C3,11.12 4.66,12.84 6.75,12.97V22H9.25V12.97C11.34,12.84 13,11.12 13,9V2H11V9M16,6V14H18.5V22H21V2C18.24,2 16,4.24 16,6Z" />
+                                    </Viewbox>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Lunch" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC"/>
+                                        <TextBlock Text="Scheduled break" FontSize="11" Foreground="#94A3B8"/>
+                                    </StackPanel>
+                                </Grid>
+                            </RadioButton>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <RadioButton GroupName="StatusGroup" Content="Break" Tag="break" BorderBrush="#1E293B" Background="#0F172A">
+                                <Grid ColumnDefinitions="Auto,*" Margin="12,10">
+                                    <Viewbox Width="16" Height="16" Margin="0,0,12,0">
+                                        <Path Fill="#38BDF8" Stretch="Uniform" Data="M2,21H20V19H2M20,8H18V5H20M20,3H4V13A4,4 0 0,0 8,17H14A4,4 0 0,0 18,13V10H20A2,2 0 0,0 22,8V5C22,3.89 21.1,3 20,3Z" />
+                                    </Viewbox>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Break" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC"/>
+                                        <TextBlock Text="Short rest" FontSize="11" Foreground="#94A3B8"/>
+                                    </StackPanel>
+                                </Grid>
+                            </RadioButton>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <RadioButton GroupName="StatusGroup" Content="Training" Tag="training" BorderBrush="#1E293B" Background="#0F172A">
+                                <Grid ColumnDefinitions="Auto,*" Margin="12,10">
+                                    <Viewbox Width="16" Height="16" Margin="0,0,12,0">
+                                        <Path Fill="#C084FC" Stretch="Uniform" Data="M12,3L1,9L12,15L21,10.09V17H23V9M5,13.18V17.18L12,21L19,17.18V13.18L12,17L5,13.18Z" />
+                                    </Viewbox>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Training" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC"/>
+                                        <TextBlock Text="Internal sessions" FontSize="11" Foreground="#94A3B8"/>
+                                    </StackPanel>
+                                </Grid>
+                            </RadioButton>
+                        </ListBoxItem>
+                    </ListBox>
+                </StackPanel>
+
+                <!-- Duration -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="SET DURATION" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" LetterSpacing="1" HorizontalAlignment="Center"/>
+                    <Border Background="#1E293B" CornerRadius="8" Padding="2">
+                        <UniformGrid Columns="4" Name="DurationGrid">
+                            <RadioButton GroupName="DurationGroup" Content="5m" Tag="5" Foreground="#94A3B8" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,8"/>
+                            <RadioButton GroupName="DurationGroup" Content="10m" Tag="10" Foreground="#3B82F6" Background="#2B3A55" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" IsChecked="True" Padding="0,8"/>
+                            <RadioButton GroupName="DurationGroup" Content="30m" Tag="30" Foreground="#94A3B8" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,8"/>
+                            <RadioButton GroupName="DurationGroup" Content="60m" Tag="60" Foreground="#94A3B8" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,8"/>
+                        </UniformGrid>
+                    </Border>
+                </StackPanel>
+
+                <!-- Actions -->
+                <Grid ColumnDefinitions="*,*">
+                     <Button Grid.Column="0" Name="CancelBtn" Content="Cancel" Margin="0,0,5,0" Height="40" Background="#1E293B" Foreground="#F8FAFC" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" CornerRadius="6" FontWeight="Bold" />
+                     <Button Grid.Column="1" Name="UpdateStatusBtn" Content="Update Status" Margin="5,0,0,0" Height="40" Background="#3B82F6" Foreground="#FFFFFF" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" CornerRadius="6" FontWeight="Bold" />
+                </Grid>
+
             </StackPanel>
-
-            <!-- Actions -->
-            <Grid ColumnDefinitions="*,*">
-                 <Button Grid.Column="0" Name="CancelBtn" Content="Cancel" Margin="0,0,5,0" Height="40" Background="#1E293B" Foreground="#F8FAFC" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" CornerRadius="6" FontWeight="Bold" />
-                 <Button Grid.Column="1" Name="UpdateStatusBtn" Content="Update Status" Margin="5,0,0,0" Height="40" Background="#3B82F6" Foreground="#FFFFFF" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" CornerRadius="6" FontWeight="Bold" />
-            </Grid>
-
-        </StackPanel>
+        </ScrollViewer>
     </Border>
 </UserControl>
