@@ -64,7 +64,12 @@ namespace OrbitalSIP.Views
                 var filteredChildren = new List<CallScript>();
                 if (node.Children != null && node.Children.Any())
                 {
-                    filteredChildren = FilterNodeList(node.Children, query);
+                    // If the parent matches, include all its active children without further filtering.
+                    // Otherwise, apply the filter to the children.
+                    if (matches)
+                        filteredChildren = node.Children.Where(c => c.IsActive).ToList();
+                    else
+                        filteredChildren = FilterNodeList(node.Children, query);
                 }
 
                 if (matches || filteredChildren.Any())
