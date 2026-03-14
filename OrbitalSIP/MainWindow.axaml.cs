@@ -357,7 +357,7 @@ namespace OrbitalSIP
             if (overlay != null) { overlay.Content = nextContent; overlay.Opacity = 0; overlay.IsVisible = true; }
             if (host != null) host.Opacity = 1;
 
-            _animTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Normal, OnAnimTick);
+            _animTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(8), DispatcherPriority.Render, OnAnimTick);
             _animTimer.Start();
         }
 
