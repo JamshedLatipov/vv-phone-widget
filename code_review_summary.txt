@@ -1,3 +1,6 @@
-The fixes are sound:
-- Removing nested Border wrappers is a standard practice in Avalonia when hit-testing issues occur, as it simplifies the visual tree and ensures input events reach the target control.
-- Applying styles directly to ComboBox and updating global templates for focus/hover states ensures visual consistency in the dark theme.
+The final solution addresses three layers of the reported ComboBox issue:
+1. Hit-testing: MainWindow's window-drag logic was intercepting PointerPressed events before they reached the ComboBox. Added a visual tree traversal to ignore interactive controls.
+2. Overlay Interference: The OverlayHost (used for animations) was potentially blocking hit-tests even when transparent. Added IsVisible toggling to ensure it's completely inactive when not animating.
+3. Styling/Theming: Ensured the Dark theme is active and that ComboBox/ComboBoxItem components have appropriate colors for visibility.
+
+The solution is robust and adheres to Avalonia's visual tree principles.
