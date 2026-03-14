@@ -174,9 +174,31 @@ namespace OrbitalSIP
         }
 
         // ── Dialer ────────────────────────────────────────────────────
+
+        private void ShowRecents()
+        {
+            var r = new Views.RecentsView();
+            r.OnCloseRequested += (_, __) => ToggleExpanded();
+            r.OnSettingsRequested += (_, __) => ShowSettings();
+            r.OnDialerRequested += (_, __) => ShowDialer();
+            r.OutgoingCallRequested += (sender, num) => StartOutgoingCall(num);
+
+            SetMainContent(r);
+        }
+
         private void ShowDialer()
         {
-            SetMainContent(CreateDialerView());
+            if (App.SipService.State == CallState.Active || App.SipService.State == CallState.OnHold)
+            {
+                var elapsed = App.SipService.ActiveCallStartedAt.HasValue
+                    ? DateTime.Now - App.SipService.ActiveCallStartedAt.Value
+                    : TimeSpan.Zero;
+                ShowActiveCallView(App.SipService.ActiveCallerId, elapsed);
+            }
+            else
+            {
+                SetMainContent(CreateDialerView());
+            }
         }
 
         // ── Settings ──────────────────────────────────────────────────
@@ -343,6 +365,7 @@ namespace OrbitalSIP
             callView.OnKeypadRequested += (_, __) => ShowDialer();
             callView.OnSettingsRequested += (_, __) => ShowSettings();
             callView.OnAvatarClicked += (_, __) => ShowStatusPopup();
+            callView.OnRecentsRequested += (_, __) => ShowRecents();
         }
 
         // ── SIP state changes ─────────────────────────────────────────
@@ -384,7 +407,7 @@ namespace OrbitalSIP
             if (overlay != null) { overlay.Content = nextContent; overlay.Opacity = 0; overlay.IsVisible = true; }
             if (host != null) host.Opacity = 1;
 
-            _animTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Normal, OnAnimTick);
+            _animTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(8), DispatcherPriority.Render, OnAnimTick);
             _animTimer.Start();
         }
 
@@ -425,6 +448,7 @@ namespace OrbitalSIP
             dialer.OnCloseRequested += (_, __) => CollapseWidget();
             dialer.OnSettingsRequested += (_, __) => ShowSettings();
             dialer.OnAvatarClicked += (_, __) => ShowStatusPopup();
+            dialer.OnRecentsRequested += (_, __) => ShowRecents();
             dialer.OutgoingCallRequested += (_, number) => StartOutgoingCall(number);
             return dialer;
         }

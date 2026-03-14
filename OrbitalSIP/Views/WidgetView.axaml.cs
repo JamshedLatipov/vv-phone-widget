@@ -38,8 +38,9 @@ namespace OrbitalSIP.Views
             if (_pulseTimer == null)
             {
                 _pulseTimer = new DispatcherTimer(
-                    TimeSpan.FromMilliseconds(30), DispatcherPriority.Normal, OnPulseTick);
+                    TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, OnPulseTick);
             }
+            
             _pulseTimer.Start();
 
             var sip = App.SipService;

@@ -34,6 +34,7 @@ namespace OrbitalSIP.Services
         public RegistrationState RegistrationStatus { get; private set; } = RegistrationState.Unregistered;
         public string    LastRegistrationError { get; private set; } = "";
         public CallState State              { get; private set; } = CallState.Idle;
+        public DateTime? ActiveCallStartedAt  { get; private set; }
         public string    ActiveCallerId     { get; private set; } = "";
         public SipSettings CurrentSettings => _settings;
 
@@ -200,6 +201,7 @@ namespace OrbitalSIP.Services
                 Debug.WriteLine("[SipService] Call connected — audio active.");
                 Debug.WriteLine($"[SipService] Remote SDP:\n{_mediaSession?.RemoteDescription}");
                 Log($"Call connected. Remote SDP: {SanitizeSdp(_mediaSession?.RemoteDescription?.ToString())}");
+                ActiveCallStartedAt = DateTime.Now;
                 SetState(CallState.Active);
             }
             else
@@ -294,6 +296,7 @@ namespace OrbitalSIP.Services
                 return;
             }
 
+            ActiveCallStartedAt = DateTime.Now;
             SetState(CallState.Active);
             Debug.WriteLine($"[SipService] Answered. Remote SDP:\n{_mediaSession?.RemoteDescription}");
             Log($"Incoming call answered. Remote SDP: {SanitizeSdp(_mediaSession?.RemoteDescription?.ToString())}");
@@ -556,6 +559,7 @@ namespace OrbitalSIP.Services
 
         private void CleanupMedia()
         {
+            ActiveCallStartedAt = null;
             Log("Cleaning up media resources.");
             _audioEndPoint?.CloseAudio();
             _mediaSession?.Close("ended");
