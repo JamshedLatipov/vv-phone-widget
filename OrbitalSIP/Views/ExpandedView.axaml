@@ -11,6 +11,7 @@
           ClipToBounds="True">
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
 
+
       <!-- Header -->
       <Grid ColumnDefinitions="*,Auto" Background="#1E293B">
         <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,12,0,12">
@@ -43,8 +44,11 @@
         </Button>
       </Grid>
 
+      <!-- Operator Stats Widget -->
+      <Views:OperatorStatsControl Grid.Row="1" Name="OperatorStats" />
+
       <!-- Dialer display -->
-      <Grid Grid.Row="1" Margin="14,10,14,10" ColumnDefinitions="*,Auto,Auto">
+      <Grid Grid.Row="2" Margin="14,10,14,10" ColumnDefinitions="*,Auto,Auto">
         <Border Grid.Column="0" Background="#020617" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="12" Padding="12,9">
           <TextBlock Name="DisplayText" Text="" FontSize="22" FontWeight="SemiBold"
                      Foreground="#F8FAFC" HorizontalAlignment="Center"
@@ -68,7 +72,7 @@
       </Grid>
 
       <!-- Numeric keypad -->
-      <UniformGrid Grid.Row="2" Name="DialPad" Rows="4" Columns="3" Margin="14,2,14,6">
+      <UniformGrid Grid.Row="3" Name="DialPad" Rows="4" Columns="3" Margin="14,2,14,6">
         <Button Tag="1" Background="#1E293B" BorderThickness="0" Margin="6" Height="50" CornerRadius="25" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="1" FontSize="20" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
@@ -144,7 +148,7 @@
       </UniformGrid>
 
       <!-- Primary call action -->
-      <Button Grid.Row="3" Name="CallBtn"
+      <Button Grid.Row="4" Name="CallBtn"
               Margin="14,10,14,14"
               Height="52" CornerRadius="26"
               Background="#10B981" BorderThickness="0"
@@ -160,8 +164,6 @@
         </StackPanel>
       </Button>
 
-      <!-- Operator Stats Widget -->
-      <Views:OperatorStatsControl Grid.Row="4" Name="OperatorStats" />
 
       <!-- Recent activity -->
       <Border Grid.Row="5" Background="#020617" BorderBrush="#1E293B" BorderThickness="1,1,1,0" Padding="12,7,12,5" MinHeight="60">

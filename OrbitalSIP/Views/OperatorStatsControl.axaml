@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="OrbitalSIP.Views.OperatorStatsControl">
-  <Border Background="#1C1C1C" CornerRadius="4" Margin="14,0,14,14">
+  <Border Background="#1C1C1C" CornerRadius="0" Margin="0,0,0,0">
     <StackPanel>
       <!-- Collapsed Header -->
       <Button Name="HeaderButton" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="8,4">
