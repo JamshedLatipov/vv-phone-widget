@@ -1,3 +1,5 @@
+using Avalonia.Controls.Primitives;
+using Avalonia.VisualTree;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -87,10 +89,21 @@ namespace OrbitalSIP
         // ── Drag ──────────────────────────────────────────────────────
         private void MainWindow_PointerPressed(object? sender, PointerPressedEventArgs e)
         {
+            // Traverse the visual tree from the source to see if we clicked an interactive control
+            var visual = e.Source as Visual;
+            while (visual != null && visual != this)
+            {
+                if (visual is Button || visual is TextBox || visual is ComboBox ||
+                    visual is ListBoxItem || visual is ScrollBar || visual is ScrollViewer)
+                {
+                    return; // Interactive control reached, do not drag
+                }
+                visual = visual.GetVisualParent();
+            }
+
             if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
                 BeginMoveDrag(e);
         }
-
         private void MainWindow_PointerReleased(object? sender, PointerReleasedEventArgs e)
         {
             if (_animTimer == null)
@@ -324,7 +337,7 @@ namespace OrbitalSIP
 
             var overlay = this.FindControl<ContentControl>("OverlayHost");
             var host = this.FindControl<ContentControl>("Host");
-            if (overlay != null) { overlay.Content = nextContent; overlay.Opacity = 0; }
+            if (overlay != null) { overlay.Content = nextContent; overlay.Opacity = 0; overlay.IsVisible = true; }
             if (host != null) host.Opacity = 1;
 
             _animTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Normal, OnAnimTick);
@@ -389,7 +402,7 @@ namespace OrbitalSIP
             if (overlay != null) overlay.Content = null;
             if (host != null && nextContent != null) { host.Content = nextContent; host.Opacity = 1; }
             else if (host != null) host.Opacity = 1;
-            if (overlay != null) overlay.Opacity = 0;
+            if (overlay != null) { overlay.Opacity = 0; overlay.IsVisible = false; }
             _pendingContent = null;
         }
 

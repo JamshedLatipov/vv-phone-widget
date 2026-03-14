@@ -17,6 +17,7 @@
     </ContentControl>
     <ContentControl Name="OverlayHost"
                     Opacity="0"
+                    IsVisible="False"
                     IsHitTestVisible="False" />
   </Grid>
 </Window>
