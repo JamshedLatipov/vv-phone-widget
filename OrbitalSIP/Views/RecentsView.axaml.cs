@@ -132,5 +132,22 @@ namespace OrbitalSIP.Views
                 OutgoingCallRequested?.Invoke(this, num);
             }
         }
+
+        private async void OnCdrScriptClicked(object? sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is CdrItemViewModel vm)
+            {
+                var topLevel = Avalonia.Controls.TopLevel.GetTopLevel(this) as Avalonia.Controls.Window;
+                if (topLevel == null) return;
+
+                var dialog = new ScriptsDialog();
+                var result = await dialog.ShowDialog<CallScript?>(topLevel);
+
+                if (result != null && !string.IsNullOrEmpty(vm.Entry.UniqueId))
+                {
+                    await App.ScriptService.RegisterScriptAsync(vm.Entry.UniqueId, result.Id!);
+                }
+            }
+        }
     }
 }

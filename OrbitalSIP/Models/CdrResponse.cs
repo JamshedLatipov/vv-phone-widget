@@ -38,6 +38,9 @@ namespace OrbitalSIP.Models
 
         [JsonPropertyName("destination")]
         public string? Destination { get; set; }
+
+        [JsonPropertyName("uniqueid")]
+        public string? UniqueId { get; set; }
     }
 
     public class CdrResponse

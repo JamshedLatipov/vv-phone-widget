@@ -202,18 +202,34 @@
             </StackPanel>
           </Border>
 
-          <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
-            <Border Grid.Column="0" Margin="0,0,6,0" Background="#1E293B" BorderThickness="0" CornerRadius="14" Padding="12,12">
-              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                <Viewbox Width="18" Height="18" VerticalAlignment="Center">
-                  <Path Fill="#60A5FA" Stretch="Uniform"
-                        Data="M15,14C12.33,14 7,15.34 7,18V20H23V18C23,15.34 17.67,14 15,14M15,12A4,4 0 1,0 11,8A4,4 0 0,0 15,12M5,8V11H0V13H5V16L9,12L5,8Z" />
-                </Viewbox>
-                <TextBlock Text="Create Lead" FontSize="12" FontWeight="Bold" Foreground="#60A5FA" VerticalAlignment="Center" />
+          <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,0">
+            <Button Grid.Column="0" Name="CreateLeadBtn"
+                    Margin="0,0,6,0"
+                    Background="#1E293B"
+                    BorderThickness="0"
+                    CornerRadius="14"
+                    Padding="12,12"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                <TextBlock Text="Lead" FontSize="12" FontWeight="Bold" Foreground="#60A5FA" VerticalAlignment="Center" />
               </StackPanel>
-            </Border>
+            </Button>
 
-            <Button Grid.Column="1" Name="HangupBtn"
+            <Button Grid.Column="1" Name="ScriptBtn"
+                    Margin="0,0,6,0"
+                    Background="#1E293B"
+                    BorderThickness="0"
+                    CornerRadius="14"
+                    Padding="12,12"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                <TextBlock Text="Script" FontSize="12" FontWeight="Bold" Foreground="#60A5FA" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+
+            <Button Grid.Column="2" Name="HangupBtn"
                     Margin="6,0,0,0"
                     Background="#EF4444"
                     BorderThickness="0"
