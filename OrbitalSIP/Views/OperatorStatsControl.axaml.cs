@@ -114,8 +114,8 @@ namespace OrbitalSIP.Views
             var incoming = stats.IncomingCalls;
 
             int efficiency = 0;
-            if (total > 0)
-                efficiency = (int)Math.Round((double)answered / total * 100);
+            if (incoming > 0)
+                efficiency = (int)Math.Round((double)stats.IncomingAnswered / incoming * 100);
 
             // Update Summary
             var summaryTxt = this.FindControl<TextBlock>("SummaryText");
@@ -132,9 +132,11 @@ namespace OrbitalSIP.Views
 
             // Update Grid Items
             SetText("TotalCallsText", total.ToString());
-            SetText("AnsweredCallsText", answered.ToString());
             SetText("MissedCallsText", missed.ToString());
             SetText("OutgoingCallsText", outgoing.ToString());
+            SetText("IncomingCallsText", incoming.ToString());
+            SetText("IncomingAnsweredText", stats.IncomingAnswered.ToString());
+            SetText("OutgoingAnsweredText", stats.OutgoingAnswered.ToString());
 
             SetText("AvgDurationText", FormatDuration(stats.AvgDuration));
             SetText("TalkTimeText", FormatDuration(stats.TotalTalkTime));

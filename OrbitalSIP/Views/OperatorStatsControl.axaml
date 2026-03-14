@@ -25,61 +25,157 @@
             </Button>
           </Grid>
 
-          <!-- 2x3 Grid for stats -->
-          <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*,*" Margin="0,4,0,0">
-            <!-- Row 0 -->
+          <!-- 3x3 Grid for stats -->
+
+          <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,*,*" Margin="0,4,0,0">
+            <!-- Row 0: Summary -->
+
             <Border Grid.Row="0" Grid.Column="0" Background="#2C2C2C" CornerRadius="4" Margin="0,0,4,4" Padding="0,8">
+
               <StackPanel HorizontalAlignment="Center">
+
                 <PathIcon Data="M14,15.5A1.5,1.5 0 0,1 12.5,17A1.5,1.5 0 0,1 11,15.5A1.5,1.5 0 0,1 12.5,14A1.5,1.5 0 0,1 14,15.5M16.5,8L15.5,12L12,10.5V6H10V10L11.5,14L10,16.5H12L13,13.5L15,14.5V17H17V13L15.5,12L16.5,8M15,2A2,2 0 0,1 17,4A2,2 0 0,1 15,6A2,2 0 0,1 13,4A2,2 0 0,1 15,2Z" Width="12" Height="12" Foreground="#89A0B8" Margin="0,0,0,4"/>
+
                 <TextBlock Name="TotalCallsText" Text="0" Foreground="#F8FAFC" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
+
                 <TextBlock Text="ВСЕГО" Foreground="#A0A0A0" FontSize="9" HorizontalAlignment="Center"/>
+
               </StackPanel>
+
             </Border>
+
+
 
             <Border Grid.Row="0" Grid.Column="1" Background="#2C2C2C" CornerRadius="4" Margin="2,0,2,4" Padding="0,8">
+
               <StackPanel HorizontalAlignment="Center">
-                <PathIcon Data="M6.62,10.79C8.06,13.62 10.38,15.93 13.21,17.38L15.41,15.18C15.68,14.91 16.08,14.82 16.43,14.94C17.55,15.31 18.76,15.51 20,15.51C20.55,15.51 21,15.96 21,16.51V20C21,20.55 20.55,21 20,21C10.61,21 3,13.39 3,4C3,3.45 3.45,3 4,3H7.5C8.05,3 8.5,3.45 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" Width="12" Height="12" Foreground="#22C55E" Margin="0,0,0,4"/>
-                <TextBlock Name="AnsweredCallsText" Text="0" Foreground="#22C55E" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
-                <TextBlock Text="ПРИНЯТО" Foreground="#A0A0A0" FontSize="9" HorizontalAlignment="Center"/>
+
+                <PathIcon Data="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M16.2,16.2L11,13V7H12.5V12.2L17,14.9L16.2,16.2Z" Width="12" Height="12" Foreground="#89A0B8" Margin="0,0,0,4"/>
+
+                <TextBlock Name="AvgDurationText" Text="0:00" Foreground="#F8FAFC" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
+
+                <TextBlock Text="СР. РАЗГОВОР" Foreground="#A0A0A0" FontSize="9" HorizontalAlignment="Center"/>
+
               </StackPanel>
+
             </Border>
+
+
 
             <Border Grid.Row="0" Grid.Column="2" Background="#2C2C2C" CornerRadius="4" Margin="4,0,0,4" Padding="0,8">
-              <StackPanel HorizontalAlignment="Center">
-                <PathIcon Data="M20,15.5C18.8,15.5 17.5,15.3 16.4,14.9C16.3,14.9 16.2,14.9 16.1,14.9C15.8,14.9 15.6,15 15.4,15.2L13.2,17.4C10.4,15.9 8,13.6 6.6,10.8L8.8,8.6C9.1,8.3 9.2,7.9 9,7.6C8.7,6.5 8.5,5.2 8.5,4C8.5,3.5 8,3 7.5,3H4C3.5,3 3,3.5 3,4C3,13.4 10.6,21 20,21C20.5,21 21,20.5 21,20V16.5C21,16 20.5,15.5 20,15.5M19,10V6H14.5L16.4,7.9L12,12.3L13.4,13.7L17.8,9.3L19,10Z" Width="12" Height="12" Foreground="#EF4444" Margin="0,0,0,4"/>
-                <TextBlock Name="MissedCallsText" Text="0" Foreground="#EF4444" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
-                <TextBlock Text="ПРОПУЩЕНО" Foreground="#A0A0A0" FontSize="9" HorizontalAlignment="Center"/>
-              </StackPanel>
-            </Border>
 
-            <!-- Row 1 -->
-            <Border Grid.Row="1" Grid.Column="0" Background="#2C2C2C" CornerRadius="4" Margin="0,0,4,0" Padding="0,8">
               <StackPanel HorizontalAlignment="Center">
-                <PathIcon Data="M14,15.5A1.5,1.5 0 0,1 12.5,17A1.5,1.5 0 0,1 11,15.5A1.5,1.5 0 0,1 12.5,14A1.5,1.5 0 0,1 14,15.5M16.5,8L15.5,12L12,10.5V6H10V10L11.5,14L10,16.5H12L13,13.5L15,14.5V17H17V13L15.5,12L16.5,8M15,2A2,2 0 0,1 17,4A2,2 0 0,1 15,6A2,2 0 0,1 13,4A2,2 0 0,1 15,2Z" Width="12" Height="12" Foreground="#3B82F6" Margin="0,0,0,4">
-                   <PathIcon.RenderTransform>
-                       <RotateTransform Angle="-45" />
-                   </PathIcon.RenderTransform>
-                </PathIcon>
-                <TextBlock Name="OutgoingCallsText" Text="0" Foreground="#3B82F6" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
-                <TextBlock Text="ИСХОДЯЩИХ" Foreground="#A0A0A0" FontSize="9" HorizontalAlignment="Center"/>
-              </StackPanel>
-            </Border>
 
-            <Border Grid.Row="1" Grid.Column="1" Background="#2C2C2C" CornerRadius="4" Margin="2,0,2,0" Padding="0,8">
-              <StackPanel HorizontalAlignment="Center">
-                <PathIcon Data="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M16.2,16.2L11,13V7H12.5V12.2L17,14.9L16.2,16.2Z" Width="12" Height="12" Foreground="#89A0B8" Margin="0,0,0,4"/>
-                <TextBlock Name="AvgDurationText" Text="0:00" Foreground="#F8FAFC" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
-                <TextBlock Text="СР. РАЗГОВОР" Foreground="#A0A0A0" FontSize="9" HorizontalAlignment="Center"/>
-              </StackPanel>
-            </Border>
-
-            <Border Grid.Row="1" Grid.Column="2" Background="#2C2C2C" CornerRadius="4" Margin="4,0,0,0" Padding="0,8">
-              <StackPanel HorizontalAlignment="Center">
                 <PathIcon Data="M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22C6.47,22 2,17.5 2,12A10,10 0 0,1 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z" Width="12" Height="12" Foreground="#89A0B8" Margin="0,0,0,4"/>
+
                 <TextBlock Name="TalkTimeText" Text="0:00" Foreground="#F8FAFC" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
+
                 <TextBlock Text="НА ЛИНИИ" Foreground="#A0A0A0" FontSize="9" HorizontalAlignment="Center"/>
+
               </StackPanel>
+
             </Border>
+
+
+
+            <!-- Row 1: Incoming -->
+
+            <Border Grid.Row="1" Grid.Column="0" Background="#2C2C2C" CornerRadius="4" Margin="0,0,4,4" Padding="0,8">
+
+              <StackPanel HorizontalAlignment="Center">
+
+                <PathIcon Data="M14,15.5A1.5,1.5 0 0,1 12.5,17A1.5,1.5 0 0,1 11,15.5A1.5,1.5 0 0,1 12.5,14A1.5,1.5 0 0,1 14,15.5M16.5,8L15.5,12L12,10.5V6H10V10L11.5,14L10,16.5H12L13,13.5L15,14.5V17H17V13L15.5,12L16.5,8M15,2A2,2 0 0,1 17,4A2,2 0 0,1 15,6A2,2 0 0,1 13,4A2,2 0 0,1 15,2Z" Width="12" Height="12" Foreground="#8B5CF6" Margin="0,0,0,4">
+
+                   <PathIcon.RenderTransform>
+
+                       <RotateTransform Angle="135" />
+
+                   </PathIcon.RenderTransform>
+
+                </PathIcon>
+
+                <TextBlock Name="IncomingCallsText" Text="0" Foreground="#8B5CF6" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
+
+                <TextBlock Text="ВХОДЯЩИЕ" Foreground="#A0A0A0" FontSize="9" HorizontalAlignment="Center"/>
+
+              </StackPanel>
+
+            </Border>
+
+
+
+            <Border Grid.Row="1" Grid.Column="1" Background="#2C2C2C" CornerRadius="4" Margin="2,0,2,4" Padding="0,8">
+
+              <StackPanel HorizontalAlignment="Center">
+
+                <PathIcon Data="M6.62,10.79C8.06,13.62 10.38,15.93 13.21,17.38L15.41,15.18C15.68,14.91 16.08,14.82 16.43,14.94C17.55,15.31 18.76,15.51 20,15.51C20.55,15.51 21,15.96 21,16.51V20C21,20.55 20.55,21 20,21C10.61,21 3,13.39 3,4C3,3.45 3.45,3 4,3H7.5C8.05,3 8.5,3.45 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" Width="12" Height="12" Foreground="#22C55E" Margin="0,0,0,4"/>
+
+                <TextBlock Name="IncomingAnsweredText" Text="0" Foreground="#22C55E" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
+
+                <TextBlock Text="ПРИНЯТО" Foreground="#A0A0A0" FontSize="9" HorizontalAlignment="Center"/>
+
+              </StackPanel>
+
+            </Border>
+
+
+
+            <Border Grid.Row="1" Grid.Column="2" Background="#2C2C2C" CornerRadius="4" Margin="4,0,0,4" Padding="0,8">
+
+              <StackPanel HorizontalAlignment="Center">
+
+                <PathIcon Data="M20,15.5C18.8,15.5 17.5,15.3 16.4,14.9C16.3,14.9 16.2,14.9 16.1,14.9C15.8,14.9 15.6,15 15.4,15.2L13.2,17.4C10.4,15.9 8,13.6 6.6,10.8L8.8,8.6C9.1,8.3 9.2,7.9 9,7.6C8.7,6.5 8.5,5.2 8.5,4C8.5,3.5 8,3 7.5,3H4C3.5,3 3,3.5 3,4C3,13.4 10.6,21 20,21C20.5,21 21,20.5 21,20V16.5C21,16 20.5,15.5 20,15.5M19,10V6H14.5L16.4,7.9L12,12.3L13.4,13.7L17.8,9.3L19,10Z" Width="12" Height="12" Foreground="#EF4444" Margin="0,0,0,4"/>
+
+                <TextBlock Name="MissedCallsText" Text="0" Foreground="#EF4444" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
+
+                <TextBlock Text="ПРОПУЩЕНО" Foreground="#A0A0A0" FontSize="9" HorizontalAlignment="Center"/>
+
+              </StackPanel>
+
+            </Border>
+
+
+
+            <!-- Row 2: Outgoing -->
+
+            <Border Grid.Row="2" Grid.Column="0" Background="#2C2C2C" CornerRadius="4" Margin="0,0,4,0" Padding="0,8">
+
+              <StackPanel HorizontalAlignment="Center">
+
+                <PathIcon Data="M14,15.5A1.5,1.5 0 0,1 12.5,17A1.5,1.5 0 0,1 11,15.5A1.5,1.5 0 0,1 12.5,14A1.5,1.5 0 0,1 14,15.5M16.5,8L15.5,12L12,10.5V6H10V10L11.5,14L10,16.5H12L13,13.5L15,14.5V17H17V13L15.5,12L16.5,8M15,2A2,2 0 0,1 17,4A2,2 0 0,1 15,6A2,2 0 0,1 13,4A2,2 0 0,1 15,2Z" Width="12" Height="12" Foreground="#3B82F6" Margin="0,0,0,4">
+
+                   <PathIcon.RenderTransform>
+
+                       <RotateTransform Angle="-45" />
+
+                   </PathIcon.RenderTransform>
+
+                </PathIcon>
+
+                <TextBlock Name="OutgoingCallsText" Text="0" Foreground="#3B82F6" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
+
+                <TextBlock Text="ИСХОДЯЩИХ" Foreground="#A0A0A0" FontSize="9" HorizontalAlignment="Center"/>
+
+              </StackPanel>
+
+            </Border>
+
+
+
+            <Border Grid.Row="2" Grid.Column="1" Background="#2C2C2C" CornerRadius="4" Margin="2,0,2,0" Padding="0,8">
+
+              <StackPanel HorizontalAlignment="Center">
+
+                <PathIcon Data="M6.62,10.79C8.06,13.62 10.38,15.93 13.21,17.38L15.41,15.18C15.68,14.91 16.08,14.82 16.43,14.94C17.55,15.31 18.76,15.51 20,15.51C20.55,15.51 21,15.96 21,16.51V20C21,20.55 20.55,21 20,21C10.61,21 3,13.39 3,4C3,3.45 3.45,3 4,3H7.5C8.05,3 8.5,3.45 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" Width="12" Height="12" Foreground="#22C55E" Margin="0,0,0,4"/>
+
+                <TextBlock Name="OutgoingAnsweredText" Text="0" Foreground="#22C55E" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
+
+                <TextBlock Text="ДОЗВОНИЛСЯ" Foreground="#A0A0A0" FontSize="9" HorizontalAlignment="Center"/>
+
+              </StackPanel>
+
+            </Border>
+
           </Grid>
         </StackPanel>
       </Border>

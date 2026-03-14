@@ -21,6 +21,9 @@ namespace OrbitalSIP.Models
 
         [JsonPropertyName("outgoingCalls")]
         public int OutgoingCalls { get; set; }
+        [JsonPropertyName("outgoingAnswered")]
+        public int OutgoingAnswered { get; set; }
+
 
         [JsonPropertyName("avgDuration")]
         public int AvgDuration { get; set; }
