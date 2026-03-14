@@ -186,6 +186,11 @@ namespace OrbitalSIP
             settingsView.OnMinimizeRequested += (_, __) => CollapseWidget();
             settingsView.OnBackRequested += (_, __) =>
             {
+                if (isFromLogin) ShowLogin();
+                else ShowDialer();
+            };
+            settingsView.OnSaveRequested += (_, __) =>
+            {
                 var settings = SipSettings.Load();
                 var current = App.SipService.CurrentSettings;
                 if (!string.IsNullOrEmpty(current.Username))

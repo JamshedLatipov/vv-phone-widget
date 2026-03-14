@@ -149,10 +149,11 @@ namespace OrbitalSIP.Views
                 _settings.AudioInDeviceIndex = (micBox.SelectedIndex <= 0 ? -1 : micBox.SelectedIndex - 1);
 
             _settings.Save();
-            OnBackRequested?.Invoke(this, System.EventArgs.Empty);
+            OnSaveRequested?.Invoke(this, System.EventArgs.Empty);
         }
 
         public event System.EventHandler? OnBackRequested;
         public event System.EventHandler? OnMinimizeRequested;
+        public event System.EventHandler? OnSaveRequested;
     }
 }
