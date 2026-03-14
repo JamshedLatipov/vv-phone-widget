@@ -5,6 +5,9 @@ using Avalonia.Threading;
 using Avalonia.Markup.Xaml;
 using System.Diagnostics;
 using OrbitalSIP.Services;
+using OrbitalSIP.Models;
+using System;
+using Avalonia;
 
 namespace OrbitalSIP.Views
 {
@@ -14,29 +17,83 @@ namespace OrbitalSIP.Views
         private Stopwatch?       _stopwatch;
         private Ellipse?         _strokeRing;
         private Ellipse?         _statusDot;
+        private Action<StatusState>? _queueStateChangedHandler;
+        private Action<RegistrationState>? _statusChangedHandler;
+        private Action<string>? _registrationErrorHandler;
 
         public WidgetView()
         {
             InitializeComponent();
             _strokeRing = this.FindControl<Ellipse>("StrokeRing");
             _statusDot  = this.FindControl<Ellipse>("StatusDot");
+        }
+
+        private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+
+        protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnAttachedToVisualTree(e);
 
             _stopwatch  = Stopwatch.StartNew();
-            _pulseTimer = new DispatcherTimer(
-                TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, OnPulseTick);
+            if (_pulseTimer == null)
+            {
+                _pulseTimer = new DispatcherTimer(
+                    TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, OnPulseTick);
+            }
+            
             _pulseTimer.Start();
 
-            // Subscribe to registration state
             var sip = App.SipService;
-            sip.RegistrationStatusChanged += state =>
-                Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
-            sip.RegistrationError += reason =>
-                Dispatcher.UIThread.InvokeAsync(() => UpdateStatusTip(sip.RegistrationStatus, reason));
+            var statusSvc = App.StatusService;
+
+            if (_statusChangedHandler == null)
+            {
+                _statusChangedHandler = state =>
+                    Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
+                sip.RegistrationStatusChanged += _statusChangedHandler;
+            }
+
+            if (_registrationErrorHandler == null)
+            {
+                _registrationErrorHandler = reason =>
+                    Dispatcher.UIThread.InvokeAsync(() => UpdateStatusTip(sip.RegistrationStatus, reason));
+                sip.RegistrationError += _registrationErrorHandler;
+            }
+
+            if (_queueStateChangedHandler == null)
+            {
+                _queueStateChangedHandler = state => Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(sip.RegistrationStatus));
+                statusSvc.StateChanged += _queueStateChangedHandler;
+            }
 
             UpdateStatus(sip.RegistrationStatus);
         }
 
-        private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnDetachedFromVisualTree(e);
+
+            _pulseTimer?.Stop();
+            _stopwatch?.Stop();
+
+            if (_statusChangedHandler != null)
+            {
+                App.SipService.RegistrationStatusChanged -= _statusChangedHandler;
+                _statusChangedHandler = null;
+            }
+
+            if (_registrationErrorHandler != null)
+            {
+                App.SipService.RegistrationError -= _registrationErrorHandler;
+                _registrationErrorHandler = null;
+            }
+
+            if (_queueStateChangedHandler != null)
+            {
+                App.StatusService.StateChanged -= _queueStateChangedHandler;
+                _queueStateChangedHandler = null;
+            }
+        }
 
         private void OnPulseTick(object? sender, EventArgs e)
         {
@@ -56,13 +113,26 @@ namespace OrbitalSIP.Views
             Color pulseColorEnd;
             string label;
 
+            var queueState = App.StatusService.CurrentState;
+            bool isQueuePaused = queueState != null && queueState.Paused;
+
             switch (state)
             {
                 case RegistrationState.Registered:
-                    color = Color.Parse("#10B981"); // Emerald
-                    pulseColorStart = Color.Parse("#17E0A0");
-                    pulseColorEnd   = Color.Parse("#00BFA5");
-                    label = "Registered";
+                    if (isQueuePaused)
+                    {
+                        color = Color.Parse("#F59E0B"); // Amber
+                        pulseColorStart = Color.Parse("#FBBF24");
+                        pulseColorEnd   = Color.Parse("#D97706");
+                        label = queueState?.ReasonPaused ?? "Paused";
+                    }
+                    else
+                    {
+                        color = Color.Parse("#10B981"); // Emerald
+                        pulseColorStart = Color.Parse("#17E0A0");
+                        pulseColorEnd   = Color.Parse("#00BFA5");
+                        label = "Registered";
+                    }
                     break;
                 case RegistrationState.Failed:
                     color = Color.Parse("#EF4444"); // Red
@@ -108,13 +178,21 @@ namespace OrbitalSIP.Views
 
             if (string.IsNullOrWhiteSpace(message))
             {
-                tip.Text = state switch
+                var queueState = App.StatusService.CurrentState;
+                if (state == RegistrationState.Registered && queueState != null && queueState.Paused)
                 {
-                    RegistrationState.Registered => "Registered",
-                    RegistrationState.Failed => "Registration Failed",
-                    RegistrationState.Paused => "Paused",
-                    _ => "Offline"
-                };
+                    tip.Text = queueState.ReasonPaused ?? "Paused";
+                }
+                else
+                {
+                    tip.Text = state switch
+                    {
+                        RegistrationState.Registered => "Registered",
+                        RegistrationState.Failed => "Registration Failed",
+                        RegistrationState.Paused => "Paused",
+                        _ => "Offline"
+                    };
+                }
             }
             else
             {

@@ -202,10 +202,46 @@ namespace OrbitalSIP
         }
 
         // ── Settings ──────────────────────────────────────────────────
+        // ── Status Popup ──────────────────────────────────────────────
+        private void ShowStatusPopup()
+        {
+            var host = this.FindControl<ContentControl>("PopupHost");
+            if (host == null) return;
+
+            var popup = new Views.StatusPopupControl();
+            popup.OnCloseRequested += (_, __) => HideStatusPopup();
+            popup.OnStatusUpdateRequested += async (_, args) =>
+            {
+                var (status, duration) = args;
+                bool paused = status != "online";
+                string? reason = paused ? status : null;
+
+                await App.StatusService.SetStateAsync(paused, reason, duration);
+                HideStatusPopup();
+            };
+
+            host.Content = popup;
+            host.IsVisible = true;
+            host.IsHitTestVisible = true;
+            host.Opacity = 1;
+        }
+
+        private void HideStatusPopup()
+        {
+            var host = this.FindControl<ContentControl>("PopupHost");
+            if (host != null)
+            {
+                host.Opacity = 0;
+                host.IsVisible = false;
+                host.IsHitTestVisible = false;
+                host.Content = null;
+            }
+        }
         private void ShowSettings(bool isFromLogin = false)
         {
             var settingsView = new Views.SettingsView();
             settingsView.OnMinimizeRequested += (_, __) => CollapseWidget();
+            settingsView.OnAvatarClicked += (_, __) => ShowStatusPopup();
             settingsView.OnBackRequested += (_, __) =>
             {
                 if (isFromLogin) ShowLogin();
@@ -328,6 +364,7 @@ namespace OrbitalSIP
             callView.OnTransferRequested += async (_, dest) => await App.SipService.BlindTransferAsync(dest);
             callView.OnKeypadRequested += (_, __) => ShowDialer();
             callView.OnSettingsRequested += (_, __) => ShowSettings();
+            callView.OnAvatarClicked += (_, __) => ShowStatusPopup();
             callView.OnRecentsRequested += (_, __) => ShowRecents();
         }
 
@@ -410,6 +447,7 @@ namespace OrbitalSIP
             var dialer = new Views.ExpandedView();
             dialer.OnCloseRequested += (_, __) => CollapseWidget();
             dialer.OnSettingsRequested += (_, __) => ShowSettings();
+            dialer.OnAvatarClicked += (_, __) => ShowStatusPopup();
             dialer.OnRecentsRequested += (_, __) => ShowRecents();
             dialer.OutgoingCallRequested += (_, number) => StartOutgoingCall(number);
             return dialer;

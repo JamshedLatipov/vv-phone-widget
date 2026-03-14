@@ -126,6 +126,7 @@ namespace OrbitalSIP.Views
             var topBar = this.FindControl<TopBarControl>("TopBar");
             if (topBar != null)
                 topBar.OnMinimizeRequested += (_, __) => OnMinimizeRequested?.Invoke(this, EventArgs.Empty);
+                topBar.OnAvatarClicked += (_, __) => OnAvatarClicked?.Invoke(this, EventArgs.Empty);
 
             var copy = this.FindControl<Button>("CopyCallerBtn");
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
@@ -215,6 +216,7 @@ namespace OrbitalSIP.Views
         public event EventHandler?        OnKeypadRequested;
         public event EventHandler?        OnMinimizeRequested;
         public event EventHandler?        OnSettingsRequested;
+        public event EventHandler?        OnAvatarClicked;
         public event EventHandler?        OnRecentsRequested;
     }
 }

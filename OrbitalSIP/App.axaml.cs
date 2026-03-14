@@ -12,6 +12,7 @@ namespace OrbitalSIP
         public static readonly SipService   SipService   = new SipService();
         /// <summary>Application-wide sound player singleton.</summary>
         public static readonly SoundService SoundService = new SoundService();
+        public static readonly StatusService StatusService = new StatusService();
 
         public override void Initialize()
         {

@@ -6,13 +6,17 @@ using Avalonia.Media;
 using Avalonia;
 using Avalonia.Threading;
 using OrbitalSIP.Services;
+using OrbitalSIP.Models;
 
 namespace OrbitalSIP.Views
 {
     public partial class TopBarControl : UserControl
     {
         private Action<RegistrationState>? _statusChangedHandler;
+        private Action<StatusState>? _queueStateChangedHandler;
+
         public event EventHandler? OnMinimizeRequested;
+        public event EventHandler? OnAvatarClicked;
 
         public TopBarControl()
         {
@@ -20,11 +24,6 @@ namespace OrbitalSIP.Views
             WireButtons();
 
             var sip = App.SipService;
-            _statusChangedHandler = state => Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
-            sip.RegistrationStatusChanged += _statusChangedHandler;
-
-            UpdateStatus(sip.RegistrationStatus);
-
             var settings = sip.CurrentSettings;
             var usernameLabel = this.FindControl<TextBlock>("UsernameLabel");
             if (usernameLabel != null && settings != null)
@@ -39,17 +38,70 @@ namespace OrbitalSIP.Views
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
+        protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnAttachedToVisualTree(e);
+
+            var sip = App.SipService;
+            var statusSvc = App.StatusService;
+
+            if (_statusChangedHandler == null)
+            {
+                _statusChangedHandler = state => Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
+                sip.RegistrationStatusChanged += _statusChangedHandler;
+            }
+
+            if (_queueStateChangedHandler == null)
+            {
+                _queueStateChangedHandler = state => Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(sip.RegistrationStatus));
+                statusSvc.StateChanged += _queueStateChangedHandler;
+            }
+
+            UpdateStatus(sip.RegistrationStatus);
+        }
+
+        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnDetachedFromVisualTree(e);
+
+            if (_statusChangedHandler != null)
+            {
+                App.SipService.RegistrationStatusChanged -= _statusChangedHandler;
+                _statusChangedHandler = null;
+            }
+            if (_queueStateChangedHandler != null)
+            {
+                App.StatusService.StateChanged -= _queueStateChangedHandler;
+                _queueStateChangedHandler = null;
+            }
+        }
+
         private void UpdateStatus(RegistrationState state)
         {
             var dot = this.FindControl<Ellipse>("StatusDot");
             var lbl = this.FindControl<TextBlock>("StatusLabel");
             if (dot == null || lbl == null) return;
 
+            var queueState = App.StatusService.CurrentState;
+            bool isQueuePaused = queueState != null && queueState.Paused;
+
             switch (state)
             {
                 case RegistrationState.Registered:
-                    dot.Fill = new SolidColorBrush(Color.Parse("#10B981")); // Emerald
-                    lbl.Text = "Available";
+                    if (isQueuePaused)
+                    {
+                        dot.Fill = new SolidColorBrush(Color.Parse("#F59E0B")); // Amber
+                        string reason = queueState?.ReasonPaused ?? "Paused";
+                        if (!string.IsNullOrEmpty(reason))
+                        {
+                            lbl.Text = char.ToUpper(reason[0]) + reason.Substring(1); // Capitalize first letter
+                        }
+                    }
+                    else
+                    {
+                        dot.Fill = new SolidColorBrush(Color.Parse("#10B981")); // Emerald
+                        lbl.Text = "Available";
+                    }
                     break;
                 case RegistrationState.Failed:
                     dot.Fill = new SolidColorBrush(Color.Parse("#EF4444")); // Red
@@ -83,15 +135,11 @@ namespace OrbitalSIP.Views
             {
                 minBtn.Click += (_, __) => OnMinimizeRequested?.Invoke(this, EventArgs.Empty);
             }
-        }
 
-        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-        {
-            base.OnDetachedFromVisualTree(e);
-            if (_statusChangedHandler != null)
+            var avatarBtn = this.FindControl<Button>("AvatarBtn");
+            if (avatarBtn != null)
             {
-                App.SipService.RegistrationStatusChanged -= _statusChangedHandler;
-                _statusChangedHandler = null;
+                avatarBtn.Click += (_, __) => OnAvatarClicked?.Invoke(this, EventArgs.Empty);
             }
         }
     }

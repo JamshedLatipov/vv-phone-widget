@@ -113,6 +113,7 @@ namespace OrbitalSIP.Views
             {
                 topBar.SetTitle("Settings");
                 topBar.OnMinimizeRequested += (_, __) => OnMinimizeRequested?.Invoke(this, System.EventArgs.Empty);
+                topBar.OnAvatarClicked += (_, __) => OnAvatarClicked?.Invoke(this, System.EventArgs.Empty);
             }
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
             if (bottomNav != null)
@@ -155,5 +156,6 @@ namespace OrbitalSIP.Views
         public event System.EventHandler? OnBackRequested;
         public event System.EventHandler? OnMinimizeRequested;
         public event System.EventHandler? OnSaveRequested;
+        public event System.EventHandler? OnAvatarClicked;
     }
 }
