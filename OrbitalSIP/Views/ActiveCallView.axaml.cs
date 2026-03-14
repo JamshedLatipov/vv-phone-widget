@@ -47,7 +47,7 @@ namespace OrbitalSIP.Views
         {
             _timer = new DispatcherTimer(
                 TimeSpan.FromSeconds(1),
-                DispatcherPriority.Normal,
+                DispatcherPriority.Render,
                 OnTick);
             _timer.Start();
         }

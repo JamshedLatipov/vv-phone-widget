@@ -23,7 +23,7 @@ namespace OrbitalSIP.Views
 
             _stopwatch  = Stopwatch.StartNew();
             _pulseTimer = new DispatcherTimer(
-                TimeSpan.FromMilliseconds(30), DispatcherPriority.Normal, OnPulseTick);
+                TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, OnPulseTick);
             _pulseTimer.Start();
 
             // Subscribe to registration state
