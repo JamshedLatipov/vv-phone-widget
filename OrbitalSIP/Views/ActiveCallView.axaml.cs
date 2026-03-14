@@ -36,6 +36,7 @@ namespace OrbitalSIP.Views
             WireButtons();
             if (initialElapsed.HasValue) _elapsed = initialElapsed.Value;
             SetStatus(App.SipService.IsOnHold);
+            UpdateTimeUI();
             StartTimer();
         }
 
@@ -54,6 +55,11 @@ namespace OrbitalSIP.Views
         private void OnTick(object? sender, EventArgs e)
         {
             _elapsed = _elapsed.Add(TimeSpan.FromSeconds(1));
+            UpdateTimeUI();
+        }
+
+        private void UpdateTimeUI()
+        {
             var label = this.FindControl<TextBlock>("TimerLabel");
             var minutesLabel = this.FindControl<TextBlock>("TimerMinutesLabel");
             var secondsLabel = this.FindControl<TextBlock>("TimerSecondsLabel");

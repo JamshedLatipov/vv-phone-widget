@@ -176,7 +176,17 @@ namespace OrbitalSIP
         // ── Dialer ────────────────────────────────────────────────────
         private void ShowDialer()
         {
-            SetMainContent(CreateDialerView());
+            if (App.SipService.State == CallState.Active || App.SipService.State == CallState.OnHold)
+            {
+                var elapsed = App.SipService.ActiveCallStartedAt.HasValue
+                    ? DateTime.Now - App.SipService.ActiveCallStartedAt.Value
+                    : TimeSpan.Zero;
+                ShowActiveCallView(App.SipService.ActiveCallerId, elapsed);
+            }
+            else
+            {
+                SetMainContent(CreateDialerView());
+            }
         }
 
         // ── Settings ──────────────────────────────────────────────────
