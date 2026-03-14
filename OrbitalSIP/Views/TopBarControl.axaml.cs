@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using Avalonia;
 using Avalonia.Threading;
 using OrbitalSIP.Services;
 
@@ -10,6 +11,7 @@ namespace OrbitalSIP.Views
 {
     public partial class TopBarControl : UserControl
     {
+        private Action<RegistrationState>? _statusChangedHandler;
         public event EventHandler? OnMinimizeRequested;
 
         public TopBarControl()
@@ -18,8 +20,8 @@ namespace OrbitalSIP.Views
             WireButtons();
 
             var sip = App.SipService;
-            sip.RegistrationStatusChanged += state =>
-                Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
+            _statusChangedHandler = state => Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
+            sip.RegistrationStatusChanged += _statusChangedHandler;
 
             UpdateStatus(sip.RegistrationStatus);
 
@@ -80,6 +82,16 @@ namespace OrbitalSIP.Views
             if (minBtn != null)
             {
                 minBtn.Click += (_, __) => OnMinimizeRequested?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnDetachedFromVisualTree(e);
+            if (_statusChangedHandler != null)
+            {
+                App.SipService.RegistrationStatusChanged -= _statusChangedHandler;
+                _statusChangedHandler = null;
             }
         }
     }

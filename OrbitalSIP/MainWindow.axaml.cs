@@ -183,6 +183,7 @@ namespace OrbitalSIP
         private void ShowSettings(bool isFromLogin = false)
         {
             var settingsView = new Views.SettingsView();
+            settingsView.OnMinimizeRequested += (_, __) => CollapseWidget();
             settingsView.OnBackRequested += (_, __) =>
             {
                 var settings = SipSettings.Load();

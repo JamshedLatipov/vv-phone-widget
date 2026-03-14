@@ -112,10 +112,14 @@ namespace OrbitalSIP.Views
             if (topBar != null)
             {
                 topBar.SetTitle("Settings");
-                topBar.OnMinimizeRequested += (_, __) => OnBackRequested?.Invoke(this, System.EventArgs.Empty);
+                topBar.OnMinimizeRequested += (_, __) => OnMinimizeRequested?.Invoke(this, System.EventArgs.Empty);
             }
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
-            if (bottomNav != null) { bottomNav.OnSettingsRequested += (_, __) => OnBackRequested?.Invoke(this, System.EventArgs.Empty); bottomNav.SetActiveTab("Settings"); }
+            if (bottomNav != null)
+            {
+                bottomNav.OnDialerRequested += (_, __) => OnBackRequested?.Invoke(this, System.EventArgs.Empty);
+                bottomNav.SetActiveTab("Settings");
+            }
         }
 
         private void SaveAndClose()
@@ -149,5 +153,6 @@ namespace OrbitalSIP.Views
         }
 
         public event System.EventHandler? OnBackRequested;
+        public event System.EventHandler? OnMinimizeRequested;
     }
 }
