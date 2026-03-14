@@ -35,6 +35,7 @@ namespace OrbitalSIP.Services
         public string    LastRegistrationError { get; private set; } = "";
         public CallState State              { get; private set; } = CallState.Idle;
         public string    ActiveCallerId     { get; private set; } = "";
+        public SipSettings CurrentSettings => _settings;
 
         // ── Events ────────────────────────────────────────────────────
         public event Action<RegistrationState>? RegistrationStatusChanged;
@@ -109,12 +110,8 @@ namespace OrbitalSIP.Services
 
             _transport.SIPTransportRequestReceived += OnSIPRequest;
 
-            if (string.IsNullOrWhiteSpace(settings.Server) ||
-                string.IsNullOrWhiteSpace(settings.Username))
+            if (!string.IsNullOrWhiteSpace(settings.Server) && !string.IsNullOrWhiteSpace(settings.Username))
             {
-                Debug.WriteLine("[SipService] Start skipped — server or username is empty.");
-                return;
-            }
 
             // Build the registrar address. Include transport override for non-UDP.
             var serverArg = settings.Transport switch
@@ -147,6 +144,7 @@ namespace OrbitalSIP.Services
                 RegistrationError?.Invoke(LastRegistrationError);
             };
             _reg.Start();
+            }
             Debug.WriteLine("[SipService] Registration agent started.");
         }
 
