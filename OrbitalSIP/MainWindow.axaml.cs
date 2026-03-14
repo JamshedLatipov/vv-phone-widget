@@ -181,10 +181,24 @@ namespace OrbitalSIP
             r.OnCloseRequested += (_, __) => ToggleExpanded();
             r.OnSettingsRequested += (_, __) => ShowSettings();
             r.OnDialerRequested += (_, __) => ShowDialer();
+            r.OnContactsRequested += (_, __) => ShowContacts();
             r.OutgoingCallRequested += (sender, num) => StartOutgoingCall(num);
 
             SetMainContent(r);
         }
+
+        private void ShowContacts()
+        {
+            var c = new Views.ContactsView();
+            c.OnCloseRequested += (_, __) => ToggleExpanded();
+            c.OnSettingsRequested += (_, __) => ShowSettings();
+            c.OnDialerRequested += (_, __) => ShowDialer();
+            c.OnRecentsRequested += (_, __) => ShowRecents();
+            c.OutgoingCallRequested += (sender, num) => StartOutgoingCall(num);
+
+            SetMainContent(c);
+        }
+
 
         private void ShowDialer()
         {
@@ -206,6 +220,7 @@ namespace OrbitalSIP
         {
             var settingsView = new Views.SettingsView();
             settingsView.OnMinimizeRequested += (_, __) => CollapseWidget();
+            settingsView.OnContactsRequested += (_, __) => ShowContacts();
             settingsView.OnBackRequested += (_, __) =>
             {
                 if (isFromLogin) ShowLogin();
@@ -329,6 +344,7 @@ namespace OrbitalSIP
             callView.OnKeypadRequested += (_, __) => ShowDialer();
             callView.OnSettingsRequested += (_, __) => ShowSettings();
             callView.OnRecentsRequested += (_, __) => ShowRecents();
+            callView.OnContactsRequested += (_, __) => ShowContacts();
         }
 
         // ── SIP state changes ─────────────────────────────────────────
@@ -411,6 +427,7 @@ namespace OrbitalSIP
             dialer.OnCloseRequested += (_, __) => CollapseWidget();
             dialer.OnSettingsRequested += (_, __) => ShowSettings();
             dialer.OnRecentsRequested += (_, __) => ShowRecents();
+            dialer.OnContactsRequested += (_, __) => ShowContacts();
             dialer.OutgoingCallRequested += (_, number) => StartOutgoingCall(number);
             return dialer;
         }
