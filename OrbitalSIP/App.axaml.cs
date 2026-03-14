@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Markup.Xaml;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -22,8 +23,6 @@ namespace OrbitalSIP
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 // Forward call-state changes to the sound service.
-                // SipService fires this event on SIPSorcery background threads,
-                // but MediaPlayer is agile so no dispatcher hop is required.
                 SipService.CallStateChanged += SoundService.OnStateChanged;
 
                 desktop.MainWindow = new MainWindow();
@@ -36,6 +35,40 @@ namespace OrbitalSIP
 
             base.OnFrameworkInitializationCompleted();
         }
+
+        private void TrayIcon_Clicked(object? sender, EventArgs e)
+        {
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            {
+                if (desktop.MainWindow.IsVisible)
+                    desktop.MainWindow.Hide();
+                else
+                    desktop.MainWindow.Show();
+            }
+        }
+
+        private void MenuShow_Click(object? sender, EventArgs e)
+        {
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            {
+                desktop.MainWindow.Show();
+            }
+        }
+
+        private void MenuHide_Click(object? sender, EventArgs e)
+        {
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            {
+                desktop.MainWindow.Hide();
+            }
+        }
+
+        private void MenuExit_Click(object? sender, EventArgs e)
+        {
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                desktop.Shutdown();
+            }
+        }
     }
 }
-

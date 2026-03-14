@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="utf-8"?>
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:fluent="clr-namespace:Avalonia.Themes.Fluent;assembly=Avalonia.Themes.Fluent"
@@ -6,4 +5,21 @@
   <Application.Styles>
     <fluent:FluentTheme />
   </Application.Styles>
+
+  <TrayIcon.Icons>
+    <TrayIcons>
+      <TrayIcon Icon="/Assets/icon.png"
+                ToolTipText="Orbital SIP"
+                Clicked="TrayIcon_Clicked">
+        <TrayIcon.Menu>
+          <NativeMenu>
+            <NativeMenuItem Header="Show" Click="MenuShow_Click" />
+            <NativeMenuItem Header="Hide" Click="MenuHide_Click" />
+            <NativeMenuItemSeparator />
+            <NativeMenuItem Header="Exit" Click="MenuExit_Click" />
+          </NativeMenu>
+        </TrayIcon.Menu>
+      </TrayIcon>
+    </TrayIcons>
+  </TrayIcon.Icons>
 </Application>
