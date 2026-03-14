@@ -9,7 +9,7 @@
         SystemDecorations="None"
         CornerRadius="16">
   <Border BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16">
-    <Grid RowDefinitions="Auto,*,Auto">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
       <!-- Header -->
       <Border Background="#152132" CornerRadius="16,16,0,0" Padding="14">
         <Grid ColumnDefinitions="*,Auto">
@@ -18,13 +18,22 @@
         </Grid>
       </Border>
 
+      <!-- Search -->
+      <TextBox Grid.Row="1" Name="SearchBox"
+               Margin="14,14,14,0"
+               Background="#1E293B"
+               BorderBrush="#334155"
+               Foreground="#E2E8F0"
+               Watermark="Search scripts..."
+               CornerRadius="8" />
+
       <!-- Content -->
-      <ScrollViewer Grid.Row="1" Margin="14" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+      <ScrollViewer Grid.Row="2" Margin="14" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <TreeView Name="ScriptsTreeView" Background="Transparent" Foreground="#E2E8F0" />
       </ScrollViewer>
 
       <!-- Footer -->
-      <Border Grid.Row="2" Background="#152132" CornerRadius="0,0,16,16" Padding="14">
+      <Border Grid.Row="3" Background="#152132" CornerRadius="0,0,16,16" Padding="14">
         <Button Name="SelectBtn" Content="Select Script" HorizontalAlignment="Right" Background="#3B82F6" Foreground="White" BorderThickness="0" CornerRadius="8" Padding="12,6" />
       </Border>
     </Grid>

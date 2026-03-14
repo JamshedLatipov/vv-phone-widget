@@ -27,6 +27,10 @@ namespace OrbitalSIP.Views
             var selectBtn = this.FindControl<Button>("SelectBtn");
             if (selectBtn != null) selectBtn.Click += (_, __) => OnSelect();
 
+            var searchBox = this.FindControl<TextBox>("SearchBox");
+            if (searchBox != null)
+                searchBox.TextChanged += (s, e) => FilterScripts(searchBox.Text);
+
             _ = LoadScriptsAsync();
         }
 
@@ -37,20 +41,54 @@ namespace OrbitalSIP.Views
             _scripts = await App.ScriptService.GetScriptsAsync();
             Dispatcher.UIThread.Post(() =>
             {
-                var items = BuildTreeItems(_scripts);
-                _treeView.ItemsSource = items;
+                FilterScripts("");
             });
         }
 
-        private List<TreeViewItem> BuildTreeItems(IEnumerable<CallScript> scripts)
+        private void FilterScripts(string? query)
+        {
+            query = query?.Trim().ToLowerInvariant() ?? "";
+            var filtered = string.IsNullOrEmpty(query) ? _scripts : FilterNodeList(_scripts, query);
+
+            var items = BuildTreeItems(filtered, !string.IsNullOrEmpty(query));
+            _treeView.ItemsSource = items;
+        }
+
+        private List<CallScript> FilterNodeList(IEnumerable<CallScript> nodes, string query)
+        {
+            var result = new List<CallScript>();
+            foreach (var node in nodes)
+            {
+                bool matches = node.Title != null && node.Title.ToLowerInvariant().Contains(query);
+
+                var filteredChildren = new List<CallScript>();
+                if (node.Children != null && node.Children.Any())
+                {
+                    filteredChildren = FilterNodeList(node.Children, query);
+                }
+
+                if (matches || filteredChildren.Any())
+                {
+                    var clone = System.Text.Json.JsonSerializer.Deserialize<CallScript>(System.Text.Json.JsonSerializer.Serialize(node));
+                    if (clone != null)
+                    {
+                        clone.Children = filteredChildren;
+                        result.Add(clone);
+                    }
+                }
+            }
+            return result;
+        }
+
+        private List<TreeViewItem> BuildTreeItems(IEnumerable<CallScript> scripts, bool expand)
         {
             var items = new List<TreeViewItem>();
             foreach (var script in scripts.Where(s => s.IsActive).OrderBy(s => s.Title))
             {
-                var item = new TreeViewItem { Header = script.Title, Tag = script };
+                var item = new TreeViewItem { Header = script.Title, Tag = script, IsExpanded = expand };
                 if (script.Children != null && script.Children.Any())
                 {
-                    item.ItemsSource = BuildTreeItems(script.Children);
+                    item.ItemsSource = BuildTreeItems(script.Children, expand);
                 }
                 items.Add(item);
             }
