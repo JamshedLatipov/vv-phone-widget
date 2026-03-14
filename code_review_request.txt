@@ -1,8 +1,0 @@
-I have fixed the issue where ComboBoxes in the SettingsView (Transport, Speaker, Microphone) were not opening correctly.
-
-Changes:
-1. In SettingsView.axaml, I removed the Border wrappers around the ComboBoxes and applied the styling (Background, Border, CornerRadius) directly to the ComboBox controls. This improves hit-testing and ensures the controls respond correctly to clicks.
-2. In App.axaml, I refined the global styles for ComboBox to ensure they use dark-compatible colors in both focus and pointerover states, preventing them from reverting to invisible or unreadable default colors.
-3. Kept the previously implemented fixes for TextBox focus visibility.
-
-The build is successful.
