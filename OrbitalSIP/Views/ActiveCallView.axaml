@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:Views="clr-namespace:OrbitalSIP.Views"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="OrbitalSIP.Views.ActiveCallView">
   <Border Width="320" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16" ClipToBounds="True">
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <Grid RowDefinitions="*,Auto">
+      <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Margin="0,0,0,14">
 
         <Grid ColumnDefinitions="*,Auto" Background="#1E293B" Margin="0,0,0,12">
@@ -294,5 +296,7 @@
         </StackPanel>
       </StackPanel>
     </ScrollViewer>
+    <Views:BottomNavControl Grid.Row="1" Name="BottomNav" />
+  </Grid>
   </Border>
 </UserControl>

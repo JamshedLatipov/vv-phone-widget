@@ -1,9 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:Views="clr-namespace:OrbitalSIP.Views"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="OrbitalSIP.Views.SettingsView"
              Background="#0F172A">
   <Border Padding="20">
-    <Grid RowDefinitions="Auto,*,Auto">
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
 
       <!-- Header -->
       <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,20">
@@ -16,7 +17,8 @@
         <TextBlock Grid.Column="1" Text="Settings"
                    FontSize="18" FontWeight="SemiBold" Foreground="#FFFFFF"
                    HorizontalAlignment="Center" VerticalAlignment="Center" />
-      </Grid>
+    </Grid>
+
 
       <!-- Content -->
       <ScrollViewer Grid.Row="1">
@@ -155,6 +157,8 @@
                    HorizontalAlignment="Center" IsVisible="False" />
       </StackPanel>
 
+      <Views:BottomNavControl Grid.Row="3" Name="BottomNav" Margin="-20,20,-20,-20" />
     </Grid>
+
   </Border>
 </UserControl>
