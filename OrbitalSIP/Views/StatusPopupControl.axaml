@@ -1,0 +1,9 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="OrbitalSIP.Views.StatusPopupControl">
+    <Border Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Width="300" Padding="16">
+        <StackPanel Spacing="16">
+            <TextBlock Text="STATUS" Foreground="#F8FAFC" FontSize="14" FontWeight="Bold"/>
+        </StackPanel>
+    </Border>
+</UserControl>
