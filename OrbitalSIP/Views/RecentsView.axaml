@@ -1,0 +1,65 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:Views="clr-namespace:OrbitalSIP.Views"
+             x:Class="OrbitalSIP.Views.RecentsView">
+  <Border Width="320"
+          Background="#0F172A"
+          BorderBrush="#1E293B"
+          BorderThickness="1"
+          CornerRadius="16"
+          ClipToBounds="True">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+      <!-- Header -->
+      <Views:TopBarControl Name="TopBar" />
+
+      <StackPanel Grid.Row="1" Spacing="6" Margin="14,10,14,0">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="CALL HISTORY" FontSize="12" FontWeight="Bold" LetterSpacing="1.2" Foreground="#7B92AA" VerticalAlignment="Center"/>
+          <Button Grid.Column="1" Name="RefreshCdrBtn" Width="24" Height="24" Background="Transparent" Padding="0" Margin="0" Cursor="Hand" BorderThickness="0">
+              <Viewbox Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <Path Fill="#60A5FA" Stretch="Uniform" Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+              </Viewbox>
+          </Button>
+        </Grid>
+      </StackPanel>
+
+      <ScrollViewer Grid.Row="2" Margin="14,10,14,10" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <ItemsControl Name="CdrItemsControl">
+              <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                      <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,4" ToolTip.Tip="{Binding DisplayStatus}">
+                        <Border Width="32" Height="32" CornerRadius="16" Background="#1E293B">
+                          <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Fill="{Binding IconColor}" Stretch="Uniform" Data="{Binding IconData}"/>
+                          </Viewbox>
+                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="2" Margin="10,0,0,0" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding DisplayNumber}" FontSize="14" FontWeight="SemiBold" Foreground="#E2E8F0"/>
+                          <TextBlock Text="{Binding DisplayTime}" FontSize="11" Foreground="#6E859D"/>
+                        </StackPanel>
+                        <Button Grid.Column="2"
+                                Width="32" Height="32"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="6"
+                                Cursor="Hand"
+                                Click="OnCdrCallClicked"
+                                Tag="{Binding DisplayNumber}">
+                          <Viewbox Width="18" Height="18" VerticalAlignment="Center">
+                            <Path Fill="#60A5FA" Stretch="Uniform"
+                                  Data="M6.62,10.79C8.06,13.62 10.38,15.93 13.21,17.38L15.41,15.18C15.68,14.91 16.08,14.82 16.43,14.94C17.55,15.31 18.76,15.51 20,15.51C20.55,15.51 21,15.96 21,16.51V20C21,20.55 20.55,21 20,21C10.61,21 3,13.39 3,4C3,3.45 3.45,3 4,3H7.5C8.05,3 8.5,3.45 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
+                          </Viewbox>
+                        </Button>
+                      </Grid>
+                  </DataTemplate>
+              </ItemsControl.ItemTemplate>
+          </ItemsControl>
+      </ScrollViewer>
+
+      <!-- Bottom tab bar -->
+      <Views:BottomNavControl Grid.Row="3" Name="BottomNav" />
+
+    </Grid>
+  </Border>
+</UserControl>

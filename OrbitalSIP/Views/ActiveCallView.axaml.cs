@@ -215,5 +215,6 @@ namespace OrbitalSIP.Views
         public event EventHandler?        OnKeypadRequested;
         public event EventHandler?        OnMinimizeRequested;
         public event EventHandler?        OnSettingsRequested;
+        public event EventHandler?        OnRecentsRequested;
     }
 }
