@@ -123,6 +123,14 @@ namespace OrbitalSIP.Views
             if (keypad != null)
                 keypad.Click += (_, __) => OnKeypadRequested?.Invoke(this, EventArgs.Empty);
 
+            var scriptBtn = this.FindControl<Button>("ScriptBtn");
+            if (scriptBtn != null)
+                scriptBtn.Click += async (_, __) => await ShowScriptsDialog();
+
+            var leadBtn = this.FindControl<Button>("CreateLeadBtn");
+            if (leadBtn != null)
+                leadBtn.Click += (_, __) => Console.WriteLine("Create Lead clicked");
+
             var topBar = this.FindControl<TopBarControl>("TopBar");
             if (topBar != null)
                 topBar.OnMinimizeRequested += (_, __) => OnMinimizeRequested?.Invoke(this, EventArgs.Empty);
@@ -175,6 +183,23 @@ namespace OrbitalSIP.Views
             if (icon  != null) icon.Fill  = new SolidColorBrush(_muted ? Color.Parse("#FFFFFF") : Color.Parse("#DDE7F3"));
             if (label != null) label.Text  = _muted ? "Unmute" : "Mute";
             if (btn   != null) btn.Background = new SolidColorBrush(_muted ? Color.Parse("#B91C1C") : Color.Parse("#1A2D42"));
+        }
+
+        private async Task ShowScriptsDialog()
+        {
+            var topLevel = TopLevel.GetTopLevel(this) as Window;
+            if (topLevel == null) return;
+
+            var dialog = new ScriptsDialog();
+            var result = await dialog.ShowDialog<Models.CallScript?>(topLevel);
+
+            if (result != null)
+            {
+                var callerLabel = this.FindControl<TextBlock>("CallerNumberLabel");
+                var number = callerLabel?.Text?.Trim() ?? "";
+                var uniqueId = await App.ScriptService.GetChannelUniqueIdAsync(number);
+                if (uniqueId != null) await App.ScriptService.RegisterScriptAsync(uniqueId, result.Id!);
+            }
         }
 
         private void ToggleHold()

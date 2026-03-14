@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="OrbitalSIP.Views.ScriptsDialog"
+        Title="Call Scripts"
+        Width="400" Height="500"
+        WindowStartupLocation="CenterOwner"
+        Background="#0F172A"
+        Topmost="True"
+        SystemDecorations="None"
+        CornerRadius="16">
+  <Border BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+      <!-- Header -->
+      <Border Background="#152132" CornerRadius="16,16,0,0" Padding="14">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="CALL SCRIPTS" Foreground="#E2E8F0" FontWeight="Bold" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Name="CloseBtn" Content="X" Width="24" Height="24" Background="Transparent" Foreground="#6E859D" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Cursor="Hand" />
+        </Grid>
+      </Border>
+
+      <!-- Search -->
+      <TextBox Grid.Row="1" Name="SearchBox"
+               Margin="14,14,14,0"
+               Background="#1E293B"
+               BorderBrush="#334155"
+               Foreground="#E2E8F0"
+               Watermark="Search scripts..."
+               CornerRadius="8" />
+
+      <!-- Content -->
+      <ScrollViewer Grid.Row="2" Margin="14" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <TreeView Name="ScriptsTreeView" Background="Transparent" Foreground="#E2E8F0" />
+      </ScrollViewer>
+
+      <!-- Footer -->
+      <Border Grid.Row="3" Background="#152132" CornerRadius="0,0,16,16" Padding="14">
+        <Button Name="SelectBtn" Content="Select Script" HorizontalAlignment="Right" Background="#3B82F6" Foreground="White" BorderThickness="0" CornerRadius="8" Padding="12,6" />
+      </Border>
+    </Grid>
+  </Border>
+</Window>
