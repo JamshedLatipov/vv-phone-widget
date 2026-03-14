@@ -19,8 +19,19 @@ namespace OrbitalSIP.ViewModels
 
             bool isIncoming = string.Equals(entry.Direction, "inbound", StringComparison.OrdinalIgnoreCase);
 
-            // Fix: For inbound, caller is the caller. For outbound, destination is the callee
-            DisplayNumber = isIncoming ? entry.Caller ?? "Unknown" : entry.Destination ?? "Unknown";
+                        // Ensure we don't display our own username or extension by explicitly comparing with currentOperator
+            if (string.Equals(entry.Src, currentOperator, StringComparison.OrdinalIgnoreCase))
+            {
+                DisplayNumber = entry.Dst ?? entry.Destination ?? "Unknown";
+            }
+            else if (string.Equals(entry.Dst, currentOperator, StringComparison.OrdinalIgnoreCase))
+            {
+                DisplayNumber = entry.Src ?? entry.Caller ?? "Unknown";
+            }
+            else
+            {
+                DisplayNumber = isIncoming ? (entry.Caller ?? entry.Src ?? "Unknown") : (entry.Destination ?? entry.Dst ?? "Unknown");
+            }
 
             DisplayTime = entry.CallDate.ToLocalTime().ToString("t"); // e.g., 10:45 AM
 
