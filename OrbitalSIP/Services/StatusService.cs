@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using OrbitalSIP.Models;
+using System.Text.Json;
 
 namespace OrbitalSIP.Services
 {
@@ -41,11 +42,18 @@ namespace OrbitalSIP.Services
 
         private async void OnTimerTick(object? sender, EventArgs e)
         {
-            if (_breakEndTime.HasValue && DateTime.Now >= _breakEndTime.Value)
+            if (_breakEndTime.HasValue)
             {
-                _breakEndTime = null;
-                _autoOnlineTimer?.Stop();
-                await SetStateAsync(false, null);
+                var timeLeft = _breakEndTime.Value - DateTime.Now;
+                // Console.WriteLine($"[StatusService] Timer tick: {timeLeft.TotalSeconds} seconds remaining");
+
+                if (DateTime.Now >= _breakEndTime.Value)
+                {
+                    Console.WriteLine("[StatusService] Timer expired. Setting status back to online.");
+                    _breakEndTime = null;
+                    _autoOnlineTimer?.Stop();
+                    await SetStateAsync(false, null);
+                }
             }
         }
 
@@ -60,14 +68,20 @@ namespace OrbitalSIP.Services
                     return;
 
                 var url = $"{backendUrl}/api/queue-members/my-state";
+                Console.WriteLine($"[StatusService] Fetching state from: {url}");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
 
                 var response = await _httpClient.SendAsync(request);
+                Console.WriteLine($"[StatusService] Fetch response status code: {response.StatusCode}");
+
                 if (response.IsSuccessStatusCode)
                 {
-                    var data = await response.Content.ReadFromJsonAsync<StatusState>();
+                    var content = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[StatusService] Fetch response body: {content}");
+
+                    var data = JsonSerializer.Deserialize<StatusState>(content);
                     if (data != null)
                     {
                         CurrentState = data;
@@ -89,7 +103,10 @@ namespace OrbitalSIP.Services
                 var backendUrl = settings.BackendUrl?.TrimEnd('/');
 
                 if (string.IsNullOrEmpty(backendUrl) || string.IsNullOrEmpty(settings.AccessToken))
+                {
+                    Console.WriteLine("[StatusService] Cannot set state: BackendUrl or AccessToken is missing.");
                     return false;
+                }
 
                 var url = $"{backendUrl}/api/queue-members/0/pause";
 
@@ -99,13 +116,20 @@ namespace OrbitalSIP.Services
                     ReasonPaused = reason
                 };
 
+                Console.WriteLine($"[StatusService] Setting state to URL: {url}");
+                Console.WriteLine($"[StatusService] Payload: Paused={paused}, Reason={reason ?? "null"}, DurationMinutes={durationMinutes?.ToString() ?? "null"}");
+
                 using var request = new HttpRequestMessage(HttpMethod.Put, url);
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
                 request.Content = JsonContent.Create(body);
 
                 var response = await _httpClient.SendAsync(request);
+                Console.WriteLine($"[StatusService] Set state response status code: {response.StatusCode}");
+
                 if (response.IsSuccessStatusCode)
                 {
+                    Console.WriteLine("[StatusService] State successfully updated on server.");
+
                     CurrentState.Paused = paused;
                     CurrentState.ReasonPaused = reason;
 
@@ -113,15 +137,22 @@ namespace OrbitalSIP.Services
                     {
                         _breakEndTime = DateTime.Now.AddMinutes(durationMinutes.Value);
                         _autoOnlineTimer?.Start();
+                        Console.WriteLine($"[StatusService] Started auto-online timer for {durationMinutes.Value} minutes.");
                     }
                     else
                     {
                         _breakEndTime = null;
                         _autoOnlineTimer?.Stop();
+                        Console.WriteLine("[StatusService] Auto-online timer stopped/cleared.");
                     }
 
                     Dispatcher.UIThread.Post(() => StateChanged?.Invoke(CurrentState));
                     return true;
+                }
+                else
+                {
+                     var errBody = await response.Content.ReadAsStringAsync();
+                     Console.WriteLine($"[StatusService] Set state failed. Body: {errBody}");
                 }
             }
             catch (Exception ex)
