@@ -174,6 +174,24 @@ namespace OrbitalSIP
         }
 
         // ── Dialer ────────────────────────────────────────────────────
+
+        private void ShowRecents()
+        {
+            var r = new Views.RecentsView();
+            r.OnCloseRequested += (_, __) => ToggleExpanded();
+            r.OnSettingsRequested += (_, __) => ShowSettings();
+            r.OnDialerRequested += (_, __) => ShowDialer();
+            r.OutgoingCallRequested += (sender, num) =>
+            {
+                var sip = App.SipService;
+                if (sip.State == CallState.Idle && !string.IsNullOrWhiteSpace(num))
+                    _ = sip.CallAsync(num);
+                ShowDialer();
+            };
+
+            SetMainContent(r);
+        }
+
         private void ShowDialer()
         {
             if (App.SipService.State == CallState.Active || App.SipService.State == CallState.OnHold)
@@ -316,6 +334,7 @@ namespace OrbitalSIP
             callView.OnTransferRequested += async (_, dest) => await App.SipService.BlindTransferAsync(dest);
             callView.OnKeypadRequested += (_, __) => ShowDialer();
             callView.OnSettingsRequested += (_, __) => ShowSettings();
+            callView.OnRecentsRequested += (_, __) => ShowRecents();
         }
 
         // ── SIP state changes ─────────────────────────────────────────
@@ -397,6 +416,7 @@ namespace OrbitalSIP
             var dialer = new Views.ExpandedView();
             dialer.OnCloseRequested += (_, __) => CollapseWidget();
             dialer.OnSettingsRequested += (_, __) => ShowSettings();
+            dialer.OnRecentsRequested += (_, __) => ShowRecents();
             dialer.OutgoingCallRequested += (_, number) => StartOutgoingCall(number);
             return dialer;
         }
