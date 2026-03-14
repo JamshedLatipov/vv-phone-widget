@@ -16,60 +16,15 @@ namespace OrbitalSIP.Views
         {
             InitializeComponent();
             WireButtons();
-            // Subscribe to registration state
-            var sip = App.SipService;
-            sip.RegistrationStatusChanged += state =>
-                Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
-
-            UpdateStatus(sip.RegistrationStatus);
-
-            var settings = sip.CurrentSettings;
-            var usernameLabel = this.FindControl<TextBlock>("UsernameLabel");
-            if (usernameLabel != null && settings != null)
-            {
-                var displayUser = settings.DecodedToken?.Username ?? settings.Username;
-                if (!string.IsNullOrWhiteSpace(displayUser))
-                {
-                    usernameLabel.Text = displayUser;
-                }
-            }
-
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
-        private void UpdateStatus(RegistrationState state)
-        {
-            var dot = this.FindControl<Ellipse>("StatusDot");
-            var lbl = this.FindControl<TextBlock>("StatusLabel");
-            if (dot == null || lbl == null) return;
-
-            switch (state)
-            {
-                case RegistrationState.Registered:
-                    dot.Fill = new SolidColorBrush(Color.Parse("#10B981")); // Emerald
-                    lbl.Text = "Available";
-                    break;
-                case RegistrationState.Failed:
-                    dot.Fill = new SolidColorBrush(Color.Parse("#EF4444")); // Red
-                    lbl.Text = "Connection Error";
-                    break;
-                case RegistrationState.Paused:
-                    dot.Fill = new SolidColorBrush(Color.Parse("#F59E0B")); // Amber
-                    lbl.Text = "Paused";
-                    break;
-                case RegistrationState.Unregistered:
-                default:
-                    dot.Fill = new SolidColorBrush(Color.Parse("#EF4444")); // Red for Offline
-                    lbl.Text = "Offline";
-                    break;
-            }
-        }
-
         private void WireButtons()
         {
             // Header buttons
-            Bind("CloseBtn",    () => OnCloseRequested?.Invoke(this, EventArgs.Empty));
+            var topBar = this.FindControl<TopBarControl>("TopBar");
+            if (topBar != null) topBar.OnMinimizeRequested += (_, __) => OnCloseRequested?.Invoke(this, EventArgs.Empty);
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
             if (bottomNav != null) bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
             bottomNav?.SetActiveTab("Dialer");

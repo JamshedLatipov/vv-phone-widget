@@ -12,36 +12,7 @@
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
 
       <!-- Header -->
-      <Grid ColumnDefinitions="*,Auto" Background="#1E293B">
-        <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,12,0,12">
-          <Grid Width="34" Height="34">
-            <Ellipse Fill="#1D2D42" />
-            <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
-              <Path Fill="#DDE7F3" Stretch="Uniform"
-                    Data="M12,12A5,5 0 1,0 7,7A5,5 0 0,0 12,12M12,14C8.13,14 5,17.13 5,21H7C7,18.24 9.24,16 12,16C14.76,16 17,18.24 17,21H19C19,17.13 15.87,14 12,14Z" />
-            </Viewbox>
-            <Ellipse Name="StatusDot" Width="9" Height="9" Fill="#22C55E" Stroke="#101D2C" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
-          </Grid>
-          <StackPanel Spacing="1" VerticalAlignment="Center">
-            <TextBlock Name="UsernameLabel" Text="Dialer" FontSize="13" FontWeight="Bold" Foreground="#F8FAFC" />
-            <TextBlock Name="StatusLabel" Text="Available" FontSize="10" FontWeight="Medium" Foreground="#89A0B8" />
-          </StackPanel>
-        </StackPanel>
-
-
-
-        <Button Grid.Column="1" Name="CloseBtn"
-                Width="28" Height="28" CornerRadius="14"
-                Background="#1A2D42" BorderBrush="#2A415B" BorderThickness="1"
-          Padding="0" Margin="0,12,10,12"
-                HorizontalContentAlignment="Center"
-                VerticalContentAlignment="Center">
-          <Viewbox Width="12" Height="12">
-            <Path Fill="#9AB0C7" Stretch="Uniform"
-                  Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
-          </Viewbox>
-        </Button>
-      </Grid>
+      <Views:TopBarControl Name="TopBar" />
 
       <!-- Dialer display -->
       <Grid Grid.Row="1" Margin="14,10,14,10" ColumnDefinitions="*,Auto,Auto">

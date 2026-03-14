@@ -108,11 +108,18 @@ namespace OrbitalSIP.Views
             if (save != null)
                 save.Click += (_, __) => SaveAndClose();
 
-            var back = this.FindControl<Button>("BackBtn");
+            var topBar = this.FindControl<TopBarControl>("TopBar");
+            if (topBar != null)
+            {
+                topBar.SetTitle("Settings");
+                topBar.OnMinimizeRequested += (_, __) => OnMinimizeRequested?.Invoke(this, System.EventArgs.Empty);
+            }
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
-            if (bottomNav != null) { bottomNav.OnSettingsRequested += (_, __) => OnBackRequested?.Invoke(this, System.EventArgs.Empty); bottomNav.SetActiveTab("Settings"); }
-            if (back != null)
-                back.Click += (_, __) => OnBackRequested?.Invoke(this, System.EventArgs.Empty);
+            if (bottomNav != null)
+            {
+                bottomNav.OnDialerRequested += (_, __) => OnBackRequested?.Invoke(this, System.EventArgs.Empty);
+                bottomNav.SetActiveTab("Settings");
+            }
         }
 
         private void SaveAndClose()
@@ -142,9 +149,11 @@ namespace OrbitalSIP.Views
                 _settings.AudioInDeviceIndex = (micBox.SelectedIndex <= 0 ? -1 : micBox.SelectedIndex - 1);
 
             _settings.Save();
-            OnBackRequested?.Invoke(this, System.EventArgs.Empty);
+            OnSaveRequested?.Invoke(this, System.EventArgs.Empty);
         }
 
         public event System.EventHandler? OnBackRequested;
+        public event System.EventHandler? OnMinimizeRequested;
+        public event System.EventHandler? OnSaveRequested;
     }
 }
