@@ -5,6 +5,9 @@ using Avalonia.Threading;
 using Avalonia.Markup.Xaml;
 using System.Diagnostics;
 using OrbitalSIP.Services;
+using OrbitalSIP.Models;
+using System;
+using Avalonia;
 
 namespace OrbitalSIP.Views
 {
@@ -14,6 +17,7 @@ namespace OrbitalSIP.Views
         private Stopwatch?       _stopwatch;
         private Ellipse?         _strokeRing;
         private Ellipse?         _statusDot;
+        private Action<StatusState>? _queueStateChangedHandler;
 
         public WidgetView()
         {
@@ -28,10 +32,15 @@ namespace OrbitalSIP.Views
 
             // Subscribe to registration state
             var sip = App.SipService;
+            var statusSvc = App.StatusService;
+
             sip.RegistrationStatusChanged += state =>
                 Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
             sip.RegistrationError += reason =>
                 Dispatcher.UIThread.InvokeAsync(() => UpdateStatusTip(sip.RegistrationStatus, reason));
+
+            _queueStateChangedHandler = state => Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(sip.RegistrationStatus));
+            statusSvc.StateChanged += _queueStateChangedHandler;
 
             UpdateStatus(sip.RegistrationStatus);
         }
@@ -56,13 +65,26 @@ namespace OrbitalSIP.Views
             Color pulseColorEnd;
             string label;
 
+            var queueState = App.StatusService.CurrentState;
+            bool isQueuePaused = queueState != null && queueState.Paused;
+
             switch (state)
             {
                 case RegistrationState.Registered:
-                    color = Color.Parse("#10B981"); // Emerald
-                    pulseColorStart = Color.Parse("#17E0A0");
-                    pulseColorEnd   = Color.Parse("#00BFA5");
-                    label = "Registered";
+                    if (isQueuePaused)
+                    {
+                        color = Color.Parse("#F59E0B"); // Amber
+                        pulseColorStart = Color.Parse("#FBBF24");
+                        pulseColorEnd   = Color.Parse("#D97706");
+                        label = queueState?.ReasonPaused ?? "Paused";
+                    }
+                    else
+                    {
+                        color = Color.Parse("#10B981"); // Emerald
+                        pulseColorStart = Color.Parse("#17E0A0");
+                        pulseColorEnd   = Color.Parse("#00BFA5");
+                        label = "Registered";
+                    }
                     break;
                 case RegistrationState.Failed:
                     color = Color.Parse("#EF4444"); // Red
@@ -108,17 +130,35 @@ namespace OrbitalSIP.Views
 
             if (string.IsNullOrWhiteSpace(message))
             {
-                tip.Text = state switch
+                var queueState = App.StatusService.CurrentState;
+                if (state == RegistrationState.Registered && queueState != null && queueState.Paused)
                 {
-                    RegistrationState.Registered => "Registered",
-                    RegistrationState.Failed => "Registration Failed",
-                    RegistrationState.Paused => "Paused",
-                    _ => "Offline"
-                };
+                    tip.Text = queueState.ReasonPaused ?? "Paused";
+                }
+                else
+                {
+                    tip.Text = state switch
+                    {
+                        RegistrationState.Registered => "Registered",
+                        RegistrationState.Failed => "Registration Failed",
+                        RegistrationState.Paused => "Paused",
+                        _ => "Offline"
+                    };
+                }
             }
             else
             {
                 tip.Text = message;
+            }
+        }
+
+        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnDetachedFromVisualTree(e);
+            if (_queueStateChangedHandler != null)
+            {
+                App.StatusService.StateChanged -= _queueStateChangedHandler;
+                _queueStateChangedHandler = null;
             }
         }
     }
