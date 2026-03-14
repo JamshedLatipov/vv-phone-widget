@@ -8,52 +8,7 @@
       <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Margin="0,0,0,14">
 
-        <Grid ColumnDefinitions="*,Auto" Background="#1E293B" Margin="0,0,0,12">
-          <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,10,0,10">
-            <Border Width="34" Height="34" CornerRadius="17" Background="#1D2D42">
-              <Grid>
-                <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
-                  <Path Fill="#E2E8F0" Stretch="Uniform"
-                        Data="M12,12A5,5 0 1,0 7,7A5,5 0 0,0 12,12M12,14C8.13,14 5,17.13 5,21H7C7,18.24 9.24,16 12,16C14.76,16 17,18.24 17,21H19C19,17.13 15.87,14 12,14Z" />
-                </Viewbox>
-              </Grid>
-            </Border>
-            <StackPanel Spacing="1" VerticalAlignment="Center">
-              <TextBlock Text="Orbital SIP" FontSize="13" FontWeight="Bold" Foreground="#F8FAFC" />
-              <TextBlock Text="Active session" FontSize="10" FontWeight="Medium" Foreground="#89A0B8" />
-            </StackPanel>
-          </StackPanel>
-
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,10,14,10" Spacing="6">
-            <Button Name="CopyCallerBtn"
-                    MinWidth="52"
-                    Height="28"
-                    CornerRadius="14"
-                    Padding="10,0"
-                    Background="#1E293B"
-                    BorderBrush="#294461"
-                    BorderThickness="0"
-                    Foreground="#E2E8F0"
-                    FontSize="10"
-                    FontWeight="Bold"
-                    Content="Copy"
-                    VerticalAlignment="Center" />
-            <Button Name="MinimizeBtn"
-                    Width="28" Height="28"
-                    CornerRadius="14"
-                    Background="#1E293B"
-                    BorderBrush="#294461"
-                    BorderThickness="0"
-                    Padding="0"
-                    HorizontalContentAlignment="Center"
-                    VerticalContentAlignment="Center">
-              <Viewbox Width="12" Height="12">
-                <Path Fill="#E2E8F0" Stretch="Uniform"
-                      Data="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z" />
-              </Viewbox>
-            </Button>
-          </StackPanel>
-        </Grid>
+        <Views:TopBarControl Name="TopBar" Margin="0,0,0,12" />
 
         <StackPanel Margin="18,0,18,0" Spacing="14">
           <StackPanel HorizontalAlignment="Center" Spacing="10">

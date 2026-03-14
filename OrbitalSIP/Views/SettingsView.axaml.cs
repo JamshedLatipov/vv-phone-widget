@@ -108,11 +108,14 @@ namespace OrbitalSIP.Views
             if (save != null)
                 save.Click += (_, __) => SaveAndClose();
 
-            var back = this.FindControl<Button>("BackBtn");
+            var topBar = this.FindControl<TopBarControl>("TopBar");
+            if (topBar != null)
+            {
+                topBar.SetTitle("Settings");
+                topBar.OnMinimizeRequested += (_, __) => OnBackRequested?.Invoke(this, System.EventArgs.Empty);
+            }
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
             if (bottomNav != null) { bottomNav.OnSettingsRequested += (_, __) => OnBackRequested?.Invoke(this, System.EventArgs.Empty); bottomNav.SetActiveTab("Settings"); }
-            if (back != null)
-                back.Click += (_, __) => OnBackRequested?.Invoke(this, System.EventArgs.Empty);
         }
 
         private void SaveAndClose()

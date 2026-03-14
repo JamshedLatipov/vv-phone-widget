@@ -117,9 +117,9 @@ namespace OrbitalSIP.Views
             if (keypad != null)
                 keypad.Click += (_, __) => OnKeypadRequested?.Invoke(this, EventArgs.Empty);
 
-            var minimize = this.FindControl<Button>("MinimizeBtn");
-            if (minimize != null)
-                minimize.Click += (_, __) => OnMinimizeRequested?.Invoke(this, EventArgs.Empty);
+            var topBar = this.FindControl<TopBarControl>("TopBar");
+            if (topBar != null)
+                topBar.OnMinimizeRequested += (_, __) => OnMinimizeRequested?.Invoke(this, EventArgs.Empty);
 
             var copy = this.FindControl<Button>("CopyCallerBtn");
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
