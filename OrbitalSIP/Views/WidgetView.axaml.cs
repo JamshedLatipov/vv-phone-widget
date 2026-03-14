@@ -18,34 +18,81 @@ namespace OrbitalSIP.Views
         private Ellipse?         _strokeRing;
         private Ellipse?         _statusDot;
         private Action<StatusState>? _queueStateChangedHandler;
+        private Action<RegistrationState>? _statusChangedHandler;
+        private Action<string>? _registrationErrorHandler;
 
         public WidgetView()
         {
             InitializeComponent();
             _strokeRing = this.FindControl<Ellipse>("StrokeRing");
             _statusDot  = this.FindControl<Ellipse>("StatusDot");
+        }
+
+        private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+
+        protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnAttachedToVisualTree(e);
 
             _stopwatch  = Stopwatch.StartNew();
-            _pulseTimer = new DispatcherTimer(
-                TimeSpan.FromMilliseconds(30), DispatcherPriority.Normal, OnPulseTick);
+            if (_pulseTimer == null)
+            {
+                _pulseTimer = new DispatcherTimer(
+                    TimeSpan.FromMilliseconds(30), DispatcherPriority.Normal, OnPulseTick);
+            }
             _pulseTimer.Start();
 
-            // Subscribe to registration state
             var sip = App.SipService;
             var statusSvc = App.StatusService;
 
-            sip.RegistrationStatusChanged += state =>
-                Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
-            sip.RegistrationError += reason =>
-                Dispatcher.UIThread.InvokeAsync(() => UpdateStatusTip(sip.RegistrationStatus, reason));
+            if (_statusChangedHandler == null)
+            {
+                _statusChangedHandler = state =>
+                    Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(state));
+                sip.RegistrationStatusChanged += _statusChangedHandler;
+            }
 
-            _queueStateChangedHandler = state => Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(sip.RegistrationStatus));
-            statusSvc.StateChanged += _queueStateChangedHandler;
+            if (_registrationErrorHandler == null)
+            {
+                _registrationErrorHandler = reason =>
+                    Dispatcher.UIThread.InvokeAsync(() => UpdateStatusTip(sip.RegistrationStatus, reason));
+                sip.RegistrationError += _registrationErrorHandler;
+            }
+
+            if (_queueStateChangedHandler == null)
+            {
+                _queueStateChangedHandler = state => Dispatcher.UIThread.InvokeAsync(() => UpdateStatus(sip.RegistrationStatus));
+                statusSvc.StateChanged += _queueStateChangedHandler;
+            }
 
             UpdateStatus(sip.RegistrationStatus);
         }
 
-        private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnDetachedFromVisualTree(e);
+
+            _pulseTimer?.Stop();
+            _stopwatch?.Stop();
+
+            if (_statusChangedHandler != null)
+            {
+                App.SipService.RegistrationStatusChanged -= _statusChangedHandler;
+                _statusChangedHandler = null;
+            }
+
+            if (_registrationErrorHandler != null)
+            {
+                App.SipService.RegistrationError -= _registrationErrorHandler;
+                _registrationErrorHandler = null;
+            }
+
+            if (_queueStateChangedHandler != null)
+            {
+                App.StatusService.StateChanged -= _queueStateChangedHandler;
+                _queueStateChangedHandler = null;
+            }
+        }
 
         private void OnPulseTick(object? sender, EventArgs e)
         {
@@ -149,16 +196,6 @@ namespace OrbitalSIP.Views
             else
             {
                 tip.Text = message;
-            }
-        }
-
-        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-        {
-            base.OnDetachedFromVisualTree(e);
-            if (_queueStateChangedHandler != null)
-            {
-                App.StatusService.StateChanged -= _queueStateChangedHandler;
-                _queueStateChangedHandler = null;
             }
         }
     }
