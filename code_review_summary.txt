@@ -1,7 +1,4 @@
-Implemented system tray integration and hidden the window from the taskbar for OrbitalSIP.
-- Added a placeholder icon in OrbitalSIP/Assets/icon.png.
-- Updated OrbitalSIP.csproj to include Assets as AvaloniaResource.
-- Modified App.axaml to define the TrayIcon and its context menu (Show, Hide, Exit).
-- Modified App.axaml.cs to implement tray icon logic (click to toggle visibility, menu actions).
-- Updated MainWindow.axaml.cs to intercept the Closing event and hide the window instead of exiting.
-- Updated MainWindow.axaml to set ShowInTaskbar="False" so the app only appears in the system tray.
+The changes in App.axaml are correct and address the issue:
+- RequestedThemeVariant="Dark" is essential for the dark UI to ensure theme-dependent elements (like ComboBox popups and TextBox focus templates) use dark-compatible colors.
+- The global styles for TextBox:focus and TextBox:pointerover target the Avalonia template's PART_BorderElement, which is exactly what was causing the visual override.
+- Building the project confirmed that the XAML is valid.
