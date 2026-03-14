@@ -181,13 +181,7 @@ namespace OrbitalSIP
             r.OnCloseRequested += (_, __) => ToggleExpanded();
             r.OnSettingsRequested += (_, __) => ShowSettings();
             r.OnDialerRequested += (_, __) => ShowDialer();
-            r.OutgoingCallRequested += (sender, num) =>
-            {
-                var sip = App.SipService;
-                if (sip.State == CallState.Idle && !string.IsNullOrWhiteSpace(num))
-                    _ = sip.CallAsync(num);
-                ShowDialer();
-            };
+            r.OutgoingCallRequested += (sender, num) => StartOutgoingCall(num);
 
             SetMainContent(r);
         }
