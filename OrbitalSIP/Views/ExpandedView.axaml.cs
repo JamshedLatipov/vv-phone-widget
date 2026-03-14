@@ -7,15 +7,56 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using System.Threading.Tasks;
 using OrbitalSIP.Services;
+using OrbitalSIP.Models;
+using OrbitalSIP.ViewModels;
+using System.Collections.ObjectModel;
+using System.Net.Http;
+using System.Net.Http.Json;
+using Avalonia.Interactivity;
 
 namespace OrbitalSIP.Views
 {
     public partial class ExpandedView : UserControl
     {
+
+        private DispatcherTimer? _cdrTimer;
+        private static readonly HttpClient _httpClient;
+        public ObservableCollection<CdrItemViewModel> CdrItems { get; } = new ObservableCollection<CdrItemViewModel>();
+
+        static ExpandedView()
+        {
+            var handler = new HttpClientHandler();
+#if DEBUG
+            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
+#endif
+            _httpClient = new HttpClient(handler);
+        }
+
         public ExpandedView()
         {
             InitializeComponent();
             WireButtons();
+            DataContext = this;
+
+            var refreshBtn = this.FindControl<Button>("RefreshCdrBtn");
+            if (refreshBtn != null) refreshBtn.Click += async (_, __) => await LoadCallHistoryAsync();
+
+            _cdrTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMinutes(2)
+            };
+            _cdrTimer.Tick += async (_, __) => await LoadCallHistoryAsync();
+            _cdrTimer.Start();
+
+            _ = LoadCallHistoryAsync();
+
+        }
+
+
+        protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            base.OnDetachedFromVisualTree(e);
+            _cdrTimer?.Stop();
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
@@ -102,6 +143,65 @@ namespace OrbitalSIP.Views
             button.Content = "Copied";
             await Task.Delay(1200);
             button.Content = original;
+        }
+
+
+        private async Task LoadCallHistoryAsync()
+        {
+            try
+            {
+                var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
+                var operatorId = settings.DecodedToken?.Operator?.Username ?? settings.Username;
+                var backendUrl = settings.BackendUrl?.TrimEnd('/');
+
+                if (string.IsNullOrEmpty(operatorId) || string.IsNullOrEmpty(backendUrl))
+                    return;
+
+                var startOfToday = DateTime.UtcNow.Date.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+                var endOfToday = DateTime.UtcNow.Date.AddDays(1).AddTicks(-1).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+
+                var url = $"{backendUrl}/api/cdr?page=1&limit=20&fromDate={startOfToday}&toDate={endOfToday}&operatorId={Uri.EscapeDataString(operatorId)}";
+
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                if (!string.IsNullOrEmpty(settings.AccessToken))
+                {
+                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
+                }
+
+                var response = await _httpClient.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+                    var data = await response.Content.ReadFromJsonAsync<CdrResponse>();
+                    if (data?.Data != null)
+                    {
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            CdrItems.Clear();
+                            foreach(var item in data.Data)
+                            {
+                                CdrItems.Add(new CdrItemViewModel(item, operatorId));
+                            }
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ExpandedView] Error loading call history: {ex.Message}");
+            }
+        }
+
+        private void OnCdrCallClicked(object? sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string num)
+            {
+                var d = this.FindControl<TextBlock>("DisplayText");
+                if (d != null)
+                {
+                    d.Text = num;
+                }
+                OutgoingCallRequested?.Invoke(this, num);
+            }
         }
 
         // ── Events ────────────────────────────────────────────────────
