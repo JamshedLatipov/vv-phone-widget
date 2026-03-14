@@ -117,6 +117,22 @@ namespace OrbitalSIP.Views
             if (incoming > 0)
                 efficiency = (int)Math.Round((double)stats.IncomingAnswered / incoming * 100);
 
+            var ratioBar = this.FindControl<Grid>("RatioBarGrid");
+            if (ratioBar != null)
+            {
+                if (incoming > 0)
+                {
+                    double green = stats.IncomingAnswered;
+                    double red = stats.MissedCalls;
+                    double totalRatio = incoming;
+                    double empty = Math.Max(0, totalRatio - green - red);
+                    ratioBar.ColumnDefinitions = new ColumnDefinitions($"{green}*, {red}*, {empty}*");
+                }
+                else
+                {
+                    ratioBar.ColumnDefinitions = new ColumnDefinitions("0*, 0*, 1*");
+                }
+            }
             // Update Summary
             var summaryTxt = this.FindControl<TextBlock>("SummaryText");
             if (summaryTxt != null)

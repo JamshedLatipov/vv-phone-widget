@@ -4,11 +4,37 @@
   <Border Background="#1C1C1C" CornerRadius="0" Margin="0,0,0,0">
     <StackPanel>
       <!-- Collapsed Header -->
-      <Button Name="HeaderButton" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="8,4">
-        <Grid ColumnDefinitions="Auto,*,Auto">
-          <TextBlock Name="SummaryText" Text="0 / 0 вх. 0" Foreground="#A0A0A0" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
-          <PathIcon Name="ExpanderIcon" Grid.Column="2" Data="M7,10L12,15L17,10H7Z" Width="12" Height="12" Foreground="#A0A0A0" />
+
+      <Button Name="HeaderButton" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0">
+
+        <Grid>
+
+          <Grid Name="RatioBarGrid" ColumnDefinitions="0*, 0*, 1*">
+
+            <!-- Green bar for answered -->
+
+            <Border Grid.Column="0" Background="#10B981" Opacity="0.4" />
+
+            <!-- Red bar for missed -->
+
+            <Border Grid.Column="1" Background="#EF4444" Opacity="0.4" />
+
+            <!-- Neutral remaining area -->
+
+            <Border Grid.Column="2" Background="Transparent" />
+
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,*,Auto" Margin="8,4">
+
+            <TextBlock Name="SummaryText" Text="0 / 0 вх. 0" Foreground="#A0A0A0" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+
+            <PathIcon Name="ExpanderIcon" Grid.Column="2" Data="M7,10L12,15L17,10H7Z" Width="12" Height="12" Foreground="#A0A0A0" />
+
+          </Grid>
+
         </Grid>
+
       </Button>
       <!-- Expanded Content -->
       <Border Name="ExpandedContent" IsVisible="False" Background="#212121" CornerRadius="0,0,4,4" Padding="12,8">
