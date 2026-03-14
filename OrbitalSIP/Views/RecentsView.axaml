@@ -28,7 +28,7 @@
           <ItemsControl Name="CdrItemsControl">
               <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                      <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,4">
+                      <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,4" ToolTip.Tip="{Binding DisplayStatus}">
                         <Border Width="32" Height="32" CornerRadius="16" Background="#1E293B">
                           <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Path Fill="{Binding IconColor}" Stretch="Uniform" Data="{Binding IconData}"/>

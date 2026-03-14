@@ -11,6 +11,7 @@ namespace OrbitalSIP.ViewModels
         public string DisplayTime { get; }
         public string IconData { get; }
         public string IconColor { get; }
+        public string DisplayStatus { get; }
 
         public CdrItemViewModel(CdrEntry entry, string currentOperator)
         {
@@ -38,6 +39,7 @@ namespace OrbitalSIP.ViewModels
 
             // Red if missed/failed, Green if answered
             IconColor = isAnswered ? "#22C55E" : "#EF4444";
+            DisplayStatus = isAnswered ? "Answered" : (entry.Disposition ?? "Unknown");
         }
     }
 }
