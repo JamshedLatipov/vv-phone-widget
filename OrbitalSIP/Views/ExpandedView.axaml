@@ -9,7 +9,7 @@
           BorderThickness="1"
           CornerRadius="16"
           ClipToBounds="True">
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
 
       <!-- Header -->
       <Grid ColumnDefinitions="*,Auto" Background="#1E293B">
@@ -160,8 +160,11 @@
         </StackPanel>
       </Button>
 
+      <!-- Operator Stats Widget -->
+      <Views:OperatorStatsControl Grid.Row="4" Name="OperatorStats" />
+
       <!-- Recent activity -->
-      <Border Grid.Row="4" Background="#020617" BorderBrush="#1E293B" BorderThickness="1,1,1,0" Padding="12,7,12,5" MinHeight="60">
+      <Border Grid.Row="5" Background="#020617" BorderBrush="#1E293B" BorderThickness="1,1,1,0" Padding="12,7,12,5" MinHeight="60">
         <StackPanel Spacing="6">
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Text="RECENT ACTIVITY" FontSize="10" FontWeight="Bold" LetterSpacing="1.2" Foreground="#7B92AA"/>
@@ -187,7 +190,7 @@
       </Border>
 
       <!-- Bottom tab bar -->
-      <Views:BottomNavControl Grid.Row="5" Name="BottomNav" />
+      <Views:BottomNavControl Grid.Row="6" Name="BottomNav" />
 
     </Grid>
   </Border>
