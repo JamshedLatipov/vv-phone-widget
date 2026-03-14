@@ -11,16 +11,19 @@
         <Style Selector="ListBoxItem">
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         </Style>
         <Style Selector="RadioButton">
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1"
                             CornerRadius="6"
-                            Padding="0">
-                        <ContentPresenter Content="{TemplateBinding Content}" />
+                            Padding="0"
+                            HorizontalAlignment="Stretch">
+                        <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Stretch" />
                     </Border>
                 </ControlTemplate>
             </Setter>
