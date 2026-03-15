@@ -73,5 +73,14 @@
   "Efficiency": "ТИІМДІЛІК",
   "ErrorOffline": "Ажыратылған",
   "ErrorFailed": "Қате",
-  "ErrorPaused": "Кідіртілген"
+  "ErrorPaused": "Кідіртілген",
+  "Language": "Тіл",
+  "Calling": "ҚОҢЫРАУ ШАЛУ",
+  "OnHold": "КҮТУДE",
+  "Copied": "Көшірілді",
+  "SigningIn": "Кіру...",
+  "IncomingShort": "кір.",
+  "ConnectionError": "Байланыс қатесі",
+  "Resume": "Жалғастыру",
+  "UnknownCaller": "Белгісіз"
 }

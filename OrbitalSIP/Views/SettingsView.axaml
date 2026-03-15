@@ -91,6 +91,25 @@
             </Border>
           </StackPanel>
 
+
+          <!-- Language -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="{i18n:I18n Language}" FontSize="11" Foreground="#5F7A96" />
+            <ComboBox Name="LanguageBox"
+                      Background="#1E293B" Foreground="#FFFFFF"
+                      BorderThickness="1" BorderBrush="#334155"
+                      CornerRadius="8"
+                      Padding="12,10"
+                      HorizontalAlignment="Stretch">
+              <ComboBoxItem Content="Русский" Tag="ru" />
+              <ComboBoxItem Content="O'zbekcha" Tag="uz" />
+              <ComboBoxItem Content="Қазақша" Tag="kk" />
+              <ComboBoxItem Content="Тоҷикӣ" Tag="tg" />
+            </ComboBox>
+          </StackPanel>
+
+          <!-- Divider -->
+          <Border Height="1" Background="#1A2D42" Margin="0,4,0,4" />
           <!-- Transport -->
           <StackPanel Spacing="4">
             <TextBlock Text="{i18n:I18n Transport}" FontSize="11" Foreground="#5F7A96" />

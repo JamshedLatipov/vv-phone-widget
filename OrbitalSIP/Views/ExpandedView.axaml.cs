@@ -100,7 +100,7 @@ namespace OrbitalSIP.Views
             }
 
             var original = button.Content;
-            button.Content = "Copied";
+            button.Content = Services.I18nService.Instance.Get("Copied");
             await Task.Delay(1200);
             button.Content = original;
         }

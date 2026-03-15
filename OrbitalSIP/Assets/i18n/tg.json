@@ -73,5 +73,14 @@
   "Efficiency": "САМАРАНОКӢ",
   "ErrorOffline": "Қатъ шудааст",
   "ErrorFailed": "Хатогӣ",
-  "ErrorPaused": "Таваққуф"
+  "ErrorPaused": "Таваққуф",
+  "Language": "Забон",
+  "Calling": "ЗАНГ",
+  "OnHold": "ДАР ИНТИЗОРӢ",
+  "Copied": "Нусхабардорӣ шуд",
+  "SigningIn": "Вуруд...",
+  "IncomingShort": "дах.",
+  "ConnectionError": "Хатои пайваст",
+  "Resume": "Давом додан",
+  "UnknownCaller": "Номаълум"
 }

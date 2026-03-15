@@ -55,6 +55,18 @@ namespace OrbitalSIP.Views
             SetText("DisplayNameBox", _settings.DisplayName);
             SetText("PasswordBox",    _settings.Password);
 
+            var langBox = this.FindControl<ComboBox>("LanguageBox");
+            if (langBox != null)
+            {
+                langBox.SelectedIndex = _settings.Language switch
+                {
+                    "uz" => 1,
+                    "kk" => 2,
+                    "tg" => 3,
+                    _    => 0
+                };
+            }
+
             var transport = this.FindControl<ComboBox>("TransportBox");
             if (transport != null)
             {
@@ -131,6 +143,16 @@ namespace OrbitalSIP.Views
             _settings.Username    = GetText("UsernameBox");
             _settings.DisplayName = GetText("DisplayNameBox");
             _settings.Password    = GetText("PasswordBox");
+
+            var langBox = this.FindControl<ComboBox>("LanguageBox");
+            _settings.Language = langBox?.SelectedIndex switch
+            {
+                1 => "uz",
+                2 => "kk",
+                3 => "tg",
+                _ => "ru"
+            };
+            Services.I18nService.Instance.LoadLanguage(_settings.Language);
 
             var transport = this.FindControl<ComboBox>("TransportBox");
             _settings.Transport = transport?.SelectedIndex switch

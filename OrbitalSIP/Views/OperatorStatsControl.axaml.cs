@@ -136,7 +136,7 @@ namespace OrbitalSIP.Views
             // Update Summary
             var summaryTxt = this.FindControl<TextBlock>("SummaryText");
             if (summaryTxt != null)
-                summaryTxt.Text = $"{answered} / {total} вх. {incoming}";
+                summaryTxt.Text = $"{answered} / {total} " + Services.I18nService.Instance.Get("IncomingShort") + $" {incoming}";
 
             // Update Efficiency
             var effTxt = this.FindControl<TextBlock>("EfficiencyText");
