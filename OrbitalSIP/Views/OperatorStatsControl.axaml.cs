@@ -61,7 +61,7 @@ namespace OrbitalSIP.Views
         {
             _isExpanded = !_isExpanded;
             var content = this.FindControl<Border>("ExpandedContent");
-            var icon = this.FindControl<Avalonia.Controls.PathIcon>("ExpanderIcon");
+            var icon = this.FindControl<Avalonia.Controls.Shapes.Path>("ExpanderIcon");
 
             if (content != null)
                 content.IsVisible = _isExpanded;
