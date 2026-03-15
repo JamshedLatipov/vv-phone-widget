@@ -12,6 +12,8 @@ namespace OrbitalSIP.ViewModels
         public string IconData { get; }
         public string IconColor { get; }
         public string DisplayStatus { get; }
+        public bool IsLogged { get; }
+        public string ScriptIconColor { get; }
 
         public CdrItemViewModel(CdrEntry entry, string currentOperator)
         {
@@ -51,6 +53,18 @@ namespace OrbitalSIP.ViewModels
             // Red if missed/failed, Green if answered
             IconColor = isAnswered ? "#22C55E" : "#EF4444";
             DisplayStatus = isAnswered ? "Answered" : (entry.Disposition ?? "Unknown");
+
+            // Check if call was logged
+            if (!string.IsNullOrEmpty(entry.UniqueId) && !string.IsNullOrEmpty(currentOperator))
+            {
+                IsLogged = App.LoggedCallService.IsCallLogged(entry.UniqueId, currentOperator);
+            }
+            else
+            {
+                IsLogged = false;
+            }
+
+            ScriptIconColor = IsLogged ? "#10B981" : "#60A5FA";
         }
     }
 }

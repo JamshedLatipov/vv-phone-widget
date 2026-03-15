@@ -145,7 +145,14 @@ namespace OrbitalSIP.Views
 
                 if (result != null && !string.IsNullOrEmpty(vm.Entry.UniqueId))
                 {
-                    await App.ScriptService.RegisterScriptAsync(vm.Entry.UniqueId, result.Id!);
+                    bool success = await App.ScriptService.RegisterScriptAsync(vm.Entry.UniqueId, result.Id!);
+                    if (success)
+                    {
+                        var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
+                        var operatorId = settings.DecodedToken?.Operator?.Username ?? settings.Username;
+                        App.LoggedCallService.MarkCallAsLogged(vm.Entry.UniqueId, operatorId);
+                        _ = LoadCallHistoryAsync();
+                    }
                 }
             }
         }
