@@ -196,18 +196,7 @@
             </Button>
           </Grid>
 
-          <Border Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="14" Padding="12,10">
-            <Grid ColumnDefinitions="*,*">
-              <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                <materialIcons:MaterialIcon Kind="CheckCircleOutline" Width="14" Height="14" Foreground="#94A3B8" VerticalAlignment="Center" />
-                <TextBlock Text="{i18n:I18n SignalStable}" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" />
-              </StackPanel>
-              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                <materialIcons:MaterialIcon Kind="ShieldCheckOutline" Width="14" Height="14" Foreground="#94A3B8" VerticalAlignment="Center" />
-                <TextBlock Text="{i18n:I18n Encrypted}" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" />
-              </StackPanel>
-            </Grid>
-          </Border>
+
 
           <TextBlock Name="TimerLabel" Text="00:00" IsVisible="False" />
         </StackPanel>
