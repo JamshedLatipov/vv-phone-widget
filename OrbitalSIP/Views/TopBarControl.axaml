@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:i18n="clr-namespace:OrbitalSIP.Services"
              x:Class="OrbitalSIP.Views.TopBarControl">
   <Grid ColumnDefinitions="*,Auto" Background="#1E293B">
     <Button Name="AvatarBtn" Background="Transparent" BorderThickness="0" Padding="0" Margin="14,12,0,12" HorizontalAlignment="Left">
@@ -13,8 +14,8 @@
           <Ellipse Name="StatusDot" Width="9" Height="9" Fill="#22C55E" Stroke="#101D2C" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
         </Grid>
         <StackPanel Spacing="1" VerticalAlignment="Center">
-          <TextBlock Name="UsernameLabel" Text="Dialer" FontSize="13" FontWeight="Bold" Foreground="#F8FAFC" />
-          <TextBlock Name="StatusLabel" Text="Available" FontSize="10" FontWeight="Medium" Foreground="#89A0B8" />
+          <TextBlock Name="UsernameLabel" Text="{i18n:I18n Dialer}" FontSize="13" FontWeight="Bold" Foreground="#F8FAFC" />
+          <TextBlock Name="StatusLabel" Text="{i18n:I18n Available}" FontSize="10" FontWeight="Medium" Foreground="#89A0B8" />
         </StackPanel>
       </StackPanel>
     </Button>

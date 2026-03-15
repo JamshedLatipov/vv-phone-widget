@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:Views="clr-namespace:OrbitalSIP.Views"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:i18n="clr-namespace:OrbitalSIP.Services"
              x:Class="OrbitalSIP.Views.SettingsView"
              Background="#0F172A">
   <Border Padding="20">
@@ -16,7 +17,7 @@
 
           <!-- Backend URL -->
           <StackPanel Spacing="4">
-            <TextBlock Text="Backend URL" FontSize="11" Foreground="#5F7A96" />
+            <TextBlock Text="{i18n:I18n BackendUrl}" FontSize="11" Foreground="#5F7A96" />
             <Border Background="#1E293B" CornerRadius="8">
               <TextBox Name="BackendUrlBox"
                        Background="Transparent" Foreground="#FFFFFF"
@@ -31,7 +32,7 @@
 
           <!-- SIP Server -->
           <StackPanel Spacing="4">
-            <TextBlock Text="SIP Server" FontSize="11" Foreground="#5F7A96" />
+            <TextBlock Text="{i18n:I18n SipServer}" FontSize="11" Foreground="#5F7A96" />
             <Border Background="#1E293B" CornerRadius="8">
               <TextBox Name="ServerBox"
                        Background="Transparent" Foreground="#FFFFFF"
@@ -43,7 +44,7 @@
 
           <!-- Port -->
           <StackPanel Spacing="4">
-            <TextBlock Text="Port" FontSize="11" Foreground="#5F7A96" />
+            <TextBlock Text="{i18n:I18n Port}" FontSize="11" Foreground="#5F7A96" />
             <Border Background="#1E293B" CornerRadius="8">
               <TextBox Name="PortBox"
                        Background="Transparent" Foreground="#FFFFFF"
@@ -55,7 +56,7 @@
 
           <!-- Username -->
           <StackPanel Spacing="4">
-            <TextBlock Text="Username" FontSize="11" Foreground="#5F7A96" />
+            <TextBlock Text="{i18n:I18n Username}" FontSize="11" Foreground="#5F7A96" />
             <Border Background="#1E293B" CornerRadius="8">
               <TextBox Name="UsernameBox"
                        Background="Transparent" Foreground="#FFFFFF"
@@ -67,7 +68,7 @@
 
           <!-- Display Name -->
           <StackPanel Spacing="4">
-            <TextBlock Text="Display Name" FontSize="11" Foreground="#5F7A96" />
+            <TextBlock Text="{i18n:I18n DisplayName}" FontSize="11" Foreground="#5F7A96" />
             <Border Background="#1E293B" CornerRadius="8">
               <TextBox Name="DisplayNameBox"
                        Background="Transparent" Foreground="#FFFFFF"
@@ -79,7 +80,7 @@
 
           <!-- Password -->
           <StackPanel Spacing="4">
-            <TextBlock Text="Password" FontSize="11" Foreground="#5F7A96" />
+            <TextBlock Text="{i18n:I18n Password}" FontSize="11" Foreground="#5F7A96" />
             <Border Background="#1E293B" CornerRadius="8">
               <TextBox Name="PasswordBox"
                        Background="Transparent" Foreground="#FFFFFF"
@@ -92,7 +93,7 @@
 
           <!-- Transport -->
           <StackPanel Spacing="4">
-            <TextBlock Text="Transport" FontSize="11" Foreground="#5F7A96" />
+            <TextBlock Text="{i18n:I18n Transport}" FontSize="11" Foreground="#5F7A96" />
             <ComboBox Name="TransportBox"
                       Background="#1E293B" Foreground="#FFFFFF"
                       BorderThickness="1" BorderBrush="#334155"
@@ -110,7 +111,7 @@
 
           <!-- Speaker -->
           <StackPanel Spacing="4">
-            <TextBlock Text="Speaker / Output" FontSize="11" Foreground="#5F7A96" />
+            <TextBlock Text="{i18n:I18n SpeakerOutput}" FontSize="11" Foreground="#5F7A96" />
             <ComboBox Name="SpeakerBox"
                       Background="#1E293B" Foreground="#FFFFFF"
                       BorderThickness="1" BorderBrush="#334155"
@@ -121,7 +122,7 @@
 
           <!-- Microphone -->
           <StackPanel Spacing="4">
-            <TextBlock Text="Microphone / Input" FontSize="11" Foreground="#5F7A96" />
+            <TextBlock Text="{i18n:I18n MicrophoneInput}" FontSize="11" Foreground="#5F7A96" />
             <ComboBox Name="MicBox"
                       Background="#1E293B" Foreground="#FFFFFF"
                       BorderThickness="1" BorderBrush="#334155"
@@ -141,7 +142,7 @@
                 FontWeight="SemiBold" FontSize="14"
                 HorizontalAlignment="Stretch"
                 HorizontalContentAlignment="Center"
-                Content="Save" />
+                Content="{i18n:I18n Save}" />
         <TextBlock Name="StatusLabel" Text="" FontSize="11"
                    Foreground="#FF6B6B" TextWrapping="Wrap"
                    HorizontalAlignment="Center" IsVisible="False" />

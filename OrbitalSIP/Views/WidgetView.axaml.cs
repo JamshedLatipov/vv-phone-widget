@@ -124,14 +124,14 @@ namespace OrbitalSIP.Views
                         color = Color.Parse("#F59E0B"); // Amber
                         pulseColorStart = Color.Parse("#FBBF24");
                         pulseColorEnd   = Color.Parse("#D97706");
-                        label = queueState?.ReasonPaused ?? "Paused";
+                        label = queueState?.ReasonPaused ?? Services.I18nService.Instance.Get("ErrorPaused");
                     }
                     else
                     {
                         color = Color.Parse("#10B981"); // Emerald
                         pulseColorStart = Color.Parse("#17E0A0");
                         pulseColorEnd   = Color.Parse("#00BFA5");
-                        label = "Registered";
+                        label = Services.I18nService.Instance.Get("Registered");
                     }
                     break;
                 case RegistrationState.Failed:
@@ -144,14 +144,14 @@ namespace OrbitalSIP.Views
                     color = Color.Parse("#F59E0B"); // Amber
                     pulseColorStart = Color.Parse("#FBBF24");
                     pulseColorEnd   = Color.Parse("#D97706");
-                    label = "Paused";
+                    label = Services.I18nService.Instance.Get("ErrorPaused");
                     break;
                 case RegistrationState.Unregistered:
                 default:
                     color = Color.Parse("#EF4444"); // Red for Offline
                     pulseColorStart = Color.Parse("#F87171");
                     pulseColorEnd   = Color.Parse("#DC2626");
-                    label = "Offline";
+                    label = Services.I18nService.Instance.Get("Offline");
                     break;
             }
 
@@ -181,16 +181,16 @@ namespace OrbitalSIP.Views
                 var queueState = App.StatusService.CurrentState;
                 if (state == RegistrationState.Registered && queueState != null && queueState.Paused)
                 {
-                    tip.Text = queueState.ReasonPaused ?? "Paused";
+                    tip.Text = queueState.ReasonPaused ?? Services.I18nService.Instance.Get("ErrorPaused");
                 }
                 else
                 {
                     tip.Text = state switch
                     {
-                        RegistrationState.Registered => "Registered",
-                        RegistrationState.Failed => "Registration Failed",
-                        RegistrationState.Paused => "Paused",
-                        _ => "Offline"
+                        RegistrationState.Registered => Services.I18nService.Instance.Get("Registered"),
+                        RegistrationState.Failed => Services.I18nService.Instance.Get("ErrorFailed"),
+                        RegistrationState.Paused => Services.I18nService.Instance.Get("ErrorPaused"),
+                        _ => Services.I18nService.Instance.Get("Offline")
                     };
                 }
             }

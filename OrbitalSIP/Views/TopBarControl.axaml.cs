@@ -114,7 +114,7 @@ namespace OrbitalSIP.Views
                 case RegistrationState.Unregistered:
                 default:
                     dot.Fill = new SolidColorBrush(Color.Parse("#EF4444")); // Red for Offline
-                    lbl.Text = "Offline";
+                    lbl.Text = Services.I18nService.Instance.Get("Offline");
                     break;
             }
         }

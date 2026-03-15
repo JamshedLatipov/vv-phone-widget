@@ -101,7 +101,7 @@ namespace OrbitalSIP.Views
                     }
                     else ShowError("Invalid response from server.");
                 }
-                else ShowError($"Login failed: {response.ReasonPhrase}");
+                else ShowError($"" + Services.I18nService.Instance.Get("ErrorFailed") + ": {response.ReasonPhrase}");
             }
             catch (Exception ex)
             {
