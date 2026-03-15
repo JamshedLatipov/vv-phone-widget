@@ -2,7 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using System;
 using Avalonia.Media;
-using AvaloniaPath = Avalonia.Controls.Shapes.Path;
+using Material.Icons.Avalonia;
 
 namespace OrbitalSIP.Views
 {
@@ -55,22 +55,22 @@ namespace OrbitalSIP.Views
             var contactsBtn = this.FindControl<Button>("ContactsBtn");
             var settingsBtn = this.FindControl<Button>("SettingsBtn");
 
-            var dialerIcon = this.FindControl<AvaloniaPath>("DialerIcon");
-            var recentsIcon = this.FindControl<AvaloniaPath>("RecentsIcon");
-            var contactsIcon = this.FindControl<AvaloniaPath>("ContactsIcon");
-            var settingsIcon = this.FindControl<AvaloniaPath>("SettingsIcon");
+            var dialerIcon = this.FindControl<MaterialIcon>("DialerIcon");
+            var recentsIcon = this.FindControl<MaterialIcon>("RecentsIcon");
+            var contactsIcon = this.FindControl<MaterialIcon>("ContactsIcon");
+            var settingsIcon = this.FindControl<MaterialIcon>("SettingsIcon");
 
             if (dialerBtn != null) dialerBtn.Opacity = tabName == "Dialer" ? 1.0 : 0.65;
-            if (dialerIcon != null) dialerIcon.Fill = new SolidColorBrush(tabName == "Dialer" ? Color.Parse("#60A5FA") : Color.Parse("#8AA0B8"));
+            if (dialerIcon != null) dialerIcon.Foreground = new SolidColorBrush(tabName == "Dialer" ? Color.Parse("#60A5FA") : Color.Parse("#8AA0B8"));
 
             if (recentsBtn != null) recentsBtn.Opacity = tabName == "Recents" ? 1.0 : 0.65;
-            if (recentsIcon != null) recentsIcon.Fill = new SolidColorBrush(tabName == "Recents" ? Color.Parse("#60A5FA") : Color.Parse("#8AA0B8"));
+            if (recentsIcon != null) recentsIcon.Foreground = new SolidColorBrush(tabName == "Recents" ? Color.Parse("#60A5FA") : Color.Parse("#8AA0B8"));
 
             if (contactsBtn != null) contactsBtn.Opacity = tabName == "Contacts" ? 1.0 : 0.65;
-            if (contactsIcon != null) contactsIcon.Fill = new SolidColorBrush(tabName == "Contacts" ? Color.Parse("#60A5FA") : Color.Parse("#8AA0B8"));
+            if (contactsIcon != null) contactsIcon.Foreground = new SolidColorBrush(tabName == "Contacts" ? Color.Parse("#60A5FA") : Color.Parse("#8AA0B8"));
 
             if (settingsBtn != null) settingsBtn.Opacity = tabName == "Settings" ? 1.0 : 0.65;
-            if (settingsIcon != null) settingsIcon.Fill = new SolidColorBrush(tabName == "Settings" ? Color.Parse("#60A5FA") : Color.Parse("#8AA0B8"));
+            if (settingsIcon != null) settingsIcon.Foreground = new SolidColorBrush(tabName == "Settings" ? Color.Parse("#60A5FA") : Color.Parse("#8AA0B8"));
         }
     }
 }
