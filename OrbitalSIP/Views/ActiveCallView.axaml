@@ -47,17 +47,7 @@
           </Border>
 
 
-          <StackPanel Spacing="8">
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Text="{i18n:I18n TalkScript}" FontSize="10" FontWeight="Bold" LetterSpacing="1.4" Foreground="#7B92AA" />
-              <TextBlock Grid.Column="1" Text="{i18n:I18n OrbitalPrompt}" FontSize="10" FontWeight="SemiBold" Foreground="#60A5FA" />
-            </Grid>
-            <Border Background="#101A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="14" Padding="14,12">
-              <TextBlock TextWrapping="Wrap" FontSize="12" FontStyle="Italic" Foreground="#CBD5E1">
-                <Run Text="&quot;Hello, thanks for calling Orbital SIP support. I have your session open and I&apos;m ready to help you.&quot;" />
-              </TextBlock>
-            </Border>
-          </StackPanel>
+
 
           <UniformGrid Columns="4" Rows="1" Margin="0,2,0,0">
             <Border Margin="4" Background="#1E293B" BorderThickness="0" CornerRadius="14" Padding="10,10,10,8">
