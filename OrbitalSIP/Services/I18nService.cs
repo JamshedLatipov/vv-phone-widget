@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
-using Avalonia;
-using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Platform;
 
 namespace OrbitalSIP.Services
 {
-    public class I18nService
+    public class I18nService : INotifyPropertyChanged
     {
         private static I18nService? _instance;
         public static I18nService Instance => _instance ??= new I18nService();
@@ -18,11 +17,14 @@ namespace OrbitalSIP.Services
         public string CurrentLanguage { get; private set; } = "ru";
 
         public event Action? LanguageChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         private I18nService()
         {
             LoadLanguage(CurrentLanguage);
         }
+
+        public string this[string key] => Get(key);
 
         public void LoadLanguage(string langCode)
         {
@@ -49,21 +51,8 @@ namespace OrbitalSIP.Services
                 Console.WriteLine($"Failed to load language {langCode}: {ex.Message}");
             }
 
-            // Update Application Resources for DynamicResource to pick up
-            UpdateApplicationResources();
-
             LanguageChanged?.Invoke();
-        }
-
-        private void UpdateApplicationResources()
-        {
-            var appResources = Application.Current?.Resources;
-            if (appResources == null) return;
-
-            foreach (var kvp in _translations)
-            {
-                appResources[$"i18n_{kvp.Key}"] = kvp.Value;
-            }
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item"));
         }
 
         public string Get(string key, string defaultValue = "")

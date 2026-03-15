@@ -22,6 +22,8 @@ namespace OrbitalSIP
 
         public override void OnFrameworkInitializationCompleted()
         {
+            var initI18n = Services.I18nService.Instance;
+
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 // Forward call-state changes to the sound service.
