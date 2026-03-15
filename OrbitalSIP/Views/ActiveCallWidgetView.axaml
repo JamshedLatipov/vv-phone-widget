@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:i18n="clr-namespace:OrbitalSIP.Services"
              x:Class="OrbitalSIP.Views.ActiveCallWidgetView">
   <Grid Width="412" Height="108" ClipToBounds="False">
     <Border CornerRadius="32"
@@ -34,7 +35,7 @@
                      Foreground="#FFF8FAFC"
                      TextTrimming="CharacterEllipsis"/>
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <TextBlock Name="StatusText" Text="ACTIVE CALL"
+            <TextBlock Name="StatusText" Text="{i18n:I18n ActiveCall}"
                        FontSize="10"
                        FontWeight="Bold"
                        LetterSpacing="1.8"
@@ -50,7 +51,7 @@
               <Path Fill="#FF22C55E" Stretch="Uniform"
                     Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M10.6,16.6L17.2,10L15.8,8.6L10.6,13.8L8.2,11.4L6.8,12.8L10.6,16.6Z"/>
             </Viewbox>
-            <TextBlock Text="Encrypted"
+            <TextBlock Text="{i18n:I18n Encrypted}"
                        FontSize="10"
                        FontWeight="Bold"
                        Foreground="#FF64748B"/>
