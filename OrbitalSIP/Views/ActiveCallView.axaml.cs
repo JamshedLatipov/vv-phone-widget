@@ -132,7 +132,7 @@ namespace OrbitalSIP.Views
 
             var leadBtn = this.FindControl<Button>("CreateLeadBtn");
             if (leadBtn != null)
-                leadBtn.Click += (_, __) => Console.WriteLine("Create Lead clicked");
+                leadBtn.Click += async (_, __) => await CreateLeadAsync();
 
             var topBar = this.FindControl<TopBarControl>("TopBar");
             if (topBar != null)
@@ -171,7 +171,7 @@ namespace OrbitalSIP.Views
             if (copyButton.Content is MaterialIcon icon)
             {
                 var originalKind = icon.Kind;
-                icon.Kind = MaterialIconKind.Check;
+                icon.Kind = Material.Icons.MaterialIconKind.Check;
                 await Task.Delay(1200);
                 icon.Kind = originalKind;
             }
@@ -189,6 +189,49 @@ namespace OrbitalSIP.Views
             if (icon  != null) icon.Fill  = new SolidColorBrush(_muted ? Color.Parse("#FFFFFF") : Color.Parse("#DDE7F3"));
             if (label != null) label.Text  = _muted ? "Unmute" : "Mute";
             if (btn   != null) btn.Background = new SolidColorBrush(_muted ? Color.Parse("#B91C1C") : Color.Parse("#1A2D42"));
+        }
+
+        private async Task CreateLeadAsync()
+        {
+            var callerNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(callerNumber))
+            {
+                return;
+            }
+
+            var request = new Models.CreateLeadRequest
+            {
+                Name = callerNumber, // Can be improved later if caller name is available
+                Phone = callerNumber,
+                Status = "new",
+                Source = "call"
+            };
+
+            bool success = await App.LeadService.CreateLeadAsync(request);
+
+            if (success)
+            {
+                var leadBtn = this.FindControl<Button>("CreateLeadBtn");
+                if (leadBtn != null)
+                {
+                    // Find the icon within the StackPanel inside the Button
+                    var stackPanel = leadBtn.Content as StackPanel;
+                    if (stackPanel != null)
+                    {
+                        foreach (var child in stackPanel.Children)
+                        {
+                            if (child is Material.Icons.Avalonia.MaterialIcon icon)
+                            {
+                                var originalKind = icon.Kind;
+                                icon.Kind = Material.Icons.MaterialIconKind.Check;
+                                await Task.Delay(1200);
+                                icon.Kind = originalKind;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         private async Task ShowScriptsDialog()
