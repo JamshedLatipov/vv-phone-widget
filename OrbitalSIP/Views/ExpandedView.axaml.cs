@@ -6,6 +6,8 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
 using System.Threading.Tasks;
+using Material.Icons;
+using Material.Icons.Avalonia;
 using OrbitalSIP.Services;
 
 namespace OrbitalSIP.Views
@@ -34,15 +36,18 @@ namespace OrbitalSIP.Views
             // Backspace
             Bind("BackspaceBtn", () =>
             {
-                var d = this.FindControl<TextBlock>("DisplayText");
+                var d = this.FindControl<TextBox>("DisplayText");
                 if (d != null && d.Text?.Length > 0)
+                {
                     d.Text = d.Text[..^1];
+                    d.CaretIndex = d.Text.Length;
+                }
             });
 
             // Call button
             Bind("CallBtn", () =>
             {
-                var d = this.FindControl<TextBlock>("DisplayText");
+                var d = this.FindControl<TextBox>("DisplayText");
                 var num = d?.Text?.Trim() ?? "";
                 if (num.Length > 0)
                     OutgoingCallRequested?.Invoke(this, num);
@@ -58,8 +63,12 @@ namespace OrbitalSIP.Views
                     var digit = btn.Tag?.ToString() ?? btn.Content?.ToString() ?? "";
                     btn.Click += (_, __) =>
                     {
-                        var d = this.FindControl<TextBlock>("DisplayText");
-                        if (d != null) d.Text = (d.Text ?? "") + digit;
+                        var d = this.FindControl<TextBox>("DisplayText");
+                        if (d != null)
+                        {
+                            d.Text = (d.Text ?? "") + digit;
+                            d.CaretIndex = d.Text.Length;
+                        }
                     };
                 }
             }
@@ -79,7 +88,7 @@ namespace OrbitalSIP.Views
 
         private async Task CopyDisplayedNumberAsync()
         {
-            var text = this.FindControl<TextBlock>("DisplayText")?.Text?.Trim() ?? string.Empty;
+            var text = this.FindControl<TextBox>("DisplayText")?.Text?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(text))
             {
                 return;
@@ -99,10 +108,13 @@ namespace OrbitalSIP.Views
                 return;
             }
 
-            var original = button.Content;
-            button.Content = Services.I18nService.Instance.Get("Copied");
-            await Task.Delay(1200);
-            button.Content = original;
+            if (button.Content is MaterialIcon icon)
+            {
+                var originalKind = icon.Kind;
+                icon.Kind = MaterialIconKind.Check;
+                await Task.Delay(1200);
+                icon.Kind = originalKind;
+            }
         }
 
         // ── Events ────────────────────────────────────────────────────

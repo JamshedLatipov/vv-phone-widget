@@ -20,7 +20,9 @@
               <TextBlock Name="CallerLabel" Text="" FontSize="24" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" TextAlignment="Center" />
               <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                 <TextBlock Name="CallerNumberLabel" Text="" FontSize="14" FontWeight="Medium" Foreground="#8FA6BE" VerticalAlignment="Center" />
-                <Button Name="CopyCallerBtn" MinWidth="44" Height="22" CornerRadius="11" Padding="8,0" Background="#1E293B" BorderThickness="0" Foreground="#E2E8F0" FontSize="9" FontWeight="Bold" Content="{i18n:I18n Copy}" VerticalAlignment="Center" />
+                <Button Name="CopyCallerBtn" Width="22" Height="22" CornerRadius="11" Padding="0" Background="#1E293B" BorderThickness="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" VerticalAlignment="Center">
+                  <materialIcons:MaterialIcon Kind="ContentCopy" Width="12" Height="12" Foreground="#E2E8F0" />
+                </Button>
               </StackPanel>
 
 

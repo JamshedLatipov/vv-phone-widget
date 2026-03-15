@@ -5,6 +5,8 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
 using System.Threading.Tasks;
+using Material.Icons;
+using Material.Icons.Avalonia;
 using OrbitalSIP.Services;
 using AvaloniaPath = Avalonia.Controls.Shapes.Path;
 
@@ -166,10 +168,13 @@ namespace OrbitalSIP.Views
                 return;
             }
 
-            var original = copyButton.Content;
-            copyButton.Content = Services.I18nService.Instance.Get("Copied");
-            await Task.Delay(1200);
-            copyButton.Content = original;
+            if (copyButton.Content is MaterialIcon icon)
+            {
+                var originalKind = icon.Kind;
+                icon.Kind = MaterialIconKind.Check;
+                await Task.Delay(1200);
+                icon.Kind = originalKind;
+            }
         }
 
         private void ToggleMute()

@@ -1,0 +1,8 @@
+/app/obj/Debug/net8.0/test_icon.csproj.AssemblyReference.cache
+/app/obj/Debug/net8.0/Avalonia/Resources.Inputs.cache
+/app/obj/Debug/net8.0/Avalonia/resources
+/app/obj/Debug/net8.0/test_icon.GeneratedMSBuildEditorConfig.editorconfig
+/app/obj/Debug/net8.0/test_icon.AssemblyInfoInputs.cache
+/app/obj/Debug/net8.0/test_icon.AssemblyInfo.cs
+/app/obj/Debug/net8.0/test_icon.csproj.CoreCompileInputs.cache
+/app/obj/Debug/net8.0/test_icon.sourcelink.json

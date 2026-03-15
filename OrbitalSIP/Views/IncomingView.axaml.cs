@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using System.Threading.Tasks;
+using Material.Icons;
+using Material.Icons.Avalonia;
 
 namespace OrbitalSIP.Views
 {
@@ -57,10 +59,13 @@ namespace OrbitalSIP.Views
                 return;
             }
 
-            var original = button.Content;
-            button.Content = Services.I18nService.Instance.Get("Copied");
-            await Task.Delay(1200);
-            button.Content = original;
+            if (button.Content is MaterialIcon icon)
+            {
+                var originalKind = icon.Kind;
+                icon.Kind = MaterialIconKind.Check;
+                await Task.Delay(1200);
+                icon.Kind = originalKind;
+            }
         }
 
         public event System.EventHandler? OnAnswer;

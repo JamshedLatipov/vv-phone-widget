@@ -36,18 +36,17 @@
                        VerticalAlignment="Center"/>
             <Button Name="CopyCallerBtn"
                     Grid.Column="1"
-                    MinWidth="56"
+                    Width="24"
                     Height="24"
                     Margin="8,0,0,0"
                     CornerRadius="12"
-                    Padding="10,0"
+                    Padding="0"
                     Background="#FF1E293B"
                     BorderBrush="#334155"
                     BorderThickness="1"
-                    Foreground="#FFE2E8F0"
-                    FontSize="10"
-                    FontWeight="Bold"
-                    Content="{i18n:I18n Copy}"/>
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+              <materialIcons:MaterialIcon Kind="ContentCopy" Width="14" Height="14" Foreground="#FFE2E8F0" />
+            </Button>
           </Grid>
           <StackPanel Orientation="Horizontal" Spacing="6">
             <TextBlock Text="{i18n:I18n IncomingCall}"
