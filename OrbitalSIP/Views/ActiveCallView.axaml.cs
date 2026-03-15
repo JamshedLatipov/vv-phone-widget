@@ -193,21 +193,29 @@ namespace OrbitalSIP.Views
 
         private async Task CreateLeadAsync()
         {
+            Console.WriteLine("[CreateLeadAsync] Button clicked");
             var callerNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? string.Empty;
+            Console.WriteLine($"[CreateLeadAsync] Extracted callerNumber: '{callerNumber}'");
+
+            Console.WriteLine($"[CreateLeadAsync] Caller number: {callerNumber}");
             if (string.IsNullOrWhiteSpace(callerNumber))
             {
+                Console.WriteLine("[CreateLeadAsync] Caller number is empty, aborting.");
                 return;
             }
 
             var request = new Models.CreateLeadRequest
             {
-                Name = callerNumber, // Can be improved later if caller name is available
+                Name = callerNumber,
                 Phone = callerNumber,
                 Status = "new",
-                Source = "call"
+                Source = "call",
+                Priority = "low"
             };
 
+            Console.WriteLine("[CreateLeadAsync] Sending request to LeadService...");
             bool success = await App.LeadService.CreateLeadAsync(request);
+            Console.WriteLine($"[CreateLeadAsync] Request success: {success}");
 
             if (success)
             {
