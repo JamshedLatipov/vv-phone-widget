@@ -37,7 +37,7 @@ namespace OrbitalSIP.Models
         public int Score { get; set; } = 0;
 
         [JsonPropertyName("source")]
-        public string Source { get; set; } = "call";
+        public string Source { get; set; } = "phone";
 
         [JsonPropertyName("sourceDetails")]
         public string? SourceDetails { get; set; }

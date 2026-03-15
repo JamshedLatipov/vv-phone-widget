@@ -209,7 +209,7 @@ namespace OrbitalSIP.Views
                 Name = callerNumber,
                 Phone = callerNumber,
                 Status = "new",
-                Source = "call",
+                Source = "phone",
                 Priority = "low"
             };
 
