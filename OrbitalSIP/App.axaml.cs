@@ -24,6 +24,7 @@ namespace OrbitalSIP
         public override void OnFrameworkInitializationCompleted()
         {
             var initI18n = Services.I18nService.Instance;
+            initI18n.LoadLanguage(SipSettings.Load().Language);
 
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {

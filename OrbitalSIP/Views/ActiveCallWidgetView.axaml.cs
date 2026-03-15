@@ -41,7 +41,7 @@ namespace OrbitalSIP.Views
         public void SetStatus(bool isOnHold)
         {
             var statusText = this.FindControl<TextBlock>("StatusText");
-            if (statusText != null) statusText.Text = isOnHold ? "ON HOLD" : "ACTIVE CALL";
+            if (statusText != null) statusText.Text = isOnHold ? Services.I18nService.Instance.Get("OnHold") : Services.I18nService.Instance.Get("ActiveCall");
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);

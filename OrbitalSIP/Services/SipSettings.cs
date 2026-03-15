@@ -22,6 +22,7 @@ namespace OrbitalSIP.Services
 
 
         public string DisplayName { get; set; } = "";
+        public string Language { get; set; } = "ru";
         public string Transport { get; set; } = "UDP";  // UDP | TCP | TLS
         public string BackendUrl { get; set; } = "";
 

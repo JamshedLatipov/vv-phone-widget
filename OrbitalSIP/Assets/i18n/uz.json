@@ -73,5 +73,14 @@
   "Efficiency": "SAMARADORLIK",
   "ErrorOffline": "Uzilgan",
   "ErrorFailed": "Xato",
-  "ErrorPaused": "Pauza"
+  "ErrorPaused": "Pauza",
+  "Language": "Til",
+  "Calling": "QO'NG'IROQ",
+  "OnHold": "KUTISH REJIMIDA",
+  "Copied": "Nusxalandi",
+  "SigningIn": "Kirish...",
+  "IncomingShort": "kir.",
+  "ConnectionError": "Ulanish xatosi",
+  "Resume": "Davom etish",
+  "UnknownCaller": "Noma'lum"
 }

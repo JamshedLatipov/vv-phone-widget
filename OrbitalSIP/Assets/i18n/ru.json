@@ -73,5 +73,14 @@
   "Efficiency": "ЭФФЕКТИВНОСТЬ",
   "ErrorOffline": "Отключен",
   "ErrorFailed": "Ошибка",
-  "ErrorPaused": "Пауза"
+  "ErrorPaused": "Пауза",
+  "Language": "Язык",
+  "Calling": "ВЫЗОВ",
+  "OnHold": "НА УДЕРЖАНИИ",
+  "Copied": "Скопировано",
+  "SigningIn": "Вход...",
+  "IncomingShort": "вх.",
+  "ConnectionError": "Ошибка связи",
+  "Resume": "Продолжить",
+  "UnknownCaller": "Неизвестный"
 }

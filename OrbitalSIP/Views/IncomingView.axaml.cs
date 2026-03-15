@@ -27,7 +27,7 @@ namespace OrbitalSIP.Views
             var caller = this.FindControl<TextBlock>("CallerText");
             if (caller != null)
             {
-                caller.Text = string.IsNullOrWhiteSpace(callerId) ? "Unknown caller" : callerId;
+                caller.Text = string.IsNullOrWhiteSpace(callerId) ? Services.I18nService.Instance.Get("UnknownCaller") : callerId;
             }
         }
 
@@ -58,7 +58,7 @@ namespace OrbitalSIP.Views
             }
 
             var original = button.Content;
-            button.Content = "Copied";
+            button.Content = Services.I18nService.Instance.Get("Copied");
             await Task.Delay(1200);
             button.Content = original;
         }

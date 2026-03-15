@@ -125,7 +125,7 @@ namespace OrbitalSIP.Views
             if (loginBtn != null)
             {
                 loginBtn.IsEnabled = !busy;
-                loginBtn.Content = busy ? "Signing In..." : "Sign In";
+                loginBtn.Content = busy ? Services.I18nService.Instance.Get("SigningIn") : Services.I18nService.Instance.Get("SignIn");
             }
         }
 

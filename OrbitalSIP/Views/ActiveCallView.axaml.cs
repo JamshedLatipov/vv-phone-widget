@@ -32,7 +32,7 @@ namespace OrbitalSIP.Views
             var statusLabel  = this.FindControl<TextBlock>("StatusLabel");
             if (callerLabel != null) callerLabel.Text = callerId;
             if (callerNumberLabel != null) callerNumberLabel.Text = callerId;
-            if (statusLabel != null) statusLabel.Text = isOutgoing ? "CALLING" : "IN CALL";
+            if (statusLabel != null) statusLabel.Text = isOutgoing ? Services.I18nService.Instance.Get("Calling") : Services.I18nService.Instance.Get("InCall");
 
             WireButtons();
             if (initialElapsed.HasValue) _elapsed = initialElapsed.Value;
@@ -83,14 +83,14 @@ namespace OrbitalSIP.Views
         {
             var label = this.FindControl<TextBlock>("StatusLabel");
             var dot = this.FindControl<Ellipse>("StatusDot");
-            if (label != null) label.Text = isOnHold ? "ON HOLD" : "IN CALL";
+            if (label != null) label.Text = isOnHold ? Services.I18nService.Instance.Get("OnHold") : Services.I18nService.Instance.Get("InCall");
             if (dot != null) dot.Fill = new SolidColorBrush(isOnHold ? Color.Parse("#F59E0B") : Color.Parse("#3B82F6"));
         }
 
         public void MarkConnected()
         {
             var label = this.FindControl<TextBlock>("StatusLabel");
-            if (label != null) label.Text = "IN CALL";
+            if (label != null) label.Text = Services.I18nService.Instance.Get("InCall");
         }
 
         // ── Buttons ───────────────────────────────────────────────────
@@ -167,7 +167,7 @@ namespace OrbitalSIP.Views
             }
 
             var original = copyButton.Content;
-            copyButton.Content = "Copied";
+            copyButton.Content = Services.I18nService.Instance.Get("Copied");
             await Task.Delay(1200);
             copyButton.Content = original;
         }
@@ -221,7 +221,7 @@ namespace OrbitalSIP.Views
             var label = this.FindControl<TextBlock>("HoldLabel");
             var btn   = this.FindControl<Button>("HoldBtn");
 
-            if (label != null) label.Text = _onHold ? "Resume" : "Hold";
+            if (label != null) label.Text = _onHold ? Services.I18nService.Instance.Get("Resume") : Services.I18nService.Instance.Get("Hold");
             if (btn   != null) btn.Background = new SolidColorBrush(_onHold ? Color.Parse("#B91C1C") : Color.Parse("#1E4270"));
         }
 

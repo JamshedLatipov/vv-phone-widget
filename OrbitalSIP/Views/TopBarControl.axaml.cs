@@ -100,16 +100,16 @@ namespace OrbitalSIP.Views
                     else
                     {
                         dot.Fill = new SolidColorBrush(Color.Parse("#10B981")); // Emerald
-                        lbl.Text = "Available";
+                        lbl.Text = Services.I18nService.Instance.Get("Available");
                     }
                     break;
                 case RegistrationState.Failed:
                     dot.Fill = new SolidColorBrush(Color.Parse("#EF4444")); // Red
-                    lbl.Text = "Connection Error";
+                    lbl.Text = Services.I18nService.Instance.Get("ConnectionError");
                     break;
                 case RegistrationState.Paused:
                     dot.Fill = new SolidColorBrush(Color.Parse("#F59E0B")); // Amber
-                    lbl.Text = "Paused";
+                    lbl.Text = Services.I18nService.Instance.Get("ErrorPaused");
                     break;
                 case RegistrationState.Unregistered:
                 default:
