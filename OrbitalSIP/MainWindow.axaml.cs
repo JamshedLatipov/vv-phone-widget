@@ -255,6 +255,8 @@ namespace OrbitalSIP
                 {
                     settings.Username = current.Username;
                     settings.Password = current.Password;
+                    settings.AccessToken = current.AccessToken;
+                    settings.DecodedToken = current.DecodedToken;
                 }
 
                 if (isFromLogin) ShowLogin();
