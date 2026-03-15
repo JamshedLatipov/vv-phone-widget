@@ -19,6 +19,7 @@ namespace OrbitalSIP.Views
         public TimeSpan Elapsed => _elapsed;
         private bool _muted;
         private bool _onHold;
+        private bool _leadCreated;
 
         public ActiveCallView()
             : this("Unknown", false)
@@ -194,6 +195,12 @@ namespace OrbitalSIP.Views
         private async Task CreateLeadAsync()
         {
             Console.WriteLine("[CreateLeadAsync] Button clicked");
+            if (_leadCreated)
+            {
+                Console.WriteLine("[CreateLeadAsync] Lead already created for this call. Aborting.");
+                return;
+            }
+
             var callerNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? string.Empty;
             Console.WriteLine($"[CreateLeadAsync] Extracted callerNumber: '{callerNumber}'");
 
@@ -214,15 +221,21 @@ namespace OrbitalSIP.Views
             };
 
             Console.WriteLine("[CreateLeadAsync] Sending request to LeadService...");
+
+            // Disable button visually while processing and after success
+            var leadBtn = this.FindControl<Button>("CreateLeadBtn");
+            if (leadBtn != null)
+                leadBtn.IsEnabled = false;
+
             bool success = await App.LeadService.CreateLeadAsync(request);
             Console.WriteLine($"[CreateLeadAsync] Request success: {success}");
 
             if (success)
             {
-                var leadBtn = this.FindControl<Button>("CreateLeadBtn");
+                _leadCreated = true;
                 if (leadBtn != null)
                 {
-                    // Find the icon within the StackPanel inside the Button
+                    leadBtn.Opacity = 0.5; // Visually indicate it's disabled permanently for this call
                     var stackPanel = leadBtn.Content as StackPanel;
                     if (stackPanel != null)
                     {
@@ -230,15 +243,19 @@ namespace OrbitalSIP.Views
                         {
                             if (child is Material.Icons.Avalonia.MaterialIcon icon)
                             {
-                                var originalKind = icon.Kind;
                                 icon.Kind = Material.Icons.MaterialIconKind.Check;
-                                await Task.Delay(1200);
-                                icon.Kind = originalKind;
+                                // Keep the checkmark permanently to show it was created
                                 break;
                             }
                         }
                     }
                 }
+            }
+            else
+            {
+                // Re-enable if failed so they can try again
+                if (leadBtn != null)
+                    leadBtn.IsEnabled = true;
             }
         }
 
