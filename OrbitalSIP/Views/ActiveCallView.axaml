@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:Views="clr-namespace:OrbitalSIP.Views"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:i18n="clr-namespace:OrbitalSIP.Services"
              x:Class="OrbitalSIP.Views.ActiveCallView">
@@ -106,10 +107,7 @@
                         HorizontalAlignment="Center"
                         HorizontalContentAlignment="Center"
                         VerticalContentAlignment="Center">
-                  <Viewbox Width="18" Height="18">
-                    <Path Name="MuteIcon" Fill="#DDE7F3" Stretch="Uniform"
-                          Data="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z" />
-                  </Viewbox>
+                  <materialIcons:MaterialIcon Name="MuteIcon" Kind="Microphone" Width="20" Height="20" Foreground="#DDE7F3" />
                 </Button>
                 <TextBlock Name="MuteLabel" Text="Mute" FontSize="10" FontWeight="Bold" Foreground="#DDE7F3" HorizontalAlignment="Center" />
               </StackPanel>
@@ -124,10 +122,7 @@
                         HorizontalAlignment="Center"
                         HorizontalContentAlignment="Center"
                         VerticalContentAlignment="Center">
-                  <Viewbox Width="18" Height="18">
-                    <Path Name="HoldIcon" Fill="#FFFFFF" Stretch="Uniform"
-                          Data="M14,19H18V5H14M6,19H10V5H6V19Z" />
-                  </Viewbox>
+                  <materialIcons:MaterialIcon Name="HoldIcon" Kind="Pause" Width="20" Height="20" Foreground="#FFFFFF" />
                 </Button>
                 <TextBlock Name="HoldLabel" Text="{i18n:I18n Hold}" FontSize="10" FontWeight="Bold" Foreground="#60A5FA" HorizontalAlignment="Center" />
               </StackPanel>
@@ -142,10 +137,7 @@
                         HorizontalAlignment="Center"
                         HorizontalContentAlignment="Center"
                         VerticalContentAlignment="Center">
-                  <Viewbox Width="18" Height="18">
-                    <Path Fill="#DDE7F3" Stretch="Uniform"
-                          Data="M12,19A1,1 0 0,1 13,20A1,1 0 0,1 12,21A1,1 0 0,1 11,20A1,1 0 0,1 12,19M6,19A1,1 0 0,1 7,20A1,1 0 0,1 6,21A1,1 0 0,1 5,20A1,1 0 0,1 6,19M18,19A1,1 0 0,1 19,20A1,1 0 0,1 18,21A1,1 0 0,1 17,20A1,1 0 0,1 18,19M12,13A1,1 0 0,1 13,14A1,1 0 0,1 12,15A1,1 0 0,1 11,14A1,1 0 0,1 12,13M6,13A1,1 0 0,1 7,14A1,1 0 0,1 6,15A1,1 0 0,1 5,14A1,1 0 0,1 6,13M18,13A1,1 0 0,1 19,14A1,1 0 0,1 18,15A1,1 0 0,1 17,14A1,1 0 0,1 18,13M12,7A1,1 0 0,1 13,8A1,1 0 0,1 12,9A1,1 0 0,1 11,8A1,1 0 0,1 12,7M6,7A1,1 0 0,1 7,8A1,1 0 0,1 6,9A1,1 0 0,1 5,8A1,1 0 0,1 6,7M18,7A1,1 0 0,1 19,8A1,1 0 0,1 18,9A1,1 0 0,1 17,8A1,1 0 0,1 18,7M12,1A1,1 0 0,1 13,2A1,1 0 0,1 12,3A1,1 0 0,1 11,2A1,1 0 0,1 12,1M6,1A1,1 0 0,1 7,2A1,1 0 0,1 6,3A1,1 0 0,1 5,2A1,1 0 0,1 6,1M18,1A1,1 0 0,1 19,2A1,1 0 0,1 18,3A1,1 0 0,1 17,2A1,1 0 0,1 18,1Z" />
-                  </Viewbox>
+                  <materialIcons:MaterialIcon Kind="Dialpad" Width="20" Height="20" Foreground="#DDE7F3" />
                 </Button>
                 <TextBlock Text="{i18n:I18n Keypad}" FontSize="10" FontWeight="Bold" Foreground="#DDE7F3" HorizontalAlignment="Center" />
               </StackPanel>
@@ -160,10 +152,7 @@
                         HorizontalAlignment="Center"
                         HorizontalContentAlignment="Center"
                         VerticalContentAlignment="Center">
-                  <Viewbox Width="18" Height="18">
-                    <Path Fill="#DDE7F3" Stretch="Uniform"
-                          Data="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z" />
-                  </Viewbox>
+                  <materialIcons:MaterialIcon Kind="Transfer" Width="20" Height="20" Foreground="#DDE7F3" />
                 </Button>
                 <TextBlock Text="{i18n:I18n Transfer}" FontSize="10" FontWeight="Bold" Foreground="#DDE7F3" HorizontalAlignment="Center" />
               </StackPanel>
@@ -239,10 +228,7 @@
                     HorizontalContentAlignment="Center"
                     VerticalContentAlignment="Center">
               <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                <Viewbox Width="18" Height="18" VerticalAlignment="Center">
-                  <Path Fill="#FFFFFF" Stretch="Uniform"
-                        Data="M21,15.46L18.46,12.93C18.15,12.61 17.68,12.54 17.29,12.75C16.02,13.41 14.56,13.76 13,13.76C11.44,13.76 9.98,13.41 8.71,12.75C8.32,12.54 7.85,12.61 7.54,12.93L5,15.46C4.41,16.05 4.53,17.04 5.24,17.46C7.5,18.8 10.15,19.5 13,19.5C15.85,19.5 18.5,18.8 20.76,17.46C21.47,17.04 21.59,16.05 21,15.46Z" />
-                </Viewbox>
+                <materialIcons:MaterialIcon Kind="PhoneHangup" Width="20" Height="20" Foreground="#FFFFFF" VerticalAlignment="Center" />
                 <TextBlock Text="{i18n:I18n EndCall}" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
@@ -251,17 +237,11 @@
           <Border Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="14" Padding="12,10">
             <Grid ColumnDefinitions="*,*">
               <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                <Viewbox Width="14" Height="14" VerticalAlignment="Center">
-                  <Path Fill="#94A3B8" Stretch="Uniform"
-                        Data="M12,3A9,9 0 0,0 3,12H5A7,7 0 0,1 12,5A7,7 0 0,1 19,12H21A9,9 0 0,0 12,3M11,8V14L16.25,17.15L17,15.92L12.5,13.25V8H11Z" />
-                </Viewbox>
+                <materialIcons:MaterialIcon Kind="CheckCircleOutline" Width="14" Height="14" Foreground="#94A3B8" VerticalAlignment="Center" />
                 <TextBlock Text="{i18n:I18n SignalStable}" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" />
               </StackPanel>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                <Viewbox Width="14" Height="14" VerticalAlignment="Center">
-                  <Path Fill="#94A3B8" Stretch="Uniform"
-                        Data="M12,2L4,5V11C4,16.55 7.84,21.74 12,23C16.16,21.74 20,16.55 20,11V5L12,2M11,17L7,13L8.41,11.59L11,14.17L15.59,9.58L17,11L11,17Z" />
-                </Viewbox>
+                <materialIcons:MaterialIcon Kind="ShieldCheckOutline" Width="14" Height="14" Foreground="#94A3B8" VerticalAlignment="Center" />
                 <TextBlock Text="{i18n:I18n Encrypted}" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" />
               </StackPanel>
             </Grid>

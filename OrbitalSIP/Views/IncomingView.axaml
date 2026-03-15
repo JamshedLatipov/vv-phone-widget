@@ -2,6 +2,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:i18n="clr-namespace:OrbitalSIP.Services"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="OrbitalSIP.Views.IncomingView">
   <Grid Width="412" Height="108" ClipToBounds="False">
     <Border CornerRadius="32"
@@ -14,10 +15,7 @@
         <Grid Width="44" Height="44" Margin="0,0,12,0">
           <Ellipse Fill="#FF182231" Width="44" Height="44"/>
           <Ellipse Fill="#FF1E3A5F" Width="38" Height="38" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-          <Viewbox Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
-            <Path Fill="#FFF8FAFC" Stretch="Uniform"
-                  Data="M12,12A5,5 0 1,0 7,7A5,5 0 0,0 12,12M12,14C8.13,14 5,17.13 5,21H7C7,18.24 9.24,16 12,16C14.76,16 17,18.24 17,21H19C19,17.13 15.87,14 12,14Z"/>
-          </Viewbox>
+          <materialIcons:MaterialIcon Kind="Account" Width="24" Height="24" Foreground="#FFF8FAFC" HorizontalAlignment="Center" VerticalAlignment="Center" />
           <Ellipse Width="10" Height="10"
                    Fill="#FF22C55E"
                    Stroke="#FF101722"
@@ -64,10 +62,7 @@
                        Foreground="#FF94A3B8"/>
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,5,0,0">
-            <Viewbox Width="12" Height="12">
-              <Path Fill="#FF22C55E" Stretch="Uniform"
-                    Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M10.6,16.6L17.2,10L15.8,8.6L10.6,13.8L8.2,11.4L6.8,12.8L10.6,16.6Z"/>
-            </Viewbox>
+            <materialIcons:MaterialIcon Kind="CheckCircle" Width="14" Height="14" Foreground="#FF22C55E" />
             <TextBlock Text="{i18n:I18n Encrypted}"
                        FontSize="10"
                        FontWeight="Bold"
@@ -82,10 +77,7 @@
                   BorderThickness="0"
                   HorizontalContentAlignment="Center"
                   VerticalContentAlignment="Center">
-            <Viewbox Width="18" Height="18">
-              <Path Fill="#FFFFFFFF" Stretch="Uniform"
-                    Data="M21,15.46L18.46,12.93C18.15,12.61 17.68,12.54 17.29,12.75C16.02,13.41 14.56,13.76 13,13.76C11.44,13.76 9.98,13.41 8.71,12.75C8.32,12.54 7.85,12.61 7.54,12.93L5,15.46C4.41,16.05 4.53,17.04 5.24,17.46C7.5,18.8 10.15,19.5 13,19.5C15.85,19.5 18.5,18.8 20.76,17.46C21.47,17.04 21.59,16.05 21,15.46Z"/>
-            </Viewbox>
+            <materialIcons:MaterialIcon Kind="PhoneHangup" Width="20" Height="20" Foreground="#FFFFFFFF" />
           </Button>
 
           <Button Name="AnswerBtn"
@@ -94,10 +86,7 @@
                   BorderThickness="0"
                   HorizontalContentAlignment="Center"
                   VerticalContentAlignment="Center">
-            <Viewbox Width="18" Height="18">
-              <Path Fill="#FFFFFFFF" Stretch="Uniform"
-                    Data="M6.62,10.79C8.06,13.62 10.38,15.93 13.21,17.38L15.41,15.18C15.68,14.91 16.08,14.82 16.43,14.94C17.55,15.31 18.76,15.51 20,15.51C20.55,15.51 21,15.96 21,16.51V20C21,20.55 20.55,21 20,21C10.61,21 3,13.39 3,4C3,3.45 3.45,3 4,3H7.5C8.05,3 8.5,3.45 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z"/>
-            </Viewbox>
+            <materialIcons:MaterialIcon Kind="Phone" Width="20" Height="20" Foreground="#FFFFFFFF" />
           </Button>
         </StackPanel>
       </Grid>

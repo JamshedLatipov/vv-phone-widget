@@ -8,6 +8,7 @@ using System.Net.Http.Json;
 using System.Threading.Tasks;
 using OrbitalSIP.Models;
 using OrbitalSIP.Services;
+using Material.Icons.Avalonia;
 
 namespace OrbitalSIP.Views
 {
@@ -61,13 +62,13 @@ namespace OrbitalSIP.Views
         {
             _isExpanded = !_isExpanded;
             var content = this.FindControl<Border>("ExpandedContent");
-            var icon = this.FindControl<Avalonia.Controls.PathIcon>("ExpanderIcon");
+            var icon = this.FindControl<MaterialIcon>("ExpanderIcon");
 
             if (content != null)
                 content.IsVisible = _isExpanded;
 
             if (icon != null)
-                icon.Data = Avalonia.Media.Geometry.Parse(_isExpanded ? "M7,14L12,9L17,14H7Z" : "M7,10L12,15L17,10H7Z");
+                icon.Kind = _isExpanded ? Material.Icons.MaterialIconKind.ChevronUp : Material.Icons.MaterialIconKind.ChevronDown;
         }
 
         public async Task LoadStatsAsync()

@@ -1,10 +1,12 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:fluent="clr-namespace:Avalonia.Themes.Fluent;assembly=Avalonia.Themes.Fluent"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="OrbitalSIP.App"
              RequestedThemeVariant="Dark">
   <Application.Styles>
     <fluent:FluentTheme />
+    <materialIcons:MaterialIconStyles />
 
     <!-- Custom styles to fix focus/hover issues in our Dark theme -->
     <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
