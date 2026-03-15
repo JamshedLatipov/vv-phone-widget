@@ -36,7 +36,17 @@ namespace OrbitalSIP.Services
                 request.Content = JsonContent.Create(lead);
 
                 var response = await _httpClient.SendAsync(request);
-                return response.IsSuccessStatusCode;
+
+                if (response.IsSuccessStatusCode)
+                {
+                    return true;
+                }
+                else
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[LeadService] Create lead failed. Status: {response.StatusCode}. Body: {errorBody}");
+                    return false;
+                }
             }
             catch (Exception ex)
             {
