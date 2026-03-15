@@ -3,6 +3,7 @@
              xmlns:Views="clr-namespace:OrbitalSIP.Views"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:i18n="clr-namespace:OrbitalSIP.Services"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="OrbitalSIP.Views.ExpandedView">
   <Border Width="320"
           Background="#0F172A"
@@ -20,27 +21,30 @@
       <Views:OperatorStatsControl Grid.Row="1" Name="OperatorStats" />
 
       <!-- Dialer display -->
-      <Grid Grid.Row="2" Margin="14,10,14,10" ColumnDefinitions="*,Auto,Auto">
-        <Border Grid.Column="0" Background="#020617" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="12" Padding="12,9">
-          <TextBlock Name="DisplayText" Text="" FontSize="22" FontWeight="SemiBold"
-                     Foreground="#F8FAFC" HorizontalAlignment="Center"
-                     TextTrimming="CharacterEllipsis" LetterSpacing="1.5" MinHeight="30" />
+      <Grid Grid.Row="2" Margin="14,10,14,10" ColumnDefinitions="*,Auto">
+        <Border Grid.Column="0" Background="#020617" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="12" Padding="12,4,6,4">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Name="DisplayText" Text="" FontSize="22" FontWeight="SemiBold"
+                       Foreground="#F8FAFC" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" LetterSpacing="1.5" MinHeight="30" Grid.Column="0" />
+            <Button Grid.Column="1" Name="BackspaceBtn"
+                    Width="30" Height="30" Margin="8,0,0,0" CornerRadius="15"
+                    Background="#151F2E" BorderBrush="#28374A" BorderThickness="1"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center">
+              <Viewbox Width="14" Height="14">
+                <Path Fill="#9AB0C7" Stretch="Uniform"
+                      Data="M22,3H7L1,12L7,21H22C23.11,21 24,20.11 24,19V5C24,3.89 23.11,3 22,3M19,16.59L17.59,18L13.5,13.91L9.41,18L8,16.59L12.09,12.5L8,8.41L9.41,7L13.5,11.09L17.59,7L19,8.41L14.91,12.5L19,16.59Z" />
+              </Viewbox>
+            </Button>
+          </Grid>
         </Border>
-        <Button Grid.Column="1" Name="BackspaceBtn"
-                Width="34" Height="34" Margin="8,0,0,0" CornerRadius="17"
+        <Button Grid.Column="1" Name="CopyBtn"
+                Width="34" Height="34" Margin="6,0,0,0" CornerRadius="17"
                 Background="#151F2E" BorderBrush="#28374A" BorderThickness="1"
-                HorizontalContentAlignment="Center"
-                VerticalContentAlignment="Center">
-          <Viewbox Width="16" Height="16">
-            <Path Fill="#9AB0C7" Stretch="Uniform"
-                  Data="M22,3H7L1,12L7,21H22C23.11,21 24,20.11 24,19V5C24,3.89 23.11,3 22,3M19,16.59L17.59,18L13.5,13.91L9.41,18L8,16.59L12.09,12.5L8,8.41L9.41,7L13.5,11.09L17.59,7L19,8.41L14.91,12.5L19,16.59Z" />
-          </Viewbox>
+                HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+          <materialIcons:MaterialIcon Kind="ContentCopy" Width="16" Height="16" Foreground="#DDE7F3" />
         </Button>
-        <Button Grid.Column="2" Name="CopyBtn"
-                Width="46" Height="34" Margin="6,0,0,0" CornerRadius="17"
-                Background="#151F2E" BorderBrush="#28374A" BorderThickness="1"
-                Foreground="#DDE7F3" FontSize="10" FontWeight="Bold"
-                Content="{i18n:I18n Copy}" />
       </Grid>
 
       <!-- Numeric keypad -->

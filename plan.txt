@@ -1,0 +1,14 @@
+1.  **Update `ExpandedView.axaml` (Dialer page)**:
+    -   Change `CopyBtn` to be an icon button. Replace `Content="{i18n:I18n Copy}"` with `<materialIcons:MaterialIcon Kind="ContentCopy" ... />`.
+    -   Move `BackspaceBtn` inside the input field `Border`. Adjust padding/margins so it looks correct.
+
+2.  **Update `IncomingView.axaml`**:
+    -   Change `CopyCallerBtn` to use an icon instead of text. Replace `Content="{i18n:I18n Copy}"` with an icon.
+
+3.  **Update `ActiveCallView.axaml`**:
+    -   Change `CopyCallerBtn` to use an icon instead of text. Replace `Content="{i18n:I18n Copy}"` with an icon.
+
+4.  **Update Code-behinds (`ExpandedView.axaml.cs`, `IncomingView.axaml.cs`, `ActiveCallView.axaml.cs`)**:
+    -   The `FlashCopyButtonAsync` methods currently rely on storing and changing `button.Content` to text ("Copied"). Since the button will now contain an icon, we need to handle the flash effect differently (e.g., change the icon kind to `Check` or change background color).
+
+5.  **Pre-commit steps**.
