@@ -14,15 +14,7 @@
 
         <StackPanel Margin="18,0,18,0" Spacing="14">
           <StackPanel HorizontalAlignment="Center" Spacing="10">
-            <Grid Width="104" Height="104">
-              <Ellipse Fill="#1D2D42" />
-              <Ellipse Width="94" Height="94" Fill="#0F172A" HorizontalAlignment="Center" VerticalAlignment="Center" />
-              <Viewbox Width="34" Height="34" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Path Fill="#F8FAFC" Stretch="Uniform"
-                      Data="M12,12A5,5 0 1,0 7,7A5,5 0 0,0 12,12M12,14C8.13,14 5,17.13 5,21H7C7,18.24 9.24,16 12,16C14.76,16 17,18.24 17,21H19C19,17.13 15.87,14 12,14Z" />
-              </Viewbox>
-              <Ellipse Width="16" Height="16" Fill="#22C55E" Stroke="#0B1320" StrokeThickness="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" />
-            </Grid>
+
 
             <StackPanel Spacing="4" HorizontalAlignment="Center">
               <TextBlock Name="CallerLabel" Text="" FontSize="24" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" TextAlignment="Center" />
