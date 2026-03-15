@@ -31,17 +31,7 @@
                 <Button Name="CopyCallerBtn" MinWidth="44" Height="22" CornerRadius="11" Padding="8,0" Background="#1E293B" BorderThickness="0" Foreground="#E2E8F0" FontSize="9" FontWeight="Bold" Content="{i18n:I18n Copy}" VerticalAlignment="Center" />
               </StackPanel>
 
-              <WrapPanel HorizontalAlignment="Center" ItemHeight="20">
-                <Border Background="#1E293B" BorderThickness="0" CornerRadius="10" Padding="8,3" Margin="0,0,6,6">
-                  <TextBlock Text="{i18n:I18n OrbitalSip}" FontSize="9" FontWeight="Bold" Foreground="#94A3B8" />
-                </Border>
-                <Border Background="#1E293B" BorderThickness="0" CornerRadius="10" Padding="8,3" Margin="0,0,6,6">
-                  <TextBlock Text="{i18n:I18n SecureCall}" FontSize="9" FontWeight="Bold" Foreground="#94A3B8" />
-                </Border>
-                <Border Background="#064E3B" BorderThickness="0" CornerRadius="10" Padding="8,3" Margin="0,0,0,6">
-                  <TextBlock Text="{i18n:I18n Live}" FontSize="9" FontWeight="Bold" Foreground="#10B981" />
-                </Border>
-              </WrapPanel>
+
 
               <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                 <Ellipse Name="StatusDot" Width="8" Height="8" Fill="#3B82F6" VerticalAlignment="Center" />
@@ -53,37 +43,17 @@
           <Border Background="#020617" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16" Padding="18,14">
             <Grid ColumnDefinitions="*,Auto,*">
               <StackPanel Grid.Column="0" Spacing="2" HorizontalAlignment="Center">
-                <TextBlock Name="TimerMinutesLabel" Text="00" FontSize="30" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" />
-                <TextBlock Text="{i18n:I18n Minutes}" FontSize="9" FontWeight="Bold" LetterSpacing="1.5" Foreground="#6E859D" HorizontalAlignment="Center" />
+                <TextBlock Name="TimerMinutesLabel" Text="00" FontSize="20" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" />
+                <TextBlock Text="{i18n:I18n Minutes}" FontSize="8" FontWeight="Bold" LetterSpacing="1.5" Foreground="#6E859D" HorizontalAlignment="Center" />
               </StackPanel>
-              <TextBlock Grid.Column="1" Text=":" FontSize="28" FontWeight="Bold" Foreground="#60748A" VerticalAlignment="Center" Margin="8,0" />
+              <TextBlock Grid.Column="1" Text=":" FontSize="20" FontWeight="Bold" Foreground="#60748A" VerticalAlignment="Center" Margin="8,0" />
               <StackPanel Grid.Column="2" Spacing="2" HorizontalAlignment="Center">
-                <TextBlock Name="TimerSecondsLabel" Text="00" FontSize="30" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" />
-                <TextBlock Text="{i18n:I18n Seconds}" FontSize="9" FontWeight="Bold" LetterSpacing="1.5" Foreground="#6E859D" HorizontalAlignment="Center" />
+                <TextBlock Name="TimerSecondsLabel" Text="00" FontSize="20" FontWeight="Bold" Foreground="#F8FAFC" HorizontalAlignment="Center" />
+                <TextBlock Text="{i18n:I18n Seconds}" FontSize="8" FontWeight="Bold" LetterSpacing="1.5" Foreground="#6E859D" HorizontalAlignment="Center" />
               </StackPanel>
             </Grid>
           </Border>
 
-          <StackPanel Spacing="8">
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Text="{i18n:I18n AudioActivity}" FontSize="10" FontWeight="Bold" LetterSpacing="1.4" Foreground="#7B92AA" />
-              <TextBlock Grid.Column="1" Text="{i18n:I18n Live}" FontSize="10" FontWeight="Bold" Foreground="#60A5FA" />
-            </Grid>
-            <Border Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1" CornerRadius="14" Padding="14,12">
-              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Border Width="5" Height="12" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
-                <Border Width="5" Height="22" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
-                <Border Width="5" Height="16" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
-                <Border Width="5" Height="28" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
-                <Border Width="5" Height="14" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
-                <Border Width="5" Height="24" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
-                <Border Width="5" Height="10" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
-                <Border Width="5" Height="19" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
-                <Border Width="5" Height="26" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
-                <Border Width="5" Height="15" Background="#3B82F6" CornerRadius="3" Margin="2,0" VerticalAlignment="Center" />
-              </StackPanel>
-            </Border>
-          </StackPanel>
 
           <StackPanel Spacing="8">
             <Grid ColumnDefinitions="*,Auto">
