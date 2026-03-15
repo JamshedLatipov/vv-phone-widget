@@ -24,9 +24,10 @@
       <Grid Grid.Row="2" Margin="14,10,14,10" ColumnDefinitions="*,Auto">
         <Border Grid.Column="0" Background="#020617" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="12" Padding="12,4,6,4">
           <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Name="DisplayText" Text="" FontSize="22" FontWeight="SemiBold"
-                       Foreground="#F8FAFC" HorizontalAlignment="Center" VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis" LetterSpacing="1.5" MinHeight="30" Grid.Column="0" />
+            <TextBox Name="DisplayText" Text="" FontSize="22" FontWeight="SemiBold"
+                     Foreground="#F8FAFC" Background="Transparent" BorderThickness="0"
+                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                     LetterSpacing="1.5" MinHeight="30" Grid.Column="0" CaretBrush="#F8FAFC" />
             <Button Grid.Column="1" Name="BackspaceBtn"
                     Width="30" Height="30" Margin="8,0,0,0" CornerRadius="15"
                     Background="#151F2E" BorderBrush="#28374A" BorderThickness="1"
