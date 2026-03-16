@@ -137,6 +137,7 @@ namespace OrbitalSIP
 
         private void CollapseWidget()
         {
+            HideStatusPopup();
             _isExpanded = false;
             _preferredMode = PreferredMode.Widget;
             StartAnimation(Width, Height, WidgetSize, WidgetSize, new Views.WidgetView());
@@ -396,6 +397,7 @@ namespace OrbitalSIP
                                     object? nextContent = null,
                                     Action? onComplete = null)
         {
+            HideStatusPopup();
             _animTimer?.Stop();
             _fromW = fromW; _fromH = fromH;
             _toW   = toW;   _toH   = toH;
@@ -457,6 +459,7 @@ namespace OrbitalSIP
 
         private void SetMainContent(object content)
         {
+            HideStatusPopup();
             var host = this.FindControl<ContentControl>("Host");
             var overlay = this.FindControl<ContentControl>("OverlayHost");
             if (overlay != null && ReferenceEquals(overlay.Content, content)) overlay.Content = null;
