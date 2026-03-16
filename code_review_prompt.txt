@@ -1,0 +1,118 @@
+Can you please review the changes I have made in `OrbitalSIP/Services/SipService.cs`? I have added the following fixes:
+- Added `OnCallEnded()` on `ua.ServerCallCancelled` and `ua.OnCallHungup` when receiving INVITE to fix stuck state.
+- Removed unconditional BYE handling in `OnSIPRequest` which forcefully dropped any call.
+- Added explicit TLS setup inside `Start()` using `SIPTLSChannel`.
+- Appended `sip:` prefix in `CallAsync` and `BlindTransferAsync` when it is missing from the destination.
+- Changed cleanup check during `OnRtpClosed` to also cover `CallState.OnHold`.
+- Rejected pending UAS with 500 (`InternalServerError`) when `TryCreateAudio()` fails inside `AnswerAsync`.
+
+Here is the diff:
+diff --git a/OrbitalSIP/Services/SipService.cs b/OrbitalSIP/Services/SipService.cs
+index 9500dd3..3f93ee8 100644
+--- a/OrbitalSIP/Services/SipService.cs
++++ b/OrbitalSIP/Services/SipService.cs
+@@ -104,10 +104,20 @@ namespace OrbitalSIP.Services
+                 Log($"SIP RESP RETRANSMIT #{count}: {resp.ShortDescription}");
+
+             var bindAddress = IsLocalServerConfigured() ? IPAddress.Loopback : IPAddress.Any;
+-            if (settings.Transport == "TCP")
++            if (settings.Transport == "TLS")
++            {
++                // Note: For basic TLS without a specific local certificate, we can just instantiate SIPTLSChannel.
++                // It will use TLS for outbound connections and won't accept inbound TLS without a cert.
++                _transport.AddSIPChannel(new SIPTLSChannel(null, new IPEndPoint(bindAddress, 0)));
++            }
++            else if (settings.Transport == "TCP")
++            {
+                 _transport.AddSIPChannel(new SIPTCPChannel(new IPEndPoint(bindAddress, 0)));
++            }
+             else
++            {
+                 _transport.AddSIPChannel(new SIPUDPChannel(new IPEndPoint(bindAddress, 0)));
++            }
+
+             _transport.SIPTransportRequestReceived += OnSIPRequest;
+
+@@ -180,6 +190,11 @@ namespace OrbitalSIP.Services
+             var dest = destination.Contains('@')
+                 ? destination
+                 : $"sip:{destination}@{_settings.Server}";
++
++            if (!dest.StartsWith("sip:") && !dest.StartsWith("sips:"))
++            {
++                dest = $"sip:{dest}";
++            }
+
+             Debug.WriteLine($"[SipService] Calling: {dest}");
+             Log($"Calling destination {dest}");
+@@ -221,27 +236,22 @@ namespace OrbitalSIP.Services
+         // ── Incoming call ─────────────────────────────────────────────
+         private Task OnSIPRequest(SIPEndPoint localEP, SIPEndPoint remoteEP, SIPRequest req)
+         {
+-            if (req.Method == SIPMethodsEnum.BYE)
+-            {
+-                Log($"Incoming BYE from {remoteEP}. Request-URI={req.URI}");
+-                OnCallEnded();
+-
+-                if (_transport != null)
+-                {
+-                    var okResponse = SIPResponse.GetResponse(req, SIPResponseStatusCodesEnum.Ok, null);
+-                    return _transport.SendResponseAsync(okResponse);
+-                }
+-
+-                return Task.CompletedTask;
+-            }
+-
+             if (req.Method == SIPMethodsEnum.INVITE && State == CallState.Idle)
+             {
+                 Log($"Incoming INVITE from {remoteEP}. From={req.Header.From?.FromURI}");
+                 var ua  = new SIPUserAgent(_transport!, null);
+                 var uas = ua.AcceptCall(req);   // sends 100 Trying
+-                ua.ServerCallCancelled += (_, cancelReq) => Log($"Incoming call cancelled by remote: {cancelReq?.StatusLine}");
+-                ua.OnCallHungup += dialogue => Log($"Incoming call leg hung up. Call-ID={dialogue?.CallId}");
++
++                ua.ServerCallCancelled += (_, cancelReq) =>
++                {
++                    Log($"Incoming call cancelled by remote: {cancelReq?.StatusLine}");
++                    OnCallEnded();
++                };
++                ua.OnCallHungup += dialogue =>
++                {
++                    Log($"Incoming call leg hung up. Call-ID={dialogue?.CallId}");
++                    OnCallEnded();
++                };
+
+                 lock (_lock)
+                 {
+@@ -270,8 +280,9 @@ namespace OrbitalSIP.Services
+
+             if (!TryCreateAudio())
+             {
++                uas.Reject(SIPResponseStatusCodesEnum.InternalServerError, null, null);
+                 ua.Hangup();
+-                Log("Answer failed because audio initialisation failed.");
++                Log("Answer failed because audio initialisation failed. Sent 500 error.");
+                 _activeCall = null;
+                 SetState(CallState.Idle);
+                 return;
+@@ -433,6 +444,11 @@ namespace OrbitalSIP.Services
+             var dest = destination.Contains('@')
+                 ? destination
+                 : $"sip:{destination}@{_settings.Server}";
++
++            if (!dest.StartsWith("sip:") && !dest.StartsWith("sips:"))
++            {
++                dest = $"sip:{dest}";
++            }
+
+             var destUri = SIPURI.ParseSIPURIRelaxed(dest);
+             if (destUri == null)
+@@ -523,7 +539,7 @@ namespace OrbitalSIP.Services
+                         $"[SipService] RTP closed: {reason} "
+                       + $"({Interlocked.CompareExchange(ref rtpRxCount, 0, 0)} packets received)");
+                     Log($"RTP closed: {reason}; packets={Interlocked.CompareExchange(ref rtpRxCount, 0, 0)}");
+-                    if (State == CallState.Active || State == CallState.Ringing)
++                    if (State == CallState.Active || State == CallState.Ringing || State == CallState.OnHold)
+                         OnCallEnded();
+                 };
+                 _mediaSession.OnTimeout += mediaType =>
