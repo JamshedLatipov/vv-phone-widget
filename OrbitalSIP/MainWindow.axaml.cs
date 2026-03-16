@@ -94,7 +94,7 @@ namespace OrbitalSIP
             while (visual != null && visual != this)
             {
                 if (visual is Button || visual is TextBox || visual is ComboBox ||
-                    visual is ListBoxItem || visual is ScrollBar || visual is ScrollViewer)
+                    visual is ListBoxItem || visual is ScrollBar)
                 {
                     return; // Interactive control reached, do not drag
                 }
