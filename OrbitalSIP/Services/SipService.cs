@@ -241,8 +241,17 @@ namespace OrbitalSIP.Services
                 TryMangleInviteRequest(remoteEP, req);
                 var ua  = new SIPUserAgent(_transport!, null);
                 var uas = ua.AcceptCall(req);   // sends 100 Trying
-                ua.ServerCallCancelled += (_, cancelReq) => Log($"Incoming call cancelled by remote: {cancelReq?.StatusLine}");
-                ua.OnCallHungup += dialogue => Log($"Incoming call leg hung up. Call-ID={dialogue?.CallId}");
+                ua.ServerCallCancelled += (_, cancelReq) =>
+                {
+                    Log($"Incoming call cancelled by remote: {cancelReq?.StatusLine}");
+                    lock (_lock) { _pendingUas = null; _activeCall = null; }
+                    SetState(CallState.Idle);
+                };
+                ua.OnCallHungup += dialogue =>
+                {
+                    Log($"Incoming call leg hung up. Call-ID={dialogue?.CallId}");
+                    OnCallEnded();
+                };
 
                 lock (_lock)
                 {
