@@ -18,13 +18,23 @@
       </StackPanel>
     </Button>
 
-    <Button Grid.Column="1" Name="MinimizeBtn"
-            Width="28" Height="28" CornerRadius="14"
-            Background="#1A2D42" BorderBrush="#2A415B" BorderThickness="1"
-            Padding="0" Margin="0,12,10,12"
-            HorizontalContentAlignment="Center"
-            VerticalContentAlignment="Center">
-      <materialIcons:MaterialIcon Kind="Minus" Width="16" Height="16" Foreground="#9AB0C7" />
-    </Button>
+    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="0,12,10,12">
+      <Button Name="MinimizeBtn"
+              Width="28" Height="28" CornerRadius="14"
+              Background="#1A2D42" BorderBrush="#2A415B" BorderThickness="1"
+              Padding="0"
+              HorizontalContentAlignment="Center"
+              VerticalContentAlignment="Center">
+        <materialIcons:MaterialIcon Kind="Minus" Width="16" Height="16" Foreground="#9AB0C7" />
+      </Button>
+      <Button Name="CloseBtn"
+              Width="28" Height="28" CornerRadius="14"
+              Background="#1A2D42" BorderBrush="#2A415B" BorderThickness="1"
+              Padding="0"
+              HorizontalContentAlignment="Center"
+              VerticalContentAlignment="Center">
+        <materialIcons:MaterialIcon Kind="Close" Width="16" Height="16" Foreground="#9AB0C7" />
+      </Button>
+    </StackPanel>
   </Grid>
 </UserControl>

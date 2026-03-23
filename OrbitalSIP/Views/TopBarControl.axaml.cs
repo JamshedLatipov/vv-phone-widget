@@ -17,6 +17,7 @@ namespace OrbitalSIP.Views
 
         public event EventHandler? OnMinimizeRequested;
         public event EventHandler? OnAvatarClicked;
+        public event EventHandler? OnCloseRequested;
 
         public TopBarControl()
         {
@@ -134,6 +135,12 @@ namespace OrbitalSIP.Views
             if (minBtn != null)
             {
                 minBtn.Click += (_, __) => OnMinimizeRequested?.Invoke(this, EventArgs.Empty);
+            }
+
+            var closeBtn = this.FindControl<Button>("CloseBtn");
+            if (closeBtn != null)
+            {
+                closeBtn.Click += (_, __) => OnCloseRequested?.Invoke(this, EventArgs.Empty);
             }
 
             var avatarBtn = this.FindControl<Button>("AvatarBtn");

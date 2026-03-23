@@ -82,6 +82,7 @@ namespace OrbitalSIP
                 _anchorY = top  + (int)WidgetSize;
 
                 sip.Start(settings);
+                _ = App.StatusService.SetStateAsync(true, "offline");
                 SetMainContent(new Views.WidgetView());
             }
         }
@@ -180,6 +181,7 @@ namespace OrbitalSIP
         {
             var r = new Views.RecentsView();
             r.OnCloseRequested += (_, __) => ToggleExpanded();
+            r.OnExitAppRequested += (_, __) => ShutdownApp();
             r.OnSettingsRequested += (_, __) => ShowSettings();
             r.OnDialerRequested += (_, __) => ShowDialer();
             r.OutgoingCallRequested += (sender, num) => StartOutgoingCall(num);
@@ -242,6 +244,7 @@ namespace OrbitalSIP
         {
             var settingsView = new Views.SettingsView();
             settingsView.OnMinimizeRequested += (_, __) => CollapseWidget();
+            settingsView.OnExitAppRequested += (_, __) => ShutdownApp();
             settingsView.OnAvatarClicked += (_, __) => ShowStatusPopup();
             settingsView.OnBackRequested += (_, __) =>
             {
@@ -362,6 +365,7 @@ namespace OrbitalSIP
                 ReturnToPreferredMode();
             };
             callView.OnMinimizeRequested += (_, __) => ShowActiveCallWidgetView(App.SipService.ActiveCallerId, callView.Elapsed);
+            callView.OnExitAppRequested += (_, __) => ShutdownApp();
             callView.OnMuteToggled += (_, muted) => App.SipService.SetMuted(muted);
             callView.OnHoldToggled += (_, __) => App.SipService.ToggleHold();
             callView.OnTransferRequested += async (_, dest) => await App.SipService.BlindTransferAsync(dest);
@@ -450,6 +454,7 @@ namespace OrbitalSIP
         {
             var dialer = new Views.ExpandedView();
             dialer.OnCloseRequested += (_, __) => CollapseWidget();
+            dialer.OnExitAppRequested += (_, __) => ShutdownApp();
             dialer.OnSettingsRequested += (_, __) => ShowSettings();
             dialer.OnAvatarClicked += (_, __) => ShowStatusPopup();
             dialer.OnRecentsRequested += (_, __) => ShowRecents();
@@ -479,6 +484,8 @@ namespace OrbitalSIP
             if (overlay != null) { overlay.Opacity = 0; overlay.IsVisible = false; }
             _pendingContent = null;
         }
+
+        private void ShutdownApp() => System.Environment.Exit(0);
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
     }

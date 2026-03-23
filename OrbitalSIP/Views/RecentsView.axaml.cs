@@ -23,6 +23,7 @@ namespace OrbitalSIP.Views
         public event EventHandler? OnSettingsRequested;
         public event EventHandler? OnDialerRequested;
         public event EventHandler<string>? OutgoingCallRequested;
+        public event EventHandler? OnExitAppRequested;
 
         static RecentsView()
         {
@@ -63,7 +64,7 @@ namespace OrbitalSIP.Views
         private void WireButtons()
         {
             var topBar = this.FindControl<TopBarControl>("TopBar");
-            if (topBar != null) topBar.OnMinimizeRequested += (_, __) => OnCloseRequested?.Invoke(this, EventArgs.Empty);
+            if (topBar != null) { topBar.OnMinimizeRequested += (_, __) => OnCloseRequested?.Invoke(this, EventArgs.Empty); topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, EventArgs.Empty); }
 
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
             if (bottomNav != null)

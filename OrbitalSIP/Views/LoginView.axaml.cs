@@ -97,6 +97,7 @@ namespace OrbitalSIP.Views
                         }
 
                         App.SipService.Start(settings);
+                        _ = App.StatusService.SetStateAsync(true, "offline");
                         OnLoginSuccess?.Invoke(this, EventArgs.Empty);
                     }
                     else ShowError("Invalid response from server.");
