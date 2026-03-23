@@ -238,6 +238,7 @@ namespace OrbitalSIP.Services
             if (req.Method == SIPMethodsEnum.INVITE && State == CallState.Idle)
             {
                 Log($"Incoming INVITE from {remoteEP}. From={req.Header.From?.FromURI}");
+                TryMangleInviteRequest(remoteEP, req);
                 var ua  = new SIPUserAgent(_transport!, null);
                 var uas = ua.AcceptCall(req);   // sends 100 Trying
                 ua.ServerCallCancelled += (_, cancelReq) => Log($"Incoming call cancelled by remote: {cancelReq?.StatusLine}");
@@ -623,6 +624,33 @@ namespace OrbitalSIP.Services
             return bytes[0] == 10
                 || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
                 || (bytes[0] == 192 && bytes[1] == 168);
+        }
+
+        private void TryMangleInviteRequest(SIPEndPoint remoteEP, SIPRequest req)
+        {
+            if (remoteEP == null || req == null || string.IsNullOrWhiteSpace(req.Body))
+                return;
+
+            try
+            {
+                var sdp = SDP.ParseSDPDescription(req.Body);
+                var addr = sdp?.Connection?.ConnectionAddress;
+                if (string.IsNullOrWhiteSpace(addr) && sdp?.Media != null && sdp.Media.Count > 0)
+                    addr = sdp.Media[0].Connection?.ConnectionAddress;
+
+                if (!IPAddress.TryParse(addr, out var bodyIp)
+                    || IPAddress.Equals(bodyIp, remoteEP.Address)
+                    || !IsPrivateAddress(bodyIp))
+                    return;
+
+                var originalSdp = SanitizeSdp(req.Body);
+                req.Body = SIPPacketMangler.MangleSDP(req.Body, remoteEP.Address.ToString(), out _);
+                Log($"Mangled incoming INVITE SDP. RemoteEP={remoteEP}; {originalSdp} -> {SanitizeSdp(req.Body)}");
+            }
+            catch (Exception ex)
+            {
+                Log($"Failed to mangle incoming INVITE SDP: {ex.Message}");
+            }
         }
 
         private void TryMangleInviteResponse(SIPEndPoint remoteEP, SIPResponse resp)
