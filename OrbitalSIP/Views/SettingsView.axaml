@@ -2,9 +2,14 @@
              xmlns:Views="clr-namespace:OrbitalSIP.Views"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:i18n="clr-namespace:OrbitalSIP.Services"
-             x:Class="OrbitalSIP.Views.SettingsView"
-             Background="#0F172A">
-  <Border Padding="20">
+             x:Class="OrbitalSIP.Views.SettingsView">
+  <Border Width="320"
+          Background="#0F172A"
+          BorderBrush="#1E293B"
+          BorderThickness="1"
+          CornerRadius="16"
+          ClipToBounds="True"
+          Padding="20">
     <Grid RowDefinitions="Auto,*,Auto,Auto">
 
       <!-- Header -->
