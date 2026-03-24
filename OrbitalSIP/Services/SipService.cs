@@ -109,6 +109,20 @@ namespace OrbitalSIP.Services
             else
                 _transport.AddSIPChannel(new SIPUDPChannel(new IPEndPoint(bindAddress, 0)));
 
+            // Explicitly set ContactHost to the local IP that routes towards the SIP server,
+            // so Asterisk sends INVITEs to the correct interface.
+            if (!IsLocalServerConfigured() && IPAddress.TryParse(settings.Server, out var serverIp))
+            {
+                try
+                {
+                    using var probe = new System.Net.Sockets.UdpClient();
+                    probe.Connect(serverIp, int.TryParse(settings.Port, out var p) ? p : 5060);
+                    _transport.ContactHost = ((IPEndPoint)probe.Client.LocalEndPoint!).Address.ToString();
+                    Log($"ContactHost resolved to {_transport.ContactHost}.");
+                }
+                catch { /* fall through – SIPSorcery will pick one */ }
+            }
+
             _transport.SIPTransportRequestReceived += OnSIPRequest;
 
             if (!string.IsNullOrWhiteSpace(settings.Server) && !string.IsNullOrWhiteSpace(settings.Username))

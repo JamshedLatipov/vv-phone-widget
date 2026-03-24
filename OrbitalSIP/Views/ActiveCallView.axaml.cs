@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Material.Icons;
 using Material.Icons.Avalonia;
 using OrbitalSIP.Services;
-using AvaloniaPath = Avalonia.Controls.Shapes.Path;
 
 namespace OrbitalSIP.Views
 {
@@ -137,10 +136,11 @@ namespace OrbitalSIP.Views
 
             var topBar = this.FindControl<TopBarControl>("TopBar");
             if (topBar != null)
+            {
                 topBar.OnMinimizeRequested += (_, __) => OnMinimizeRequested?.Invoke(this, EventArgs.Empty);
                 topBar.OnAvatarClicked += (_, __) => OnAvatarClicked?.Invoke(this, EventArgs.Empty);
-            if (topBar != null)
                 topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, EventArgs.Empty);
+            }
 
             var copy = this.FindControl<Button>("CopyCallerBtn");
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
@@ -185,11 +185,15 @@ namespace OrbitalSIP.Views
             _muted = !_muted;
             OnMuteToggled?.Invoke(this, _muted);
 
-            var icon  = this.FindControl<AvaloniaPath>("MuteIcon");
+            var icon  = this.FindControl<MaterialIcon>("MuteIcon");
             var label = this.FindControl<TextBlock>("MuteLabel");
             var btn   = this.FindControl<Button>("MuteBtn");
 
-            if (icon  != null) icon.Fill  = new SolidColorBrush(_muted ? Color.Parse("#FFFFFF") : Color.Parse("#DDE7F3"));
+            if (icon  != null)
+            {
+                icon.Foreground = new SolidColorBrush(_muted ? Color.Parse("#FFFFFF") : Color.Parse("#DDE7F3"));
+                icon.Kind = _muted ? MaterialIconKind.MicrophoneOff : MaterialIconKind.Microphone;
+            }
             if (label != null) label.Text  = _muted ? "Unmute" : "Mute";
             if (btn   != null) btn.Background = new SolidColorBrush(_muted ? Color.Parse("#B91C1C") : Color.Parse("#1A2D42"));
         }
@@ -292,7 +296,6 @@ namespace OrbitalSIP.Views
             _onHold = !_onHold;
             OnHoldToggled?.Invoke(this, _onHold);
 
-            var icon  = this.FindControl<AvaloniaPath>("HoldIcon");
             var label = this.FindControl<TextBlock>("HoldLabel");
             var btn   = this.FindControl<Button>("HoldBtn");
 

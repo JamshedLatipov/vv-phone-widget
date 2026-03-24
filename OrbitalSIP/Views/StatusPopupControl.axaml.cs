@@ -40,30 +40,37 @@ namespace OrbitalSIP.Views
                 {
                     OnStatusUpdateRequested?.Invoke(this, ("online", 0));
                 };
+
+            WireStatusCard("StatusOnline",   isAway: false);
+            WireStatusCard("StatusOffline",  isAway: false);
+            WireStatusCard("StatusLunch",    isAway: true);
+            WireStatusCard("StatusBreak",    isAway: true);
+            WireStatusCard("StatusTraining", isAway: true);
+        }
+
+        private void WireStatusCard(string name, bool isAway)
+        {
+            var rb = this.FindControl<RadioButton>(name);
+            if (rb == null) return;
+            rb.IsCheckedChanged += (_, __) =>
+            {
+                if (rb.IsChecked == true)
+                {
+                    var panel = this.FindControl<StackPanel>("DurationPanel");
+                    if (panel != null) panel.IsVisible = isAway;
+                }
+            };
         }
 
         private string GetSelectedStatus()
         {
-            var availList = this.FindControl<ListBox>("AvailabilityList");
-            var awayList = this.FindControl<ListBox>("AwayList");
-
-            if (availList != null)
+            string[] names = { "StatusOnline", "StatusOffline", "StatusLunch", "StatusBreak", "StatusTraining" };
+            foreach (var name in names)
             {
-                foreach (var item in availList.Items)
-                {
-                    if (item is ListBoxItem lbi && lbi.Content is RadioButton rb && rb.IsChecked == true)
-                        return rb.Tag?.ToString() ?? "online";
-                }
+                var rb = this.FindControl<RadioButton>(name);
+                if (rb?.IsChecked == true)
+                    return rb.Tag?.ToString() ?? "online";
             }
-            if (awayList != null)
-            {
-                foreach (var item in awayList.Items)
-                {
-                    if (item is ListBoxItem lbi && lbi.Content is RadioButton rb && rb.IsChecked == true)
-                        return rb.Tag?.ToString() ?? "online";
-                }
-            }
-
             return "online";
         }
 
@@ -90,7 +97,7 @@ namespace OrbitalSIP.Views
             var state = svc.CurrentState;
 
             var panel = this.FindControl<Border>("ActiveStatusPanel");
-            var text = this.FindControl<TextBlock>("ActiveStatusText");
+            var text  = this.FindControl<TextBlock>("ActiveStatusText");
 
             if (state != null && state.Paused && panel != null && text != null)
             {
@@ -109,6 +116,17 @@ namespace OrbitalSIP.Views
                 {
                     text.Text = $"{char.ToUpper(reason[0]) + reason.Substring(1)}";
                 }
+
+                // Pre-select the matching status button
+                string radioName = (state.ReasonPaused?.ToLower() ?? "") switch
+                {
+                    "lunch"    => "StatusLunch",
+                    "break"    => "StatusBreak",
+                    "training" => "StatusTraining",
+                    _          => "StatusOffline"
+                };
+                var rb = this.FindControl<RadioButton>(radioName);
+                if (rb != null) rb.IsChecked = true;
             }
             else if (panel != null)
             {
