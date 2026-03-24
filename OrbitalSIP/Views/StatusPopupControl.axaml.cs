@@ -2,17 +2,35 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
+using OrbitalSIP.Models;
 
 namespace OrbitalSIP.Views
 {
     public partial class StatusPopupControl : UserControl
     {
+        private readonly DispatcherTimer _liveTimer;
+
         public event EventHandler? OnCloseRequested;
         public event EventHandler<(string status, int duration)>? OnStatusUpdateRequested;
 
         public StatusPopupControl()
         {
             InitializeComponent();
+
+            _liveTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            _liveTimer.Tick += (_, __) => UpdateActiveStatusText();
+
+            AttachedToVisualTree += (_, __) => App.StatusService.StateChanged += OnStatusStateChanged;
+            DetachedFromVisualTree += (_, __) =>
+            {
+                _liveTimer.Stop();
+                App.StatusService.StateChanged -= OnStatusStateChanged;
+            };
+
             WireButtons();
             UpdateUIFromCurrentState();
         }
@@ -102,20 +120,12 @@ namespace OrbitalSIP.Views
             if (state != null && state.Paused && panel != null && text != null)
             {
                 panel.IsVisible = true;
-                string reason = state.ReasonPaused ?? "Break";
+                UpdateActiveStatusText();
 
                 if (svc.BreakEndTime.HasValue)
-                {
-                    var left = svc.BreakEndTime.Value - DateTime.Now;
-                    if (left.TotalSeconds > 0)
-                        text.Text = $"{char.ToUpper(reason[0]) + reason.Substring(1)}: {left.Minutes:D2}:{left.Seconds:D2} left";
-                    else
-                        text.Text = $"{char.ToUpper(reason[0]) + reason.Substring(1)}";
-                }
+                    _liveTimer.Start();
                 else
-                {
-                    text.Text = $"{char.ToUpper(reason[0]) + reason.Substring(1)}";
-                }
+                    _liveTimer.Stop();
 
                 // Pre-select the matching status button
                 string radioName = (state.ReasonPaused?.ToLower() ?? "") switch
@@ -127,11 +137,45 @@ namespace OrbitalSIP.Views
                 };
                 var rb = this.FindControl<RadioButton>(radioName);
                 if (rb != null) rb.IsChecked = true;
+
+                var durationPanel = this.FindControl<StackPanel>("DurationPanel");
+                if (durationPanel != null)
+                    durationPanel.IsVisible = radioName is "StatusLunch" or "StatusBreak" or "StatusTraining";
             }
             else if (panel != null)
             {
                 panel.IsVisible = false;
+                _liveTimer.Stop();
             }
+        }
+
+        private void OnStatusStateChanged(StatusState _)
+        {
+            UpdateUIFromCurrentState();
+        }
+
+        private void UpdateActiveStatusText()
+        {
+            var text = this.FindControl<TextBlock>("ActiveStatusText");
+            if (text == null)
+                return;
+
+            var svc = App.StatusService;
+            var state = svc.CurrentState;
+            var reason = string.IsNullOrWhiteSpace(state?.ReasonPaused) ? "Break" : state!.ReasonPaused!;
+            var prettyReason = char.ToUpper(reason[0]) + reason.Substring(1);
+
+            if (state?.Paused == true && svc.BreakEndTime.HasValue)
+            {
+                var left = svc.BreakEndTime.Value - DateTime.Now;
+                if (left.TotalSeconds > 0)
+                {
+                    text.Text = $"{prettyReason}: {left.Minutes:D2}:{left.Seconds:D2} left";
+                    return;
+                }
+            }
+
+            text.Text = prettyReason;
         }
     }
 }
