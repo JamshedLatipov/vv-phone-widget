@@ -14,10 +14,10 @@ namespace OrbitalSIP.Services
 
         public ScriptService()
         {
-            var handler = new HttpClientHandler();
-#if DEBUG
-            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
-#endif
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+            };
             _httpClient = new HttpClient(handler);
         }
 
@@ -47,7 +47,7 @@ namespace OrbitalSIP.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ScriptService] Error fetching scripts: {ex.Message}");
+                AppLogger.Log("ScriptService", $"Error fetching scripts: {ex.Message}");
             }
 
             return new List<CallScript>();
@@ -82,7 +82,7 @@ namespace OrbitalSIP.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ScriptService] Error fetching channel unique ID: {ex.Message}");
+                AppLogger.Log("ScriptService", $"Error fetching channel unique ID: {ex.Message}");
             }
 
             return null;
@@ -115,7 +115,7 @@ namespace OrbitalSIP.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ScriptService] Error registering script: {ex.Message}");
+                AppLogger.Log("ScriptService", $"Error registering script: {ex.Message}");
             }
 
             return false;

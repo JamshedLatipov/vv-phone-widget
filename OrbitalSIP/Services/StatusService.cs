@@ -22,10 +22,10 @@ namespace OrbitalSIP.Services
 
         public StatusService()
         {
-            var handler = new HttpClientHandler();
-#if DEBUG
-            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
-#endif
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+            };
             _httpClient = new HttpClient(handler);
 
             _autoOnlineTimer = new DispatcherTimer
@@ -49,7 +49,7 @@ namespace OrbitalSIP.Services
 
                 if (DateTime.Now >= _breakEndTime.Value)
                 {
-                    Console.WriteLine("[StatusService] Timer expired. Setting status back to online.");
+                    AppLogger.Log("StatusService", "Timer expired. Setting status back to online.");
                     _breakEndTime = null;
                     _autoOnlineTimer?.Stop();
                     await SetStateAsync(false, null);
@@ -68,18 +68,18 @@ namespace OrbitalSIP.Services
                     return;
 
                 var url = $"{backendUrl}/api/queue-members/my-state";
-                Console.WriteLine($"[StatusService] Fetching state from: {url}");
+                AppLogger.Log("StatusService", $"Fetching state from: {url}");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
 
                 var response = await _httpClient.SendAsync(request);
-                Console.WriteLine($"[StatusService] Fetch response status code: {response.StatusCode}");
+                AppLogger.Log("StatusService", $"Fetch response status code: {response.StatusCode}");
 
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[StatusService] Fetch response body: {content}");
+                    AppLogger.Log("StatusService", $"Fetch response body: {content}");
 
                     var data = JsonSerializer.Deserialize<StatusState>(content);
                     if (data != null)
@@ -91,7 +91,7 @@ namespace OrbitalSIP.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[StatusService] Error fetching state: {ex.Message}");
+                AppLogger.Log("StatusService", $"Error fetching state: {ex.Message}{(ex.InnerException != null ? " | Inner: " + ex.InnerException.Message : "")}");
             }
         }
 
@@ -104,7 +104,7 @@ namespace OrbitalSIP.Services
 
                 if (string.IsNullOrEmpty(backendUrl) || string.IsNullOrEmpty(settings.AccessToken))
                 {
-                    Console.WriteLine("[StatusService] Cannot set state: BackendUrl or AccessToken is missing.");
+                    AppLogger.Log("StatusService", "Cannot set state: BackendUrl or AccessToken is missing.");
                     return false;
                 }
 
@@ -116,19 +116,19 @@ namespace OrbitalSIP.Services
                     ReasonPaused = reason
                 };
 
-                Console.WriteLine($"[StatusService] Setting state to URL: {url}");
-                Console.WriteLine($"[StatusService] Payload: Paused={paused}, Reason={reason ?? "null"}, DurationMinutes={durationMinutes?.ToString() ?? "null"}");
+                AppLogger.Log("StatusService", $"Setting state to URL: {url}");
+                AppLogger.Log("StatusService", $"Payload: Paused={paused}, Reason={reason ?? "null"}, DurationMinutes={durationMinutes?.ToString() ?? "null"}");
 
                 using var request = new HttpRequestMessage(HttpMethod.Put, url);
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
                 request.Content = JsonContent.Create(body);
 
                 var response = await _httpClient.SendAsync(request);
-                Console.WriteLine($"[StatusService] Set state response status code: {response.StatusCode}");
+                AppLogger.Log("StatusService", $"Set state response status code: {response.StatusCode}");
 
                 if (response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine("[StatusService] State successfully updated on server.");
+                    AppLogger.Log("StatusService", "State successfully updated on server.");
 
                     CurrentState.Paused = paused;
                     CurrentState.ReasonPaused = reason;
@@ -137,13 +137,13 @@ namespace OrbitalSIP.Services
                     {
                         _breakEndTime = DateTime.Now.AddMinutes(durationMinutes.Value);
                         _autoOnlineTimer?.Start();
-                        Console.WriteLine($"[StatusService] Started auto-online timer for {durationMinutes.Value} minutes.");
+                        AppLogger.Log("StatusService", $"Started auto-online timer for {durationMinutes.Value} minutes.");
                     }
                     else
                     {
                         _breakEndTime = null;
                         _autoOnlineTimer?.Stop();
-                        Console.WriteLine("[StatusService] Auto-online timer stopped/cleared.");
+                        AppLogger.Log("StatusService", "Auto-online timer stopped/cleared.");
                     }
 
                     Dispatcher.UIThread.Post(() => StateChanged?.Invoke(CurrentState));
@@ -152,12 +152,12 @@ namespace OrbitalSIP.Services
                 else
                 {
                      var errBody = await response.Content.ReadAsStringAsync();
-                     Console.WriteLine($"[StatusService] Set state failed. Body: {errBody}");
+                     AppLogger.Log("StatusService", $"Set state failed. Body: {errBody}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[StatusService] Error setting state: {ex.Message}");
+                AppLogger.Log("StatusService", $"Error setting state: {ex.Message}{(ex.InnerException != null ? " | Inner: " + ex.InnerException.Message : "")}");
             }
             return false;
         }

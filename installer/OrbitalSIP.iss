@@ -1,5 +1,7 @@
 #define MyAppName "OrbitalSIP"
-#define MyAppVersion "1.0"
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0.0"
+#endif
 #define MyAppPublisher "VV"
 #define MyAppExeName "OrbitalSIP.exe"
 #define PublishDir "..\publish\win-x64"
@@ -18,7 +20,8 @@ SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64
 MinVersion=10.0.17763
 ; Run silently on startup (system tray app)
-CloseApplications=yes
+CloseApplications=force
+CloseApplicationsFilter=*.exe
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -30,8 +33,8 @@ Name: "startupentry"; Description: "Launch {#MyAppName} when Windows starts"; Gr
 ; Main executable (self-contained, single file)
 Source: "{#PublishDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
-; Sound files (copy entire sounds\ subfolder if it exists)
-Source: "{#PublishDir}\sounds\*"; DestDir: "{app}\sounds"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: SoundsDirExists
+; Sound files
+Source: "{#PublishDir}\sounds\*"; DestDir: "{app}\sounds"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -49,7 +52,12 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
-function SoundsDirExists: Boolean;
+
+function InitializeSetup: Boolean;
+var
+  ResultCode: Integer;
 begin
-  Result := DirExists(ExpandConstant('{src}') + '\..\publish\win-x64\sounds');
+  // Kill any running OrbitalSIP process so the exe can be overwritten
+  Exec('taskkill', '/F /IM OrbitalSIP.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := True;
 end;
