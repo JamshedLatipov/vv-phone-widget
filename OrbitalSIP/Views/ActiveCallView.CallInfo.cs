@@ -115,17 +115,6 @@ namespace OrbitalSIP.Views
 
             foreach (var (label, value) in rows)
             {
-                var rowGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-
-                var labelBlock = new TextBlock
-                {
-                    Text              = label,
-                    FontSize          = 12,
-                    Foreground        = new SolidColorBrush(Color.Parse("#6E859D")),
-                    VerticalAlignment = VerticalAlignment.Top,
-                    TextWrapping      = TextWrapping.Wrap
-                };
-
                 var copyIcon = new MaterialIcon
                 {
                     Kind       = MaterialIconKind.ContentCopy,
@@ -136,40 +125,46 @@ namespace OrbitalSIP.Views
 
                 var copyBtn = new Button
                 {
-                    Content           = copyIcon,
-                    Background        = Brushes.Transparent,
-                    BorderThickness   = new Avalonia.Thickness(0),
-                    Padding           = new Avalonia.Thickness(5, 0, 0, 0),
-                    Opacity           = 0,
+                    Content         = copyIcon,
+                    Background      = Brushes.Transparent,
+                    BorderThickness = new Avalonia.Thickness(0),
+                    Padding         = new Avalonia.Thickness(4, 0, 0, 0),
+                    Opacity         = 0,
                     VerticalAlignment = VerticalAlignment.Center
+                };
+
+                var valueRow = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal
                 };
 
                 var valueBlock = new TextBlock
                 {
-                    Text              = value,
-                    FontSize          = 12,
-                    FontWeight        = FontWeight.Medium,
-                    Foreground        = new SolidColorBrush(Color.Parse("#F8FAFC")),
-                    TextWrapping      = TextWrapping.Wrap,
-                    TextAlignment     = Avalonia.Media.TextAlignment.Right,
-                    VerticalAlignment = VerticalAlignment.Top
+                    Text         = value,
+                    FontSize     = 12,
+                    FontWeight   = FontWeight.Medium,
+                    Foreground   = new SolidColorBrush(Color.Parse("#F8FAFC")),
+                    TextWrapping = TextWrapping.Wrap
                 };
 
-                var rightPanel = new StackPanel
+                valueRow.Children.Add(valueBlock);
+                valueRow.Children.Add(copyBtn);
+
+                var rowStack = new StackPanel { Spacing = 1 };
+
+                var labelBlock = new TextBlock
                 {
-                    Orientation         = Orientation.Horizontal,
-                    HorizontalAlignment = HorizontalAlignment.Right
+                    Text         = label,
+                    FontSize     = 10,
+                    Foreground   = new SolidColorBrush(Color.Parse("#6E859D")),
+                    TextWrapping = TextWrapping.Wrap
                 };
-                rightPanel.Children.Add(valueBlock);
-                rightPanel.Children.Add(copyBtn);
 
-                Grid.SetColumn(labelBlock, 0);
-                Grid.SetColumn(rightPanel, 1);
-                rowGrid.Children.Add(labelBlock);
-                rowGrid.Children.Add(rightPanel);
+                rowStack.Children.Add(labelBlock);
+                rowStack.Children.Add(valueRow);
 
-                rowGrid.PointerEntered += (_, __) => copyBtn.Opacity = 1;
-                rowGrid.PointerExited  += (_, __) => copyBtn.Opacity = 0;
+                rowStack.PointerEntered += (_, __) => copyBtn.Opacity = 1;
+                rowStack.PointerExited  += (_, __) => copyBtn.Opacity = 0;
 
                 var capturedValue = value;
                 var capturedIcon  = copyIcon;
@@ -183,7 +178,7 @@ namespace OrbitalSIP.Views
                     capturedIcon.Kind = MaterialIconKind.ContentCopy;
                 };
 
-                contentStack.Children.Add(rowGrid);
+                contentStack.Children.Add(rowStack);
             }
 
             return new Border
