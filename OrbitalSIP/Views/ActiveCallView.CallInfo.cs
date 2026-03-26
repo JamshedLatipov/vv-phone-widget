@@ -1,6 +1,5 @@
 using System.Threading.Tasks;
 using Avalonia.Controls;
-using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Material.Icons;
@@ -125,17 +124,12 @@ namespace OrbitalSIP.Views
 
                 var copyBtn = new Button
                 {
-                    Content         = copyIcon,
-                    Background      = Brushes.Transparent,
-                    BorderThickness = new Avalonia.Thickness(0),
-                    Padding         = new Avalonia.Thickness(4, 0, 0, 0),
-                    Opacity         = 0,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-
-                var valueRow = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal
+                    Content           = copyIcon,
+                    Background        = Brushes.Transparent,
+                    BorderThickness   = new Avalonia.Thickness(0),
+                    Padding           = new Avalonia.Thickness(4, 0, 0, 0),
+                    Focusable         = false,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
                 };
 
                 var valueBlock = new TextBlock
@@ -147,6 +141,12 @@ namespace OrbitalSIP.Views
                     TextWrapping = TextWrapping.Wrap
                 };
 
+                var valueRow = new Grid
+                {
+                    ColumnDefinitions = new ColumnDefinitions("*,Auto")
+                };
+                Grid.SetColumn(valueBlock, 0);
+                Grid.SetColumn(copyBtn,    1);
                 valueRow.Children.Add(valueBlock);
                 valueRow.Children.Add(copyBtn);
 
@@ -162,9 +162,6 @@ namespace OrbitalSIP.Views
 
                 rowStack.Children.Add(labelBlock);
                 rowStack.Children.Add(valueRow);
-
-                rowStack.PointerEntered += (_, __) => copyBtn.Opacity = 1;
-                rowStack.PointerExited  += (_, __) => copyBtn.Opacity = 0;
 
                 var capturedValue = value;
                 var capturedIcon  = copyIcon;
