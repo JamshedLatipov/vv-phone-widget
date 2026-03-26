@@ -59,44 +59,6 @@
             </Border>
           </StackPanel>
 
-          <!-- Username -->
-          <StackPanel Spacing="4">
-            <TextBlock Text="{i18n:I18n Username}" FontSize="11" Foreground="#5F7A96" />
-            <Border Background="#1E293B" CornerRadius="8">
-              <TextBox Name="UsernameBox"
-                       Background="Transparent" Foreground="#FFFFFF"
-                       BorderThickness="0" Padding="12,10"
-                       Watermark="1001"
-                       CaretBrush="#17E0A0" />
-            </Border>
-          </StackPanel>
-
-          <!-- Display Name -->
-          <StackPanel Spacing="4">
-            <TextBlock Text="{i18n:I18n DisplayName}" FontSize="11" Foreground="#5F7A96" />
-            <Border Background="#1E293B" CornerRadius="8">
-              <TextBox Name="DisplayNameBox"
-                       Background="Transparent" Foreground="#FFFFFF"
-                       BorderThickness="0" Padding="12,10"
-                       Watermark="John Doe"
-                       CaretBrush="#17E0A0" />
-            </Border>
-          </StackPanel>
-
-          <!-- Password -->
-          <StackPanel Spacing="4">
-            <TextBlock Text="{i18n:I18n Password}" FontSize="11" Foreground="#5F7A96" />
-            <Border Background="#1E293B" CornerRadius="8">
-              <TextBox Name="PasswordBox"
-                       Background="Transparent" Foreground="#FFFFFF"
-                       BorderThickness="0" Padding="12,10"
-                       Watermark="••••••••"
-                       PasswordChar="●"
-                       CaretBrush="#17E0A0" />
-            </Border>
-          </StackPanel>
-
-
           <!-- Language -->
           <StackPanel Spacing="4">
             <TextBlock Text="{i18n:I18n Language}" FontSize="11" Foreground="#5F7A96" />

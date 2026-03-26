@@ -18,14 +18,6 @@ namespace OrbitalSIP.Views
             // Load persistent settings
             _settings = SipSettings.Load();
 
-            // Re-apply in-memory credentials from the active session (if any)
-            var current = App.SipService.CurrentSettings;
-            if (!string.IsNullOrEmpty(current.Username))
-            {
-                _settings.Username = current.Username;
-                _settings.Password = current.Password;
-            }
-
             PopulateFields();
             WireButtons();
 
@@ -51,9 +43,6 @@ namespace OrbitalSIP.Views
             SetText("BackendUrlBox",   _settings.BackendUrl);
             SetText("ServerBox",      _settings.Server);
             SetText("PortBox",        _settings.Port);
-            SetText("UsernameBox",    _settings.Username);
-            SetText("DisplayNameBox", _settings.DisplayName);
-            SetText("PasswordBox",    _settings.Password);
 
             var langBox = this.FindControl<ComboBox>("LanguageBox");
             if (langBox != null)
@@ -141,9 +130,6 @@ namespace OrbitalSIP.Views
             _settings.BackendUrl  = GetText("BackendUrlBox");
             _settings.Server      = GetText("ServerBox");
             _settings.Port        = GetText("PortBox");
-            _settings.Username    = GetText("UsernameBox");
-            _settings.DisplayName = GetText("DisplayNameBox");
-            _settings.Password    = GetText("PasswordBox");
 
             var langBox = this.FindControl<ComboBox>("LanguageBox");
             _settings.Language = langBox?.SelectedIndex switch
