@@ -23,6 +23,14 @@
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
+  <!-- Ensure sounds are copied to publish output (Content alone can be skipped for self-contained single-file) -->
+  <Target Name="CopySoundsAfterPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <SoundFiles Include="..\public\sounds\*.mp3" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SoundFiles)" DestinationFolder="$(PublishDir)sounds\" SkipUnchangedFiles="true" />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.0.0" />
     <PackageReference Include="Avalonia.Desktop" Version="11.0.0" />

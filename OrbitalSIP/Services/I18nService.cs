@@ -48,7 +48,7 @@ namespace OrbitalSIP.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to load language {langCode}: {ex.Message}");
+                AppLogger.Log("I18nService", $"Failed to load language {langCode}: {ex.Message}");
             }
 
             LanguageChanged?.Invoke();

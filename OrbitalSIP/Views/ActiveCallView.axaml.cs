@@ -200,20 +200,20 @@ namespace OrbitalSIP.Views
 
         private async Task CreateLeadAsync()
         {
-            Console.WriteLine("[CreateLeadAsync] Button clicked");
+            AppLogger.Log("CreateLead", "Button clicked");
             if (_leadCreated)
             {
-                Console.WriteLine("[CreateLeadAsync] Lead already created for this call. Aborting.");
+                AppLogger.Log("CreateLead", "Lead already created for this call. Aborting.");
                 return;
             }
 
             var callerNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? string.Empty;
-            Console.WriteLine($"[CreateLeadAsync] Extracted callerNumber: '{callerNumber}'");
+            AppLogger.Log("CreateLead", $"Extracted callerNumber: '{callerNumber}'");
 
-            Console.WriteLine($"[CreateLeadAsync] Caller number: {callerNumber}");
+            AppLogger.Log("CreateLead", $"Caller number: {callerNumber}");
             if (string.IsNullOrWhiteSpace(callerNumber))
             {
-                Console.WriteLine("[CreateLeadAsync] Caller number is empty, aborting.");
+                AppLogger.Log("CreateLead", "Caller number is empty, aborting.");
                 return;
             }
 
@@ -226,7 +226,7 @@ namespace OrbitalSIP.Views
                 Priority = "low"
             };
 
-            Console.WriteLine("[CreateLeadAsync] Sending request to LeadService...");
+            AppLogger.Log("CreateLead", "Sending request to LeadService...");
 
             // Disable button visually while processing and after success
             var leadBtn = this.FindControl<Button>("CreateLeadBtn");
@@ -234,7 +234,7 @@ namespace OrbitalSIP.Views
                 leadBtn.IsEnabled = false;
 
             bool success = await App.LeadService.CreateLeadAsync(request);
-            Console.WriteLine($"[CreateLeadAsync] Request success: {success}");
+            AppLogger.Log("CreateLead", $"Request success: {success}");
 
             if (success)
             {

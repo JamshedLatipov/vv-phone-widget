@@ -106,7 +106,7 @@ namespace OrbitalSIP.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[LoggedCallService] Error loading logged calls: {ex.Message}");
+                AppLogger.Log("LoggedCallService", $"Error loading logged calls: {ex.Message}");
                 _entries = new List<LoggedCallEntry>();
             }
         }
@@ -121,7 +121,7 @@ namespace OrbitalSIP.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[LoggedCallService] Error saving logged calls: {ex.Message}");
+                AppLogger.Log("LoggedCallService", $"Error saving logged calls: {ex.Message}");
             }
         }
     }

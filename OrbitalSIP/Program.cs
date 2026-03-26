@@ -1,3 +1,4 @@
+using System.Threading;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 
@@ -8,6 +9,10 @@ namespace OrbitalSIP
         [STAThread]
         public static void Main(string[] args)
         {
+            using var mutex = new Mutex(true, "OrbitalSIP_SingleInstance", out bool createdNew);
+            if (!createdNew)
+                return;
+
             BuildAvaloniaApp()
                 .StartWithClassicDesktopLifetime(args);
         }

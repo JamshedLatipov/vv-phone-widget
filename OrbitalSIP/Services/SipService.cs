@@ -235,6 +235,18 @@ namespace OrbitalSIP.Services
         // ── Incoming call ─────────────────────────────────────────────
         private Task OnSIPRequest(SIPEndPoint localEP, SIPEndPoint remoteEP, SIPRequest req)
         {
+            // Respond to OPTIONS (Asterisk qualify/keepalive) so the endpoint stays reachable.
+            if (req.Method == SIPMethodsEnum.OPTIONS)
+            {
+                Log($"Incoming OPTIONS from {remoteEP}, replying 200 OK.");
+                if (_transport != null)
+                {
+                    var okResp = SIPResponse.GetResponse(req, SIPResponseStatusCodesEnum.Ok, null);
+                    return _transport.SendResponseAsync(okResp);
+                }
+                return Task.CompletedTask;
+            }
+
             if (req.Method == SIPMethodsEnum.BYE)
             {
                 Log($"Incoming BYE from {remoteEP}. Request-URI={req.URI}");
@@ -519,10 +531,19 @@ namespace OrbitalSIP.Services
                 Debug.WriteLine($"[SipService] Offering codecs: {sb}");
                 Log($"Offering codecs: {sb}");
 
-                _mediaSession = new VoIPMediaSession(_audioEndPoint.ToMediaEndPoints())
+                // Bind RTP to the same local IP that was resolved for SIP (ContactHost).
+                // This ensures the SDP answer advertises the correct 'c=' IP so
+                // Asterisk sends RTP packets to the right interface.
+                IPAddress? rtpBindAddr = null;
+                if (!string.IsNullOrEmpty(_transport?.ContactHost))
+                    IPAddress.TryParse(_transport.ContactHost, out rtpBindAddr);
+
+                _mediaSession = new VoIPMediaSession(_audioEndPoint.ToMediaEndPoints(),
+                    bindAddress: rtpBindAddr)
                 {
                     AcceptRtpFromAny = true
                 };
+                Log($"RTP bind address: {rtpBindAddr?.ToString() ?? "any"}");
                 _mediaSession.OnAudioFormatsNegotiated += formats =>
                     Log($"Negotiated audio formats: {string.Join(", ", formats)}");
 

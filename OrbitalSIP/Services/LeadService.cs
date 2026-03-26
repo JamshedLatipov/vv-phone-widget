@@ -12,10 +12,10 @@ namespace OrbitalSIP.Services
 
         public LeadService()
         {
-            var handler = new HttpClientHandler();
-#if DEBUG
-            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
-#endif
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+            };
             _httpClient = new HttpClient(handler);
         }
 
@@ -44,13 +44,13 @@ namespace OrbitalSIP.Services
                 else
                 {
                     var errorBody = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[LeadService] Create lead failed. Status: {response.StatusCode}. Body: {errorBody}");
+                    AppLogger.Log("LeadService", $"Create lead failed. Status: {response.StatusCode}. Body: {errorBody}");
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[LeadService] Error creating lead: {ex.Message}");
+                AppLogger.Log("LeadService", $"Error creating lead: {ex.Message}");
                 return false;
             }
         }

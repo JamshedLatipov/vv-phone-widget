@@ -19,10 +19,10 @@ namespace OrbitalSIP.Views
 
         static OperatorStatsControl()
         {
-            var handler = new HttpClientHandler();
-#if DEBUG
-            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
-#endif
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+            };
             _httpClient = new HttpClient(handler);
         }
         private bool _isExpanded;
@@ -102,7 +102,7 @@ namespace OrbitalSIP.Views
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[OperatorStatsControl] Error loading stats: {ex.Message}");
+                AppLogger.Log("OperatorStats", $"Error loading stats: {ex.Message}");
             }
         }
 

@@ -27,10 +27,10 @@ namespace OrbitalSIP.Views
 
         static RecentsView()
         {
-            var handler = new HttpClientHandler();
-#if DEBUG
-            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
-#endif
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+            };
             _httpClient = new HttpClient(handler);
         }
 
@@ -122,7 +122,7 @@ namespace OrbitalSIP.Views
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[RecentsView] Error loading call history: {ex.Message}");
+                AppLogger.Log("RecentsView", $"Error loading call history: {ex.Message}");
             }
         }
 
