@@ -16,6 +16,7 @@ namespace OrbitalSIP
         public static readonly ScriptService ScriptService = new ScriptService();
         public static readonly LoggedCallService LoggedCallService = new LoggedCallService();
         public static readonly LeadService LeadService = new LeadService();
+        public static readonly CallInfoService CallInfoService = new CallInfoService();
 
         public override void Initialize()
         {
@@ -39,6 +40,7 @@ namespace OrbitalSIP
                     SipService.Dispose();
                     ScriptService.Dispose();
                     LeadService.Dispose();
+                    CallInfoService.Dispose();
                 };
             }
 
