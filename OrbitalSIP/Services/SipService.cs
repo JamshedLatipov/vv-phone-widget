@@ -575,6 +575,8 @@ namespace OrbitalSIP.Services
                 {
                     Debug.WriteLine($"[SipService] RTP TIMEOUT ({mediaType}) — no packets for 30s");
                     Log($"RTP timeout for {mediaType}");
+                    if (State == CallState.Active || State == CallState.Ringing)
+                        OnCallEnded();
                 };
                 Debug.WriteLine("[SipService] Audio device opened OK.");
                 Log("Audio device opened successfully.");
