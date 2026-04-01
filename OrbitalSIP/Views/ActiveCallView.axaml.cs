@@ -330,6 +330,11 @@ namespace OrbitalSIP.Views
         }
 
         // в”Ђв”Ђ Events в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+        // -- Public hotkey triggers
+        public void TriggerMute()   => ToggleMute();
+        public void TriggerHold()   => ToggleHold();
+        public void TriggerHangup() { _timer?.Stop(); OnHangup?.Invoke(this, System.EventArgs.Empty); }
+
         public event EventHandler?        OnHangup;
         public event EventHandler<bool>?  OnMuteToggled;      // arg = isMuted
         public event EventHandler<bool>?  OnHoldToggled;      // arg = isOnHold

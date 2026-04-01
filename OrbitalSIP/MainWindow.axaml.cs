@@ -52,6 +52,13 @@ namespace OrbitalSIP
             this.PointerReleased  += MainWindow_PointerReleased;
             this.DoubleTapped     += (_, __) => ExpandOnDoubleTap();
             this.Closing += (s, e) => { e.Cancel = true; this.Hide(); };
+            this.KeyDown += MainWindow_KeyDown;
+
+            // Wire global hotkeys (work even when app is not focused)
+            App.GlobalHotkeys.MuteToggleRequested += (_, __) => DispatchHotkey(h => h.TriggerMute(), null);
+            App.GlobalHotkeys.HoldToggleRequested += (_, __) => DispatchHotkey(h => h.TriggerHold(), null);
+            App.GlobalHotkeys.HangupPressed       += (_, __) => DispatchHotkey(h => h.TriggerHangup(), iv => iv.TriggerDecline());
+            App.GlobalHotkeys.AnswerPressed        += (_, __) => DispatchHotkey(null, iv => iv.TriggerAnswer());
 
             // Initial view
             var settings = SipSettings.Load();
@@ -84,6 +91,62 @@ namespace OrbitalSIP
                 sip.Start(settings);
                 _ = App.StatusService.SetStateAsync(true, "offline");
                 SetMainContent(new Views.WidgetView());
+            }
+        }
+
+        // ── Global hotkeys ────────────────────────────────────────────
+        // Ctrl+M  → mute / unmute during active call
+        // Ctrl+H  → hold / resume during active call
+        // Escape  → hangup (active call) or decline (incoming)
+        // Enter   → answer incoming call
+
+        /// <summary>Dispatches a hotkey action to whichever call-related view is active.</summary>
+        private void DispatchHotkey(Action<Views.ActiveCallView>? onActive,
+                                    Action<Views.IncomingView>?    onIncoming)
+        {
+            var host = this.FindControl<ContentControl>("Host");
+            if (host == null) return;
+
+            if (onActive  != null && host.Content is Views.ActiveCallView  cv) onActive(cv);
+            if (onIncoming != null && host.Content is Views.IncomingView   iv) onIncoming(iv);
+        }
+
+        private void MainWindow_KeyDown(object? sender, KeyEventArgs e)
+        {
+            var host = this.FindControl<ContentControl>("Host");
+            if (host == null) return;
+
+            if (host.Content is Views.ActiveCallView callView)
+            {
+                switch (e.Key)
+                {
+                    case Key.M when e.KeyModifiers == KeyModifiers.Control:
+                        callView.TriggerMute();
+                        e.Handled = true;
+                        break;
+                    case Key.H when e.KeyModifiers == KeyModifiers.Control:
+                        callView.TriggerHold();
+                        e.Handled = true;
+                        break;
+                    case Key.Escape:
+                        callView.TriggerHangup();
+                        e.Handled = true;
+                        break;
+                }
+            }
+            else if (host.Content is Views.IncomingView incomingView)
+            {
+                switch (e.Key)
+                {
+                    case Key.Enter:
+                        incomingView.TriggerAnswer();
+                        e.Handled = true;
+                        break;
+                    case Key.Escape:
+                        incomingView.TriggerDecline();
+                        e.Handled = true;
+                        break;
+                }
             }
         }
 
@@ -279,9 +342,16 @@ namespace OrbitalSIP
             var host = this.FindControl<ContentControl>("Host");
             if (host == null) return;
 
-            var callView = new Views.ActiveCallView(number, isOutgoing: true);
-            WireActiveCallView(callView);
-            SetMainContent(callView);
+            if (_preferredMode == PreferredMode.Widget)
+            {
+                ShowActiveCallWidgetView(number, TimeSpan.Zero);
+            }
+            else
+            {
+                var callView = new Views.ActiveCallView(number, isOutgoing: true);
+                WireActiveCallView(callView);
+                SetMainContent(callView);
+            }
 
             await App.SipService.CallAsync(number);
         }
@@ -297,8 +367,13 @@ namespace OrbitalSIP
                 await App.SipService.AnswerAsync();
                 _anchorX = Position.X + (int)Width;
                 _anchorY = Position.Y + (int)Height;
-                StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight);
-                ShowActiveCallView(callerId);
+                if (_preferredMode == PreferredMode.Widget)
+                    ShowActiveCallWidgetView(callerId, TimeSpan.Zero);
+                else
+                {
+                    StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight);
+                    ShowActiveCallView(callerId);
+                }
             };
             incoming.OnDecline += (_, __) =>
             {

@@ -70,5 +70,8 @@ namespace OrbitalSIP.Views
 
         public event System.EventHandler? OnAnswer;
         public event System.EventHandler? OnDecline;
+
+        public void TriggerAnswer()  => OnAnswer?.Invoke(this, System.EventArgs.Empty);
+        public void TriggerDecline() => OnDecline?.Invoke(this, System.EventArgs.Empty);
     }
 }

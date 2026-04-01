@@ -17,6 +17,7 @@ namespace OrbitalSIP
         public static readonly LoggedCallService LoggedCallService = new LoggedCallService();
         public static readonly LeadService LeadService = new LeadService();
         public static readonly CallInfoService CallInfoService = new CallInfoService();
+        public static readonly GlobalHotkeyService GlobalHotkeys = new GlobalHotkeyService();
 
         public override void Initialize()
         {
@@ -34,8 +35,11 @@ namespace OrbitalSIP
                 SipService.CallStateChanged += SoundService.OnStateChanged;
 
                 desktop.MainWindow = new MainWindow();
+                App.GlobalHotkeys.ApplySettings(SipSettings.Load());
+                App.GlobalHotkeys.Start();
                 desktop.Exit += (_, __) =>
                 {
+                    App.GlobalHotkeys.Stop();
                     SoundService.Dispose();
                     SipService.Dispose();
                     ScriptService.Dispose();

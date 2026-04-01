@@ -57,6 +57,17 @@
                                 BorderThickness="0"
                                 Padding="6"
                                 Cursor="Hand"
+                                Click="OnCdrCopyClicked"
+                                Tag="{Binding DisplayNumber}"
+                                ToolTip.Tip="Copy number">
+                          <materialIcons:MaterialIcon Kind="ContentCopy" Width="18" Height="18" Foreground="#94A3B8" VerticalAlignment="Center" />
+                        </Button>
+                          <Button
+                                Width="32" Height="32"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="6"
+                                Cursor="Hand"
                                 Click="OnCdrScriptClicked"
                                 Tag="{Binding}">
                           <materialIcons:MaterialIcon Kind="ScriptTextOutline" Width="20" Height="20" Foreground="{Binding ScriptIconColor}" VerticalAlignment="Center" />

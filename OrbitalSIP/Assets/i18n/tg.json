@@ -1,5 +1,9 @@
-{
-  "ActiveCall": "ЗАНГИ ФАЪОЛ",
+{  "HotkeySettings": "Тугмаҳои гарм",
+  "HotkeyMute": "Микрофон фаъол/ғайрифаъол",
+  "HotkeyHold": "Нигоҳ доштан / Идома додан",
+  "HotkeyHangup": "Қатъ кардан / Рад кардан",
+  "HotkeyAnswer": "Посух додан ба занг",
+  "HotkeyPressKey": "Тугмаро пахш кунед...",  "ActiveCall": "ЗАНГИ ФАЪОЛ",
   "ActiveStatus": "ҲОЛАТИ ФАЪОЛ",
   "AudioActivity": "ФАЪОЛИЯТИ САВТӢ",
   "Availability": "ДАСТРАСӢ",

@@ -42,6 +42,7 @@ namespace OrbitalSIP.Views
                     d.Text = d.Text[..^1];
                     d.CaretIndex = d.Text.Length;
                 }
+                d?.Focus();
             });
 
             // Call button
@@ -52,6 +53,33 @@ namespace OrbitalSIP.Views
                 if (num.Length > 0)
                     OutgoingCallRequested?.Invoke(this, num);
             });
+
+            // Enter key on display field triggers call; sync CallBtn enabled state
+            var callBtn = this.FindControl<Button>("CallBtn");
+            var display = this.FindControl<TextBox>("DisplayText");
+            if (display != null)
+            {
+                // Initial state
+                if (callBtn != null)
+                    callBtn.IsEnabled = !string.IsNullOrWhiteSpace(display.Text);
+
+                display.TextChanged += (_, __) =>
+                {
+                    if (callBtn != null)
+                        callBtn.IsEnabled = !string.IsNullOrWhiteSpace(display.Text);
+                };
+
+                display.KeyDown += (_, e) =>
+                {
+                    if (e.Key == Avalonia.Input.Key.Enter)
+                    {
+                        e.Handled = true;
+                        var num = display.Text?.Trim() ?? "";
+                        if (num.Length > 0)
+                            OutgoingCallRequested?.Invoke(this, num);
+                    }
+                };
+            }
 
             // Dial pad digits
             var pad = this.FindControl<UniformGrid>("DialPad");
@@ -69,6 +97,7 @@ namespace OrbitalSIP.Views
                             d.Text = (d.Text ?? "") + digit;
                             d.CaretIndex = d.Text.Length;
                         }
+                        d?.Focus();
                     };
                 }
             }

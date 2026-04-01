@@ -117,6 +117,60 @@
                       HorizontalAlignment="Stretch" />
           </StackPanel>
 
+          <!-- Divider -->
+          <Border Height="1" Background="#1A2D42" Margin="0,4,0,4" />
+
+          <!-- Hotkeys -->
+          <TextBlock Text="{i18n:I18n HotkeySettings}" FontSize="11" Foreground="#5F7A96" />
+
+          <Grid ColumnDefinitions="*,Auto" >
+            <TextBlock Grid.Column="0" Text="{i18n:I18n HotkeyMute}"
+                       FontSize="12" Foreground="#DDE7F3" VerticalAlignment="Center" />
+            <Border Grid.Column="1" Background="#1E293B" CornerRadius="8" Width="110">
+              <TextBox Name="HotkeyMuteBox"
+                       Background="Transparent" Foreground="#17E0A0"
+                       BorderThickness="0" Padding="10,8"
+                       IsReadOnly="True" Cursor="Hand"
+                       TextAlignment="Center" CaretBrush="Transparent" />
+            </Border>
+          </Grid>
+
+          <Grid ColumnDefinitions="*,Auto" >
+            <TextBlock Grid.Column="0" Text="{i18n:I18n HotkeyHold}"
+                       FontSize="12" Foreground="#DDE7F3" VerticalAlignment="Center" />
+            <Border Grid.Column="1" Background="#1E293B" CornerRadius="8" Width="110">
+              <TextBox Name="HotkeyHoldBox"
+                       Background="Transparent" Foreground="#17E0A0"
+                       BorderThickness="0" Padding="10,8"
+                       IsReadOnly="True" Cursor="Hand"
+                       TextAlignment="Center" CaretBrush="Transparent" />
+            </Border>
+          </Grid>
+
+          <Grid ColumnDefinitions="*,Auto" >
+            <TextBlock Grid.Column="0" Text="{i18n:I18n HotkeyHangup}"
+                       FontSize="12" Foreground="#DDE7F3" VerticalAlignment="Center" />
+            <Border Grid.Column="1" Background="#1E293B" CornerRadius="8" Width="110">
+              <TextBox Name="HotkeyHangupBox"
+                       Background="Transparent" Foreground="#17E0A0"
+                       BorderThickness="0" Padding="10,8"
+                       IsReadOnly="True" Cursor="Hand"
+                       TextAlignment="Center" CaretBrush="Transparent" />
+            </Border>
+          </Grid>
+
+          <Grid ColumnDefinitions="*,Auto" >
+            <TextBlock Grid.Column="0" Text="{i18n:I18n HotkeyAnswer}"
+                       FontSize="12" Foreground="#DDE7F3" VerticalAlignment="Center" />
+            <Border Grid.Column="1" Background="#1E293B" CornerRadius="8" Width="110">
+              <TextBox Name="HotkeyAnswerBox"
+                       Background="Transparent" Foreground="#17E0A0"
+                       BorderThickness="0" Padding="10,8"
+                       IsReadOnly="True" Cursor="Hand"
+                       TextAlignment="Center" CaretBrush="Transparent" />
+            </Border>
+          </Grid>
+
         </StackPanel>
       </ScrollViewer>
 

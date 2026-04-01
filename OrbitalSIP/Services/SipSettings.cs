@@ -31,6 +31,12 @@ namespace OrbitalSIP.Services
         /// <summary>NAudio WaveIn device index. -1 = system default.</summary>
         public int AudioInDeviceIndex  { get; set; } = -1;
 
+        // ── Hotkeys ──────────────────────────────────────────────────
+        public string HotkeyMute   { get; set; } = "Alt+M";
+        public string HotkeyHold   { get; set; } = "Alt+H";
+        public string HotkeyHangup { get; set; } = "Alt+Escape";
+        public string HotkeyAnswer { get; set; } = "Alt+Enter";
+
         // ----------------------------------------------------------------
         private static readonly string FilePath = Path.Combine(
             System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData),
