@@ -1,4 +1,10 @@
 {
+  "HotkeySettings": "Tezkor tugmalar",
+  "HotkeyMute": "Mikrofon yoq/yoq",
+  "HotkeyHold": "Kutish / Davom etish",
+  "HotkeyHangup": "Tugatish / Rad etish",
+  "HotkeyAnswer": "Qo'ng'iroqni qabul qilish",
+  "HotkeyPressKey": "Tugmani bosing...",
   "ActiveCall": "FAOL QO'NG'IROQ",
   "ActiveStatus": "FAOL HOLAT",
   "AudioActivity": "AUDIO FAOLLIK",

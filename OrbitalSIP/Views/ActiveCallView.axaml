@@ -146,9 +146,9 @@
             </StackPanel>
           </Border>
 
-          <Grid ColumnDefinitions="*,*,*" Margin="0,10,0,0" Height="68">
+          <Grid ColumnDefinitions="*,*,*,*" Margin="0,10,0,0" Height="68">
             <Button Grid.Column="0" Name="CreateLeadBtn"
-                    Margin="0,0,6,0"
+                    Margin="0,0,4,0"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
                     Background="#1E293B"
@@ -163,8 +163,24 @@
               </StackPanel>
             </Button>
 
-            <Button Grid.Column="1" Name="ScriptBtn"
-                    Margin="3,0,3,0"
+            <Button Grid.Column="1" Name="CallInfoBtn"
+                    Margin="2,0,2,0"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Background="#1E293B"
+                    BorderThickness="0"
+                    CornerRadius="14"
+                    Padding="0"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center">
+              <StackPanel Spacing="4" HorizontalAlignment="Center">
+                <materialIcons:MaterialIcon Kind="InformationOutline" Width="20" Height="20" Foreground="#60A5FA" HorizontalAlignment="Center" />
+                <TextBlock Text="Инфо" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" HorizontalAlignment="Center" />
+              </StackPanel>
+            </Button>
+
+            <Button Grid.Column="2" Name="ScriptBtn"
+                    Margin="2,0,4,0"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
                     Background="#1E293B"
@@ -179,8 +195,8 @@
               </StackPanel>
             </Button>
 
-            <Button Grid.Column="2" Name="HangupBtn"
-                    Margin="6,0,0,0"
+            <Button Grid.Column="3" Name="HangupBtn"
+                    Margin="4,0,0,0"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
                     Background="#DC2626"
@@ -196,7 +212,43 @@
             </Button>
           </Grid>
 
+          <!-- ── Call Info Panel (toggled by Инфо button) ────────── -->
+          <Border Name="CallInfoPanel" IsVisible="False"
+                  Background="#020617" BorderBrush="#1E293B" BorderThickness="1"
+                  CornerRadius="14" Padding="0" Margin="0,4,0,0">
+            <StackPanel>
+              <!-- Panel header -->
+              <Grid ColumnDefinitions="*,Auto" Margin="14,10,14,8">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <materialIcons:MaterialIcon Kind="AccountCircleOutline" Width="16" Height="16" Foreground="#60A5FA" VerticalAlignment="Center" />
+                  <TextBlock Text="Информация об абоненте" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" VerticalAlignment="Center" />
+                </StackPanel>
+                <Button Name="CallInfoCloseBtn" Grid.Column="1"
+                        Width="24" Height="24" CornerRadius="12"
+                        Background="Transparent" BorderThickness="0"
+                        Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                  <materialIcons:MaterialIcon Kind="Close" Width="12" Height="12" Foreground="#6E859D" />
+                </Button>
+              </Grid>
 
+              <Border Height="1" Background="#1E293B" Margin="14,0,14,10" />
+
+              <!-- Loading -->
+              <TextBlock Name="CallInfoLoadingLabel"
+                         Text="Загрузка..." FontSize="12" Foreground="#6E859D"
+                         HorizontalAlignment="Center" Margin="0,16,0,16" IsVisible="True" />
+
+              <!-- Empty state -->
+              <StackPanel Name="CallInfoEmptyPanel" IsVisible="False"
+                          HorizontalAlignment="Center" Margin="14,8,14,14" Spacing="8">
+                <materialIcons:MaterialIcon Kind="AccountOffOutline" Width="28" Height="28" Foreground="#334155" HorizontalAlignment="Center" />
+                <TextBlock Text="Данные не найдены" FontSize="12" Foreground="#6E859D" HorizontalAlignment="Center" />
+              </StackPanel>
+
+              <!-- Sections (populated dynamically) -->
+              <StackPanel Name="CallInfoSectionsPanel" IsVisible="False" Margin="14,0,14,14" Spacing="10" />
+            </StackPanel>
+          </Border>
 
           <TextBlock Name="TimerLabel" Text="00:00" IsVisible="False" />
         </StackPanel>

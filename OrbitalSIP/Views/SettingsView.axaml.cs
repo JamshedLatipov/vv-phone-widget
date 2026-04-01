@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using NAudio.Wave;
@@ -17,14 +18,6 @@ namespace OrbitalSIP.Views
 
             // Load persistent settings
             _settings = SipSettings.Load();
-
-            // Re-apply in-memory credentials from the active session (if any)
-            var current = App.SipService.CurrentSettings;
-            if (!string.IsNullOrEmpty(current.Username))
-            {
-                _settings.Username = current.Username;
-                _settings.Password = current.Password;
-            }
 
             PopulateFields();
             WireButtons();
@@ -51,9 +44,6 @@ namespace OrbitalSIP.Views
             SetText("BackendUrlBox",   _settings.BackendUrl);
             SetText("ServerBox",      _settings.Server);
             SetText("PortBox",        _settings.Port);
-            SetText("UsernameBox",    _settings.Username);
-            SetText("DisplayNameBox", _settings.DisplayName);
-            SetText("PasswordBox",    _settings.Password);
 
             var langBox = this.FindControl<ComboBox>("LanguageBox");
             if (langBox != null)
@@ -79,6 +69,7 @@ namespace OrbitalSIP.Views
             }
 
             PopulateAudioDevices();
+            PopulateHotkeyFields();
         }
 
         private void PopulateAudioDevices()
@@ -114,6 +105,83 @@ namespace OrbitalSIP.Views
         private string GetText(string name) =>
             this.FindControl<TextBox>(name)?.Text?.Trim() ?? "";
 
+        // ── Hotkey fields ─────────────────────────────────────────────
+        private void PopulateHotkeyFields()
+        {
+            SetText("HotkeyMuteBox",   _settings.HotkeyMute);
+            SetText("HotkeyHoldBox",   _settings.HotkeyHold);
+            SetText("HotkeyHangupBox", _settings.HotkeyHangup);
+            SetText("HotkeyAnswerBox", _settings.HotkeyAnswer);
+
+            WireHotkeyBox("HotkeyMuteBox");
+            WireHotkeyBox("HotkeyHoldBox");
+            WireHotkeyBox("HotkeyHangupBox");
+            WireHotkeyBox("HotkeyAnswerBox");
+        }
+
+        private void WireHotkeyBox(string name)
+        {
+            var box = this.FindControl<TextBox>(name);
+            if (box == null) return;
+
+            box.GotFocus += (_, __) =>
+            {
+                box.Text = Services.I18nService.Instance.Get("HotkeyPressKey");
+                box.Foreground = Avalonia.Media.Brushes.Gray;
+            };
+
+            box.KeyDown += (_, e) =>
+            {
+                // Ignore lone modifier keys
+                if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift
+                          or Key.LeftAlt  or Key.RightAlt  or Key.LWin     or Key.RWin)
+                    return;
+
+                e.Handled = true;
+                var combo = BuildComboString(e.KeyModifiers, e.Key);
+                if (combo != null)
+                {
+                    box.Text       = combo;
+                    box.Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#17E0A0"));
+                    this.FindControl<Button>("SaveBtn")?.Focus();
+                }
+                else
+                {
+                    // Unsupported key — restore previous value
+                    box.Text       = name switch
+                    {
+                        "HotkeyMuteBox"   => _settings.HotkeyMute,
+                        "HotkeyHoldBox"   => _settings.HotkeyHold,
+                        "HotkeyHangupBox" => _settings.HotkeyHangup,
+                        "HotkeyAnswerBox" => _settings.HotkeyAnswer,
+                        _                 => box.Text
+                    };
+                    box.Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#17E0A0"));
+                    this.FindControl<Button>("SaveBtn")?.Focus();
+                }
+            };
+        }
+
+        /// <summary>Converts an Avalonia key + modifiers to a string like "Ctrl+M" or "Escape".</summary>
+        private static string? BuildComboString(KeyModifiers mods, Key key)
+        {
+            bool ctrl = mods.HasFlag(KeyModifiers.Control);
+            bool alt  = mods.HasFlag(KeyModifiers.Alt);
+            string? keyName = key switch
+            {
+                Key.Escape               => "Escape",
+                Key.Return or Key.Enter  => "Enter",
+                Key.Space                => "Space",
+                >= Key.F1 and <= Key.F12 => key.ToString(),
+                >= Key.A  and <= Key.Z   => key.ToString(),
+                _                        => null
+            };
+            if (keyName == null) return null;
+            if (ctrl) return $"Ctrl+{keyName}";
+            if (alt)  return $"Alt+{keyName}";
+            return keyName;
+        }
+
         private void WireButtons()
         {
             var save = this.FindControl<Button>("SaveBtn");
@@ -141,9 +209,6 @@ namespace OrbitalSIP.Views
             _settings.BackendUrl  = GetText("BackendUrlBox");
             _settings.Server      = GetText("ServerBox");
             _settings.Port        = GetText("PortBox");
-            _settings.Username    = GetText("UsernameBox");
-            _settings.DisplayName = GetText("DisplayNameBox");
-            _settings.Password    = GetText("PasswordBox");
 
             var langBox = this.FindControl<ComboBox>("LanguageBox");
             _settings.Language = langBox?.SelectedIndex switch
@@ -172,8 +237,22 @@ namespace OrbitalSIP.Views
             if (micBox != null)
                 _settings.AudioInDeviceIndex = (micBox.SelectedIndex <= 0 ? -1 : micBox.SelectedIndex - 1);
 
+            // Hotkeys – only persist if the text is a valid combo
+            SaveHotkey("HotkeyMuteBox",   v => _settings.HotkeyMute   = v);
+            SaveHotkey("HotkeyHoldBox",   v => _settings.HotkeyHold   = v);
+            SaveHotkey("HotkeyHangupBox", v => _settings.HotkeyHangup = v);
+            SaveHotkey("HotkeyAnswerBox", v => _settings.HotkeyAnswer = v);
+
             _settings.Save();
+            App.GlobalHotkeys.ApplySettings(_settings);
             OnSaveRequested?.Invoke(this, System.EventArgs.Empty);
+        }
+
+        private void SaveHotkey(string boxName, System.Action<string> apply)
+        {
+            var text = GetText(boxName);
+            if (GlobalHotkeyService.IsValidHotkey(text))
+                apply(text);
         }
 
         public event System.EventHandler? OnBackRequested;

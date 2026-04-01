@@ -82,5 +82,11 @@
   "IncomingShort": "вх.",
   "ConnectionError": "Ошибка связи",
   "Resume": "Продолжить",
-  "UnknownCaller": "Неизвестный"
+  "UnknownCaller": "Неизвестный",
+  "HotkeySettings": "Горячие клавиши",
+  "HotkeyMute": "Микрофон вкл/выкл",
+  "HotkeyHold": "Удержание / Продолжить",
+  "HotkeyHangup": "Сбросить / Отклонить",
+  "HotkeyAnswer": "Ответить на звонок",
+  "HotkeyPressKey": "Нажмите клавишу..."
 }

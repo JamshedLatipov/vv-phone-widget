@@ -1,4 +1,10 @@
 {
+  "HotkeySettings": "Пернелер тіркесімдері",
+  "HotkeyMute": "Микрофон қосу/өшіру",
+  "HotkeyHold": "Күту / Жалғастыру",
+  "HotkeyHangup": "Аяқтау / Бас тарту",
+  "HotkeyAnswer": "Қоңырауға жауап беру",
+  "HotkeyPressKey": "Пернені басыңыз...",
   "ActiveCall": "БЕЛСЕНДІ ҚОҢЫРАУ",
   "ActiveStatus": "БЕЛСЕНДІ СТАТУС",
   "AudioActivity": "АУДИО БЕЛСЕНДІЛІК",

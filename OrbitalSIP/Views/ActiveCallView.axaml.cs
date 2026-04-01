@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Markup.Xaml;
@@ -45,7 +45,7 @@ namespace OrbitalSIP.Views
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
-        // ── Timer ─────────────────────────────────────────────────────
+        // в”Ђв”Ђ Timer в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
         private void StartTimer()
         {
             _timer = new DispatcherTimer(
@@ -95,7 +95,7 @@ namespace OrbitalSIP.Views
             if (label != null) label.Text = Services.I18nService.Instance.Get("InCall");
         }
 
-        // ── Buttons ───────────────────────────────────────────────────
+        // в”Ђв”Ђ Buttons в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
         private void WireButtons()
         {
             var hangup = this.FindControl<Button>("HangupBtn");
@@ -133,6 +133,14 @@ namespace OrbitalSIP.Views
             var leadBtn = this.FindControl<Button>("CreateLeadBtn");
             if (leadBtn != null)
                 leadBtn.Click += async (_, __) => await CreateLeadAsync();
+
+            var callInfoBtn = this.FindControl<Button>("CallInfoBtn");
+            if (callInfoBtn != null)
+                callInfoBtn.Click += (_, __) => ToggleCallInfoPanel();
+
+            var callInfoCloseBtn = this.FindControl<Button>("CallInfoCloseBtn");
+            if (callInfoCloseBtn != null)
+                callInfoCloseBtn.Click += (_, __) => HideCallInfoPanel();
 
             var topBar = this.FindControl<TopBarControl>("TopBar");
             if (topBar != null)
@@ -321,7 +329,12 @@ namespace OrbitalSIP.Views
             OnTransferRequested?.Invoke(this, number);
         }
 
-        // ── Events ────────────────────────────────────────────────────
+        // в”Ђв”Ђ Events в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+        // -- Public hotkey triggers
+        public void TriggerMute()   => ToggleMute();
+        public void TriggerHold()   => ToggleHold();
+        public void TriggerHangup() { _timer?.Stop(); OnHangup?.Invoke(this, System.EventArgs.Empty); }
+
         public event EventHandler?        OnHangup;
         public event EventHandler<bool>?  OnMuteToggled;      // arg = isMuted
         public event EventHandler<bool>?  OnHoldToggled;      // arg = isOnHold

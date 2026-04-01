@@ -134,6 +134,16 @@ namespace OrbitalSIP.Views
             }
         }
 
+        private async void OnCdrCopyClicked(object? sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string num)
+            {
+                var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+                if (clipboard != null)
+                    await clipboard.SetTextAsync(num);
+            }
+        }
+
         private async void OnCdrScriptClicked(object? sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.Tag is CdrItemViewModel vm)
