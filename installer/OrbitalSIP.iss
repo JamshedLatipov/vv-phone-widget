@@ -1,8 +1,9 @@
-#define MyAppName "OrbitalSIP"
+#define MyAppName "PROFFI - Phone"
 #ifndef MyAppVersion
   #define MyAppVersion "1.0.0"
 #endif
-#define MyAppPublisher "VV"
+#define MyAppPublisher "PROFFI - Phone"
+#define MyAppURL "https://proffi.io"
 #define MyAppExeName "OrbitalSIP.exe"
 #define PublishDir "..\publish\win-x64"
 
@@ -11,10 +12,17 @@ AppId={{A1B2C3D4-1234-5678-ABCD-000000000001}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputDir=..\dist
-OutputBaseFilename=OrbitalSIP-Setup-{#MyAppVersion}
+OutputBaseFilename=PROFFI-Setup-{#MyAppVersion}
+SetupIconFile=proffi.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayName={#MyAppName}
+WizardImageFile=wizard-image.bmp
+WizardSmallImageFile=wizard-small.bmp
 Compression=lzma2/ultra64
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64
