@@ -188,7 +188,7 @@ namespace OrbitalSIP.Services
             // Subscribe BEFORE ua.Call() — the remote can hang up during the
             // INVITE exchange and OnCallHungup fires on SIPSorcery's thread
             // before we would ever reach the if(ok) block below.
-            ua.OnCallHungup += _ => OnCallEnded();
+            ua.OnCallHungup += _ => { try { OnCallEnded(); } catch (Exception ex) { Log($"OnCallHungup handler threw: {ex}"); } };
             ua.OnCallHungup += dialogue => Log($"Call hung up. Call-ID={dialogue?.CallId}");
 
             var dest = destination.Contains('@')
@@ -269,14 +269,22 @@ namespace OrbitalSIP.Services
                 var uas = ua.AcceptCall(req);   // sends 100 Trying
                 ua.ServerCallCancelled += (_, cancelReq) =>
                 {
-                    Log($"Incoming call cancelled by remote: {cancelReq?.StatusLine}");
-                    lock (_lock) { _pendingUas = null; _activeCall = null; }
-                    SetState(CallState.Idle);
+                    try
+                    {
+                        Log($"Incoming call cancelled by remote: {cancelReq?.StatusLine}");
+                        lock (_lock) { _pendingUas = null; _activeCall = null; }
+                        SetState(CallState.Idle);
+                    }
+                    catch (Exception ex) { Log($"ServerCallCancelled handler threw: {ex}"); }
                 };
                 ua.OnCallHungup += dialogue =>
                 {
-                    Log($"Incoming call leg hung up. Call-ID={dialogue?.CallId}");
-                    OnCallEnded();
+                    try
+                    {
+                        Log($"Incoming call leg hung up. Call-ID={dialogue?.CallId}");
+                        OnCallEnded();
+                    }
+                    catch (Exception ex) { Log($"OnCallHungup(incoming) handler threw: {ex}"); }
                 };
 
                 lock (_lock)
@@ -315,7 +323,7 @@ namespace OrbitalSIP.Services
 
             // Subscribe BEFORE ua.Answer() — caller can hang up mid-answer
             // and OnCallHungup fires before we'd reach the line below.
-            ua.OnCallHungup += _ => OnCallEnded();
+            ua.OnCallHungup += _ => { try { OnCallEnded(); } catch (Exception ex) { Log($"OnCallHungup(answer) handler threw: {ex}"); } };
             ua.OnCallHungup += dialogue => Log($"Answered call hung up. Call-ID={dialogue?.CallId}");
 
             try
@@ -330,6 +338,17 @@ namespace OrbitalSIP.Services
                 _activeCall = null;
                 SetState(CallState.Idle);
                 return;
+            }
+
+            // Guard: caller may have hung up while we were awaiting Answer().
+            // OnCallHungup → OnCallEnded() already set State = Idle in that case.
+            lock (_lock)
+            {
+                if (State == CallState.Idle)
+                {
+                    Log("AnswerAsync: call was hung up during Answer(). Aborting state transition to Active.");
+                    return;
+                }
             }
 
             ActiveCallStartedAt = DateTime.Now;
@@ -564,12 +583,16 @@ namespace OrbitalSIP.Services
 
                 _mediaSession.OnRtpClosed += reason =>
                 {
-                    Debug.WriteLine(
-                        $"[SipService] RTP closed: {reason} "
-                      + $"({Interlocked.CompareExchange(ref rtpRxCount, 0, 0)} packets received)");
-                    Log($"RTP closed: {reason}; packets={Interlocked.CompareExchange(ref rtpRxCount, 0, 0)}");
-                    if (State == CallState.Active || State == CallState.Ringing)
-                        OnCallEnded();
+                    try
+                    {
+                        Debug.WriteLine(
+                            $"[SipService] RTP closed: {reason} "
+                          + $"({Interlocked.CompareExchange(ref rtpRxCount, 0, 0)} packets received)");
+                        Log($"RTP closed: {reason}; packets={Interlocked.CompareExchange(ref rtpRxCount, 0, 0)}");
+                        if (State == CallState.Active || State == CallState.Ringing)
+                            OnCallEnded();
+                    }
+                    catch (Exception ex) { Log($"OnRtpClosed handler threw: {ex}"); }
                 };
                 _mediaSession.OnTimeout += mediaType =>
                 {

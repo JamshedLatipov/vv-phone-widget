@@ -364,15 +364,28 @@ namespace OrbitalSIP
 
             incoming.OnAnswer  += async (_, __) =>
             {
-                await App.SipService.AnswerAsync();
-                _anchorX = Position.X + (int)Width;
-                _anchorY = Position.Y + (int)Height;
-                if (_preferredMode == PreferredMode.Widget)
-                    ShowActiveCallWidgetView(callerId, TimeSpan.Zero);
-                else
+                try
                 {
-                    StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight);
-                    ShowActiveCallView(callerId);
+                    await App.SipService.AnswerAsync();
+
+                    // If AnswerAsync() failed (audio init, exception, or caller hung up mid-answer)
+                    // the service rolls back to Idle. ReturnToPreferredMode will already have been
+                    // dispatched via OnCallStateChanged → no extra work needed here.
+                    if (App.SipService.State != CallState.Active) return;
+
+                    _anchorX = Position.X + (int)Width;
+                    _anchorY = Position.Y + (int)Height;
+                    if (_preferredMode == PreferredMode.Widget)
+                        ShowActiveCallWidgetView(callerId, TimeSpan.Zero);
+                    else
+                    {
+                        StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight);
+                        ShowActiveCallView(callerId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MainWindow] OnAnswer handler threw: {ex.Message}");
                 }
             };
             incoming.OnDecline += (_, __) =>
