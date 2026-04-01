@@ -24,13 +24,9 @@ namespace OrbitalSIP
                 o.IsGlobalModeEnabled = true;
                 // Capture unhandled exceptions automatically — no need to hook AppDomain manually.
                 o.CaptureFailedRequests = false;
-#if DEBUG
-                o.Debug = true;
-                o.TracesSampleRate = 0;
-#else
+
                 o.Debug = false;
                 o.TracesSampleRate = 0;
-#endif
             });
 
             // Catch any unhandled exception on background threads / async voids —
@@ -41,8 +37,17 @@ namespace OrbitalSIP
             // Catch unobserved task exceptions (fire-and-forget Tasks that threw).
             System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, e) =>
             {
+                e.SetObserved(); // prevent process termination regardless
+
+                // SocketException with OperationAborted (995) is expected during shutdown —
+                // SIPSorcery's internal receive loops get cancelled when the transport is disposed.
+                // Skip logging to avoid noisy crash reports.
+                var inner = e.Exception.InnerException ?? e.Exception;
+                if (inner is System.Net.Sockets.SocketException se &&
+                    se.SocketErrorCode == System.Net.Sockets.SocketError.OperationAborted)
+                    return;
+
                 LogFatalException("UnobservedTaskException", e.Exception);
-                e.SetObserved(); // prevent process termination
             };
 
             BuildAvaloniaApp()

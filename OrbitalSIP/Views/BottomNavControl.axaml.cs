@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
 using Avalonia.Markup.Xaml;
 using System;
 using Avalonia.Media;
@@ -17,6 +18,18 @@ namespace OrbitalSIP.Views
         {
             InitializeComponent();
             WireButtons();
+
+            // Show dot immediately if the silent startup check already found an update.
+            if (App.Updater.HasUpdate)
+                ShowUpdateDot(true);
+
+            // Show dot if the update is discovered while this control is on screen.
+            App.Updater.UpdateAvailable += OnUpdateAvailable;
+        }
+
+        private void OnUpdateAvailable()
+        {
+            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => ShowUpdateDot(true));
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
@@ -46,6 +59,13 @@ namespace OrbitalSIP.Views
             {
                 contactsBtn.Click += (_, __) => OnContactsRequested?.Invoke(this, EventArgs.Empty);
             }
+        }
+
+        /// <summary>Show or hide the green update-available dot on the Settings button.</summary>
+        public void ShowUpdateDot(bool visible)
+        {
+            var dot = this.FindControl<Ellipse>("UpdateDot");
+            if (dot != null) dot.IsVisible = visible;
         }
 
         public void SetActiveTab(string tabName)

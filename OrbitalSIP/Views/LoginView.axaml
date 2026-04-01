@@ -14,11 +14,21 @@
 
       <!-- Logo/Title -->
       <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,0,0,40">
-        <Panel Width="64" Height="64" Margin="0,0,0,16">
-          <Ellipse Fill="#1E293B" />
-          <materialIcons:MaterialIcon Kind="RocketLaunchOutline" Width="36" Height="36" Foreground="#3B82F6" HorizontalAlignment="Center" VerticalAlignment="Center" />
-        </Panel>
-        <TextBlock Text="{i18n:I18n OrbitalSip}" FontSize="24" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center"/>
+        <Viewbox Width="72" Height="72" Margin="0,0,0,16">
+          <Canvas Width="120" Height="130">
+            <Path Stroke="#3B82F6" StrokeThickness="4.5" StrokeLineCap="Round" StrokeJoin="Round"
+                  Data="M 10,120 L 10,18 Q 10,10 18,10 L 102,10 Q 110,10 110,18 L 110,102 Q 110,110 102,110 L 30,110" />
+            <Path Stroke="#3B82F6" StrokeThickness="4.5" StrokeLineCap="Round" StrokeJoin="Round"
+                  Data="M 30,110 L 30,34 Q 30,26 38,26 L 86,26 Q 94,26 94,34 L 94,86 Q 94,94 86,94 L 44,94" />
+            <Path Stroke="#3B82F6" StrokeThickness="4.5" StrokeLineCap="Round" StrokeJoin="Round"
+                  Data="M 44,94 L 44,48 Q 44,42 50,42 L 72,42 Q 78,42 78,48 L 78,72 Q 78,78 72,78 L 56,78" />
+            <Path Stroke="#3B82F6" StrokeThickness="4.5" StrokeLineCap="Round" StrokeJoin="Round"
+                  Data="M 56,78 L 56,58 Q 56,55 59,55 L 65,55 Q 68,55 68,58 L 68,65 Q 68,68 65,68 L 60,68" />
+          </Canvas>
+        </Viewbox>
+        <TextBlock FontSize="24" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center">
+          <Run Text="PRO" Foreground="#3B82F6" FontWeight="Bold" /><Run Text="FFI" Foreground="#5F7A96" FontWeight="Light" />
+        </TextBlock>
         <TextBlock Text="{i18n:I18n SignInAccount}" FontSize="14" Foreground="#5F7A96" HorizontalAlignment="Center" Margin="0,4,0,0"/>
       </StackPanel>
 
