@@ -188,6 +188,29 @@ namespace OrbitalSIP.Views
             if (save != null)
                 save.Click += (_, __) => SaveAndClose();
 
+            var updateBtn    = this.FindControl<Button>("CheckUpdateBtn");
+            var updateStatus = this.FindControl<TextBlock>("UpdateStatusLabel");
+            if (updateBtn != null)
+            {
+                // Set initial label based on whether a silent-check already found an update.
+                RefreshUpdateBtnText(updateBtn);
+
+                // If the silent check fires while Settings is open, update the button live.
+                App.Updater.UpdateAvailable += () =>
+                    Dispatcher.UIThread.InvokeAsync(() => RefreshUpdateBtnText(updateBtn));
+
+                updateBtn.Click += async (_, __) =>
+                {
+                    updateBtn.IsEnabled = false;
+                    await App.Updater.CheckAndUpdateAsync(text =>
+                    {
+                        if (updateStatus != null) updateStatus.Text = text;
+                    });
+                    RefreshUpdateBtnText(updateBtn);
+                    updateBtn.IsEnabled = true;
+                };
+            }
+
             var topBar = this.FindControl<TopBarControl>("TopBar");
             if (topBar != null)
             {
@@ -202,6 +225,14 @@ namespace OrbitalSIP.Views
                 bottomNav.OnDialerRequested += (_, __) => OnBackRequested?.Invoke(this, System.EventArgs.Empty);
                 bottomNav.SetActiveTab("Settings");
             }
+        }
+
+        private static void RefreshUpdateBtnText(Button btn)
+        {
+            var i18n = I18nService.Instance;
+            btn.Content = App.Updater.HasUpdate
+                ? i18n.Get("InstallUpdate")
+                : i18n.Get("CheckForUpdates");
         }
 
         private void SaveAndClose()

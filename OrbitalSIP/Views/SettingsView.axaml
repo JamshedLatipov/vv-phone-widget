@@ -171,6 +171,21 @@
             </Border>
           </Grid>
 
+          <!-- Divider -->
+          <Border Height="1" Background="#1A2D42" Margin="0,4,0,4" />
+
+          <!-- Check for updates -->
+          <Grid ColumnDefinitions="*,Auto" >
+            <TextBlock Grid.Column="0" Name="UpdateStatusLabel"
+                       Text="" FontSize="12" Foreground="#5F7A96"
+                       VerticalAlignment="Center" TextWrapping="Wrap" />
+            <Button Grid.Column="1" Name="CheckUpdateBtn"
+                    Height="36" CornerRadius="8"
+                    Background="#1E293B" Foreground="#17E0A0"
+                    FontSize="13" FontWeight="SemiBold" Padding="14,0"
+                    Content="{i18n:I18n CheckForUpdates}" />
+          </Grid>
+
         </StackPanel>
       </ScrollViewer>
 

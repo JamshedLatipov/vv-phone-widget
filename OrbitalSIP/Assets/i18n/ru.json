@@ -88,5 +88,13 @@
   "HotkeyHold": "Удержание / Продолжить",
   "HotkeyHangup": "Сбросить / Отклонить",
   "HotkeyAnswer": "Ответить на звонок",
-  "HotkeyPressKey": "Нажмите клавишу..."
+  "HotkeyPressKey": "Нажмите клавишу...",
+  "CheckForUpdates": "Проверить обновление",
+  "InstallUpdate": "Установить обновление",
+  "UpdateChecking": "Проверяем...",
+  "UpdateUpToDate": "Установлена последняя версия",
+  "UpdateDownloading": "Загружаем обновление...",
+  "UpdateInstalling": "Устанавливаем...",
+  "UpdatePostponed": "Обновление отложено (звонок активен)",
+  "UpdateError": "Ошибка проверки обновления"
 }

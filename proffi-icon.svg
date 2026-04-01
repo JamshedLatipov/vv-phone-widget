@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 130" width="130" height="130">
+  <g transform="translate(5, 0)">
+    <!-- Icon: concentric rounded square spiral -->
+    <g fill="none" stroke="#3B8DD4" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Outer square (layer 1) -->
+      <path d="
+        M 10,120
+        L 10,18 Q 10,10 18,10
+        L 102,10 Q 110,10 110,18
+        L 110,102 Q 110,110 102,110
+        L 30,110
+      "/>
+      <!-- Layer 2 -->
+      <path d="
+        M 30,110
+        L 30,34 Q 30,26 38,26
+        L 86,26 Q 94,26 94,34
+        L 94,86 Q 94,94 86,94
+        L 44,94
+      "/>
+      <!-- Layer 3 -->
+      <path d="
+        M 44,94
+        L 44,48 Q 44,42 50,42
+        L 72,42 Q 78,42 78,48
+        L 78,72 Q 78,78 72,78
+        L 56,78
+      "/>
+      <!-- Layer 4 (innermost) -->
+      <path d="
+        M 56,78
+        L 56,58 Q 56,55 59,55
+        L 65,55 Q 68,55 68,58
+        L 68,65 Q 68,68 65,68
+        L 60,68
+      "/>
+    </g>
+  </g>
+</svg>

@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Markup.Xaml;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -18,6 +19,7 @@ namespace OrbitalSIP
         public static readonly LeadService LeadService = new LeadService();
         public static readonly CallInfoService CallInfoService = new CallInfoService();
         public static readonly GlobalHotkeyService GlobalHotkeys = new GlobalHotkeyService();
+        public static readonly UpdateService        Updater       = new UpdateService();
 
         public override void Initialize()
         {
@@ -37,8 +39,14 @@ namespace OrbitalSIP
                 desktop.MainWindow = new MainWindow();
                 App.GlobalHotkeys.ApplySettings(SipSettings.Load());
                 App.GlobalHotkeys.Start();
+
+                // Silent one-shot update check — shows a dot on the Settings button if
+                // a newer release is available. Fire-and-forget; errors are swallowed inside.
+                _ = Task.Run(() => App.Updater.SilentCheckAsync());
+
                 desktop.Exit += (_, __) =>
                 {
+                    App.Updater.Dispose();
                     App.GlobalHotkeys.Stop();
                     SoundService.Dispose();
                     SipService.Dispose();

@@ -40,7 +40,7 @@
   <TrayIcon.Icons>
     <TrayIcons>
       <TrayIcon Icon="/Assets/icon.png"
-                ToolTipText="Orbital SIP"
+                ToolTipText="PROFFI - Phone Widget"
                 Clicked="TrayIcon_Clicked">
         <TrayIcon.Menu>
           <NativeMenu>

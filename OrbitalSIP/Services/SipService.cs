@@ -435,15 +435,33 @@ namespace OrbitalSIP.Services
                 await _mediaSession.SendDtmf(code, CancellationToken.None);
         }
 
+        // Tracks whether we have already called PauseAudio so we never call
+        // ResumeAudio while still recording (which throws "Already recording").
+        private bool _audioPaused = false;
+
         private void ApplyAudioState()
         {
-            if (IsMuted)
+            if (_audioEndPoint == null) return;
+
+            try
             {
-                _audioEndPoint?.PauseAudio();
+                if (IsMuted && !_audioPaused)
+                {
+                    _audioEndPoint.PauseAudio();
+                    _audioPaused = true;
+                }
+                else if (!IsMuted && _audioPaused)
+                {
+                    _audioEndPoint.ResumeAudio();
+                    _audioPaused = false;
+                }
             }
-            else
+            catch (InvalidOperationException ex)
             {
-                _audioEndPoint?.ResumeAudio();
+                // WaveInEvent threw "Already recording" or "Not recording" —
+                // reset our tracking flag to match the real state and log.
+                _audioPaused = IsMuted;
+                Log($"ApplyAudioState ignored: {ex.Message}");
             }
         }
 
@@ -633,6 +651,7 @@ namespace OrbitalSIP.Services
             _mediaSession?.Close("ended");
             _audioEndPoint = null;
             _mediaSession  = null;
+            _audioPaused   = false; // reset so next call starts fresh
         }
 
         private void SetState(CallState s)
