@@ -88,10 +88,21 @@ namespace OrbitalSIP.Services
                         Dispatcher.UIThread.Post(() => StateChanged?.Invoke(CurrentState));
                     }
                 }
+                else
+                {
+                    var errBody = await response.Content.ReadAsStringAsync();
+                    AppLogger.Log("StatusService", $"Fetch state failed. Body: {errBody}");
+                    HttpErrorNotifier.NotifyHttpError("StatusService", url, response.StatusCode, errBody);
+                }
             }
             catch (Exception ex)
             {
-                AppLogger.Log("StatusService", $"Error fetching state: {ex.Message}{(ex.InnerException != null ? " | Inner: " + ex.InnerException.Message : "")}");
+                var details = $"Error fetching state: {ex.GetType().Name}: {ex.Message}";
+                if (ex.InnerException != null)
+                    details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
+                details += $" | StackTrace: {ex.StackTrace}";
+                AppLogger.Log("StatusService", details);
+                HttpErrorNotifier.NotifyException("StatusService", ex);
             }
         }
 
@@ -153,11 +164,17 @@ namespace OrbitalSIP.Services
                 {
                      var errBody = await response.Content.ReadAsStringAsync();
                      AppLogger.Log("StatusService", $"Set state failed. Body: {errBody}");
+                     HttpErrorNotifier.NotifyHttpError("StatusService", url, response.StatusCode, errBody);
                 }
             }
             catch (Exception ex)
             {
-                AppLogger.Log("StatusService", $"Error setting state: {ex.Message}{(ex.InnerException != null ? " | Inner: " + ex.InnerException.Message : "")}");
+                var details = $"Error setting state: {ex.GetType().Name}: {ex.Message}";
+                if (ex.InnerException != null)
+                    details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
+                details += $" | StackTrace: {ex.StackTrace}";
+                AppLogger.Log("StatusService", details);
+                HttpErrorNotifier.NotifyException("StatusService", ex);
             }
             return false;
         }

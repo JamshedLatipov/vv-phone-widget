@@ -44,10 +44,19 @@ namespace OrbitalSIP.Services
                     var scripts = JsonSerializer.Deserialize<List<CallScript>>(content);
                     return scripts ?? new List<CallScript>();
                 }
+
+                var errorBody = await response.Content.ReadAsStringAsync();
+                AppLogger.Log("ScriptService", $"Fetch scripts failed. Status: {response.StatusCode}. Body: {errorBody}");
+                HttpErrorNotifier.NotifyHttpError("ScriptService", url, response.StatusCode, errorBody);
             }
             catch (Exception ex)
             {
-                AppLogger.Log("ScriptService", $"Error fetching scripts: {ex.Message}");
+                var details = $"Error fetching scripts: {ex.GetType().Name}: {ex.Message}";
+                if (ex.InnerException != null)
+                    details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
+                details += $" | StackTrace: {ex.StackTrace}";
+                AppLogger.Log("ScriptService", details);
+                HttpErrorNotifier.NotifyException("ScriptService", ex);
             }
 
             return new List<CallScript>();
@@ -79,10 +88,19 @@ namespace OrbitalSIP.Services
                         return uniqueIdElement.GetString();
                     }
                 }
+
+                var errorBody = await response.Content.ReadAsStringAsync();
+                AppLogger.Log("ScriptService", $"Fetch channel unique ID failed. Status: {response.StatusCode}. Body: {errorBody}");
+                HttpErrorNotifier.NotifyHttpError("ScriptService", url, response.StatusCode, errorBody);
             }
             catch (Exception ex)
             {
-                AppLogger.Log("ScriptService", $"Error fetching channel unique ID: {ex.Message}");
+                var details = $"Error fetching channel unique ID: {ex.GetType().Name}: {ex.Message}";
+                if (ex.InnerException != null)
+                    details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
+                details += $" | StackTrace: {ex.StackTrace}";
+                AppLogger.Log("ScriptService", details);
+                HttpErrorNotifier.NotifyException("ScriptService", ex);
             }
 
             return null;
@@ -111,11 +129,22 @@ namespace OrbitalSIP.Services
                 request.Content = JsonContent.Create(payload);
 
                 var response = await _httpClient.SendAsync(request);
-                return response.IsSuccessStatusCode;
+                if (response.IsSuccessStatusCode)
+                    return true;
+
+                var errorBody = await response.Content.ReadAsStringAsync();
+                AppLogger.Log("ScriptService", $"Register script failed. Status: {response.StatusCode}. Body: {errorBody}");
+                HttpErrorNotifier.NotifyHttpError("ScriptService", url, response.StatusCode, errorBody);
+                return false;
             }
             catch (Exception ex)
             {
-                AppLogger.Log("ScriptService", $"Error registering script: {ex.Message}");
+                var details = $"Error registering script: {ex.GetType().Name}: {ex.Message}";
+                if (ex.InnerException != null)
+                    details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
+                details += $" | StackTrace: {ex.StackTrace}";
+                AppLogger.Log("ScriptService", details);
+                HttpErrorNotifier.NotifyException("ScriptService", ex);
             }
 
             return false;

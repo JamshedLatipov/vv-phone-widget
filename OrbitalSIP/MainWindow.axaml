@@ -24,5 +24,22 @@
                     Opacity="0"
                     IsVisible="False"
                     IsHitTestVisible="False" />
+
+    <Border Name="HttpErrorBanner"
+            IsVisible="False"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Bottom"
+            Margin="10"
+            Padding="10,6"
+            CornerRadius="8"
+            ZIndex="200"
+            Background="#CC7F1D1D"
+            BorderBrush="#FFE28A8A"
+            BorderThickness="1">
+      <TextBlock Name="HttpErrorText"
+                 Foreground="#FFFFFFFF"
+                 FontSize="12"
+                 TextWrapping="Wrap" />
+    </Border>
   </Grid>
 </Window>

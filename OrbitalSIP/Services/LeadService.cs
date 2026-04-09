@@ -45,12 +45,18 @@ namespace OrbitalSIP.Services
                 {
                     var errorBody = await response.Content.ReadAsStringAsync();
                     AppLogger.Log("LeadService", $"Create lead failed. Status: {response.StatusCode}. Body: {errorBody}");
+                    HttpErrorNotifier.NotifyHttpError("LeadService", url, response.StatusCode, errorBody);
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                AppLogger.Log("LeadService", $"Error creating lead: {ex.Message}");
+                var details = $"Error creating lead: {ex.GetType().Name}: {ex.Message}";
+                if (ex.InnerException != null)
+                    details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
+                details += $" | StackTrace: {ex.StackTrace}";
+                AppLogger.Log("LeadService", details);
+                HttpErrorNotifier.NotifyException("LeadService", ex);
                 return false;
             }
         }

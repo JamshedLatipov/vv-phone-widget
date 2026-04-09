@@ -100,13 +100,29 @@ namespace OrbitalSIP.Views
                         _ = App.StatusService.SetStateAsync(true, "offline");
                         OnLoginSuccess?.Invoke(this, EventArgs.Empty);
                     }
-                    else ShowError("Invalid response from server.");
+                    else
+                    {
+                        ShowError("Invalid response from server.");
+                    }
                 }
-                else ShowError($"" + Services.I18nService.Instance.Get("ErrorFailed") + ": {response.ReasonPhrase}");
+                else
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync();
+                    var reason = string.IsNullOrWhiteSpace(response.ReasonPhrase) ? "Unknown error" : response.ReasonPhrase;
+                    ShowError($"{Services.I18nService.Instance.Get("ErrorFailed")}: {reason}");
+                    AppLogger.Log("LoginView", $"Login failed. Status: {response.StatusCode}. Body: {errorBody}");
+                    HttpErrorNotifier.NotifyHttpError("LoginView", $"{baseUrl}/api/auth/login", response.StatusCode, errorBody);
+                }
             }
             catch (Exception ex)
             {
+                var details = $"Error connecting to backend: {ex.GetType().Name}: {ex.Message}";
+                if (ex.InnerException != null)
+                    details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
+                details += $" | StackTrace: {ex.StackTrace}";
+                AppLogger.Log("LoginView", details);
                 ShowError($"Error connecting to backend: {ex.Message}");
+                HttpErrorNotifier.NotifyException("LoginView", ex);
             }
             finally
             {

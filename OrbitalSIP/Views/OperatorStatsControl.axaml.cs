@@ -99,10 +99,21 @@ namespace OrbitalSIP.Views
                         await Dispatcher.UIThread.InvokeAsync(() => UpdateUI(data.Stats));
                     }
                 }
+                else
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync();
+                    AppLogger.Log("OperatorStats", $"Load stats failed. Status: {response.StatusCode}. Body: {errorBody}");
+                    HttpErrorNotifier.NotifyHttpError("OperatorStats", url, response.StatusCode, errorBody);
+                }
             }
             catch (Exception ex)
             {
-                AppLogger.Log("OperatorStats", $"Error loading stats: {ex.Message}");
+                var details = $"Error loading stats: {ex.GetType().Name}: {ex.Message}";
+                if (ex.InnerException != null)
+                    details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
+                details += $" | StackTrace: {ex.StackTrace}";
+                AppLogger.Log("OperatorStats", details);
+                HttpErrorNotifier.NotifyException("OperatorStats", ex);
             }
         }
 

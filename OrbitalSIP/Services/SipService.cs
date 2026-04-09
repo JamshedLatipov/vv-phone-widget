@@ -153,10 +153,19 @@ namespace OrbitalSIP.Services
             _reg.RegistrationFailed += (uri, __, reason) =>
             {
                 Debug.WriteLine($"[SipService] Registration FAILED: {uri} — {reason}");
+                
+                // Diagnose the failure reason
+                string diagnosticMessage = DiagnoseRegistrationFailure(reason, settings);
+                
                 Log($"Registration failed: {uri}, reason={reason}");
-                LastRegistrationError = reason ?? "Unknown error";
+                Log($"Diagnostic: {diagnosticMessage}");
+                
+                LastRegistrationError = diagnosticMessage;
                 SetRegistrationStatus(RegistrationState.Failed);
                 RegistrationError?.Invoke(LastRegistrationError);
+                
+                // Notify UI of registration failure with diagnostic info
+                HttpErrorNotifier.NotifyException("SipService (Registration)", new Exception($"Registration failed: {diagnosticMessage}"));
             };
             _reg.Start();
             }
@@ -710,6 +719,56 @@ namespace OrbitalSIP.Services
             return bytes[0] == 10
                 || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
                 || (bytes[0] == 192 && bytes[1] == 168);
+        }
+
+        /// <summary>
+        /// Diagnose SIP registration failures and provide user-friendly error messages.
+        /// </summary>
+        private static string DiagnoseRegistrationFailure(string? reason, SipSettings settings)
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+                reason = "Unknown error";
+
+            // Common SIP failure reasons and translations
+            if (reason.Contains("timeout", StringComparison.OrdinalIgnoreCase) 
+                || reason.Contains("request terminated", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"Server {settings.Server}:{settings.Port} is not responding (timeout). Check if SIP server is running and firewall allows UDP port {settings.Port}.";
+            }
+
+            if (reason.Contains("401", StringComparison.OrdinalIgnoreCase) 
+                || reason.Contains("unauthorized", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"Authentication failed. Check username '{settings.Username}' and password.";
+            }
+
+            if (reason.Contains("403", StringComparison.OrdinalIgnoreCase) 
+                || reason.Contains("forbidden", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"Access denied by server {settings.Server}. Contact administrator.";
+            }
+
+            if (reason.Contains("404", StringComparison.OrdinalIgnoreCase) 
+                || reason.Contains("not found", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"User '{settings.Username}' not found on server {settings.Server}.";
+            }
+
+            if (reason.Contains("connection refused", StringComparison.OrdinalIgnoreCase) 
+                || reason.Contains("unreachable", StringComparison.OrdinalIgnoreCase)
+                || reason.Contains("cannot assign", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"Cannot connect to {settings.Server}:{settings.Port}. Server may be down or network is unreachable.";
+            }
+
+            if (reason.Contains("503", StringComparison.OrdinalIgnoreCase) 
+                || reason.Contains("service unavailable", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"SIP server {settings.Server} is temporarily unavailable. Try again later.";
+            }
+
+            // Generic fallback
+            return $"Registration failed: {reason}";
         }
 
         private void TryMangleInviteRequest(SIPEndPoint remoteEP, SIPRequest req)

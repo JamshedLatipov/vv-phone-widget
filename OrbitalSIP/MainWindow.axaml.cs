@@ -33,10 +33,18 @@ namespace OrbitalSIP
         private double _fromW, _fromH, _toW, _toH;
         private object? _pendingContent;
         private Action? _onAnimComplete;
+        private readonly DispatcherTimer _httpErrorHideTimer;
 
         public MainWindow()
         {
             InitializeComponent();
+
+            _httpErrorHideTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(6)
+            };
+            _httpErrorHideTimer.Tick += (_, __) => HideHttpError();
+            HttpErrorNotifier.ErrorOccurred += OnHttpErrorOccurred;
 
             var workArea = Screens?.Primary?.WorkingArea ?? new PixelRect(0, 0, 1920, 1080);
 
@@ -92,6 +100,41 @@ namespace OrbitalSIP
                 _ = App.StatusService.SetStateAsync(true, "offline");
                 SetMainContent(new Views.WidgetView());
             }
+        }
+
+        protected override void OnClosed(System.EventArgs e)
+        {
+            HttpErrorNotifier.ErrorOccurred -= OnHttpErrorOccurred;
+            _httpErrorHideTimer.Stop();
+            base.OnClosed(e);
+        }
+
+        private void OnHttpErrorOccurred(string message)
+        {
+            Dispatcher.UIThread.Post(() => ShowHttpError(message));
+        }
+
+        private void ShowHttpError(string message)
+        {
+            var banner = this.FindControl<Border>("HttpErrorBanner");
+            var text = this.FindControl<TextBlock>("HttpErrorText");
+            if (banner == null || text == null)
+                return;
+
+            text.Text = message;
+            banner.IsVisible = true;
+
+            _httpErrorHideTimer.Stop();
+            _httpErrorHideTimer.Start();
+        }
+
+        private void HideHttpError()
+        {
+            _httpErrorHideTimer.Stop();
+
+            var banner = this.FindControl<Border>("HttpErrorBanner");
+            if (banner != null)
+                banner.IsVisible = false;
         }
 
         // ── Global hotkeys ────────────────────────────────────────────

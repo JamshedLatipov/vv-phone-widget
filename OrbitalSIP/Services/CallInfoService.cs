@@ -76,12 +76,18 @@ namespace OrbitalSIP.Services
                 {
                     var errorBody = await response.Content.ReadAsStringAsync();
                     AppLogger.Log("CallInfoService", $"Failed. Status: {response.StatusCode}. Body: {errorBody}");
+                    HttpErrorNotifier.NotifyHttpError("CallInfoService", url, response.StatusCode, errorBody);
                     return null;
                 }
             }
             catch (Exception ex)
             {
-                AppLogger.Log("CallInfoService", $"Exception: {ex.GetType().Name}: {ex.Message}");
+                var details = $"Exception: {ex.GetType().Name}: {ex.Message}";
+                if (ex.InnerException != null)
+                    details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
+                details += $" | StackTrace: {ex.StackTrace}";
+                AppLogger.Log("CallInfoService", details);
+                HttpErrorNotifier.NotifyException("CallInfoService", ex);
                 return null;
             }
         }
