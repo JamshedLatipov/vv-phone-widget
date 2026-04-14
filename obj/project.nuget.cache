@@ -1,16 +1,9 @@
 {
   "version": 2,
-  "dgSpecHash": "HOKBz8xIAD0=",
+  "dgSpecHash": "kTKly71kvVo=",
   "success": true,
-  "projectFilePath": "/app/test_icon.csproj",
+  "projectFilePath": "/app/test-run.csproj",
   "expectedPackageFiles": [
-    "/home/jules/.nuget/packages/avalonia/11.0.0-rc1.1/avalonia.11.0.0-rc1.1.nupkg.sha512",
-    "/home/jules/.nuget/packages/avalonia.buildservices/0.0.19/avalonia.buildservices.0.0.19.nupkg.sha512",
-    "/home/jules/.nuget/packages/avalonia.remote.protocol/11.0.0-rc1.1/avalonia.remote.protocol.11.0.0-rc1.1.nupkg.sha512",
-    "/home/jules/.nuget/packages/material.icons/2.1.0/material.icons.2.1.0.nupkg.sha512",
-    "/home/jules/.nuget/packages/material.icons.avalonia/2.1.0/material.icons.avalonia.2.1.0.nupkg.sha512",
-    "/home/jules/.nuget/packages/microcom.runtime/0.11.0/microcom.runtime.0.11.0.nupkg.sha512",
-    "/home/jules/.nuget/packages/system.componentmodel.annotations/4.5.0/system.componentmodel.annotations.4.5.0.nupkg.sha512",
     "/home/jules/.nuget/packages/microsoft.netcore.app.host.linux-x64/8.0.24/microsoft.netcore.app.host.linux-x64.8.0.24.nupkg.sha512"
   ],
   "logs": []
