@@ -85,25 +85,42 @@ namespace OrbitalSIP.Views
                 if (response.IsSuccessStatusCode)
                 {
                     var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
-                    if (result?.Sip != null)
-                    {
-                        settings.Username = result.Sip.Username;
-                        settings.Password = result.Sip.Password;
-
-                        if (!string.IsNullOrEmpty(result.AccessToken))
-                        {
-                            settings.AccessToken = result.AccessToken;
-                            settings.DecodedToken = JwtDecoder.Decode(result.AccessToken);
-                        }
-
-                        App.SipService.Start(settings);
-                        _ = App.StatusService.SetStateAsync(true, "offline");
-                        OnLoginSuccess?.Invoke(this, EventArgs.Empty);
-                    }
-                    else
+                    if (result == null || string.IsNullOrEmpty(result.AccessToken))
                     {
                         ShowError("Invalid response from server.");
+                        return;
                     }
+
+                    settings.AccessToken = result.AccessToken;
+                    settings.DecodedToken = JwtDecoder.Decode(result.AccessToken);
+
+                    // Fetch SIP credentials from the dedicated endpoint
+                    using var sipRequest = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/auth/sip-credentials");
+                    sipRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", result.AccessToken);
+                    var sipResponse = await _httpClient.SendAsync(sipRequest);
+
+                    if (!sipResponse.IsSuccessStatusCode)
+                    {
+                        var sipError = await sipResponse.Content.ReadAsStringAsync();
+                        AppLogger.Log("LoginView", $"SIP credentials fetch failed. Status: {sipResponse.StatusCode}. Body: {sipError}");
+                        HttpErrorNotifier.NotifyHttpError("LoginView", $"{baseUrl}/api/auth/sip-credentials", sipResponse.StatusCode, sipError);
+                        ShowError($"{Services.I18nService.Instance.Get("ErrorFailed")}: could not fetch SIP credentials.");
+                        return;
+                    }
+
+                    var sipCreds = await sipResponse.Content.ReadFromJsonAsync<SipCredentialsResponse>();
+                    if (sipCreds == null || string.IsNullOrEmpty(sipCreds.Username) || string.IsNullOrEmpty(sipCreds.Password))
+                    {
+                        ShowError("Invalid SIP credentials response from server.");
+                        return;
+                    }
+
+                    settings.Username = sipCreds.Username;
+                    settings.Password = sipCreds.Password;
+
+                    App.SipService.Start(settings);
+                    _ = App.StatusService.SetStateAsync(true, "offline");
+                    OnLoginSuccess?.Invoke(this, EventArgs.Empty);
                 }
                 else
                 {
@@ -154,17 +171,32 @@ namespace OrbitalSIP.Views
             [JsonPropertyName("access_token")]
             public string AccessToken { get; set; } = "";
 
+            [JsonPropertyName("refresh_token")]
+            public string RefreshToken { get; set; } = "";
+
             [JsonPropertyName("sip")]
-            public SipCredentials? Sip { get; set; }
+            public LoginSipInfo? Sip { get; set; }
         }
 
-        private class SipCredentials
+        private class LoginSipInfo
+        {
+            [JsonPropertyName("username")]
+            public string Username { get; set; } = "";
+
+            [JsonPropertyName("transport")]
+            public string Transport { get; set; } = "";
+        }
+
+        private class SipCredentialsResponse
         {
             [JsonPropertyName("username")]
             public string Username { get; set; } = "";
 
             [JsonPropertyName("password")]
             public string Password { get; set; } = "";
+
+            [JsonPropertyName("transport")]
+            public string Transport { get; set; } = "";
         }
     }
 }
