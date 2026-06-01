@@ -1,5 +1,5 @@
 using System;
-using System.IO;
+using System.IOusing System.IO.Pipes;
 using System.Text;
 using System.Threading;
 using Avalonia;
@@ -10,12 +10,30 @@ namespace OrbitalSIP
 {
     internal static class Program
     {
+        private const string PipeName = "OrbitalSIP_TelPipe";
+
+        /// <summary>Phone number passed on the command line at launch (tel: link), if any.</summary>
+        public static string? InitialDialNumber { get; private set; }
+
+        /// <summary>Raised when a tel: link is opened while the app is already running.</summary>
+        public static event Action<string>? DialRequested;
+
         [STAThread]
         public static void Main(string[] args)
         {
+            var number = ExtractTelNumber(args);
+
             using var mutex = new Mutex(true, "OrbitalSIP_SingleInstance", out bool createdNew);
             if (!createdNew)
+            {
+                // Another instance is already running — forward the number to it and exit.
+                if (!string.IsNullOrEmpty(number))
+                    SendNumberToRunningInstance(number!);
                 return;
+            }
+
+            InitialDialNumber = number;
+            StartPipeServer();
 
             using var _ = SentrySdk.Init(o =>
             {
@@ -76,5 +94,80 @@ namespace OrbitalSIP
             => AppBuilder.Configure<App>()
                 .UsePlatformDetect()
                 .LogToTrace();
+
+        // ── tel: / callto: / sip: protocol handling ───────────────────────────
+
+        /// <summary>Extracts a dialable phone number from a tel:/callto:/sip: URI argument.</summary>
+        private static string? ExtractTelNumber(string[] args)
+        {
+            foreach (var a in args)
+            {
+                if (string.IsNullOrWhiteSpace(a)) continue;
+                var s = a.Trim();
+                foreach (var scheme in new[] { "tel:", "callto:", "sip:" })
+                {
+                    if (s.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
+                        return NormalizeNumber(s.Substring(scheme.Length));
+                }
+            }
+            return null;
+        }
+
+        /// <summary>Keeps only dial-relevant characters from a raw URI body.</summary>
+        private static string NormalizeNumber(string raw)
+        {
+            try { raw = Uri.UnescapeDataString(raw); } catch { /* leave as-is */ }
+            raw = raw.TrimStart('/');
+            var at = raw.IndexOf('@');
+            if (at >= 0) raw = raw.Substring(0, at); // strip sip:user@host host part
+
+            var sb = new StringBuilder();
+            foreach (var c in raw)
+                if (char.IsDigit(c) || c == '+' || c == '*' || c == '#')
+                    sb.Append(c);
+            return sb.ToString();
+        }
+
+        /// <summary>Background pipe server: receives numbers from secondary launches.</summary>
+        private static void StartPipeServer()
+        {
+            var t = new Thread(() =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        using var server = new NamedPipeServerStream(
+                            PipeName, PipeDirection.In, 1,
+                            PipeTransmissionMode.Byte, PipeOptions.None);
+                        server.WaitForConnection();
+                        using var reader = new StreamReader(server, Encoding.UTF8);
+                        var num = reader.ReadLine();
+                        if (!string.IsNullOrWhiteSpace(num))
+                            DialRequested?.Invoke(num!.Trim());
+                    }
+                    catch (Exception ex)
+                    {
+                        LogFatalException("PipeServer", ex);
+                        Thread.Sleep(500);
+                    }
+                }
+            })
+            { IsBackground = true, Name = "OrbitalSIP-TelPipe" };
+            t.Start();
+        }
+
+        /// <summary>Sends the dialed number to the already-running instance.</summary>
+        private static void SendNumberToRunningInstance(string number)
+        {
+            try
+            {
+                using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
+                client.Connect(2000);
+                using var writer = new StreamWriter(client, Encoding.UTF8) { AutoFlush = true };
+                writer.WriteLine(number);
+            }
+            catch { /* running instance not ready — nothing we can do */ }
+        }
     }
 }
