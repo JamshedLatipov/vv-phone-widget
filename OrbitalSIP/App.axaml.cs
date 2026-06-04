@@ -44,6 +44,11 @@ namespace OrbitalSIP
                 // a newer release is available. Fire-and-forget; errors are swallowed inside.
                 _ = Task.Run(() => App.Updater.SilentCheckAsync());
 
+                // Audio self-test: verify mic + speakers can actually open in the SIP
+                // format. Warns via the banner if the microphone/speakers are missing or
+                // can't be opened (the waveInOpen failure that caused one-way audio).
+                AudioDeviceCheck.RunInBackground();
+
                 desktop.Exit += (_, __) =>
                 {
                     App.Updater.Dispose();

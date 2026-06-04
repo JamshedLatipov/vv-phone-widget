@@ -465,12 +465,18 @@ namespace OrbitalSIP.Services
                     _audioPaused = false;
                 }
             }
-            catch (InvalidOperationException ex)
+            catch (Exception ex)
             {
-                // WaveInEvent threw "Already recording" or "Not recording" —
-                // reset our tracking flag to match the real state and log.
+                // Two failure classes, both must NOT crash the app:
+                //  - InvalidOperationException: WaveInEvent "Already/Not recording"
+                //    (our _audioPaused tracking drifted) — benign.
+                //  - NAudio.MmException "InvalidParameter calling waveInOpen": the
+                //    capture device (microphone) can't be opened on this PC. This
+                //    previously escaped as an UnhandledException on the mute toggle
+                //    and killed the widget. Swallow it — the call stays up (no mic
+                //    audio), and the operator can fix the input device without a crash.
                 _audioPaused = IsMuted;
-                Log($"ApplyAudioState ignored: {ex.Message}");
+                Log($"ApplyAudioState ignored ({ex.GetType().Name}): {ex.Message}");
             }
         }
 

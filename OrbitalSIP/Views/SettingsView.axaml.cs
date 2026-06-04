@@ -211,6 +211,41 @@ namespace OrbitalSIP.Views
                 };
             }
 
+            var audioBtn    = this.FindControl<Button>("CheckAudioBtn");
+            var audioStatus = this.FindControl<TextBlock>("AudioCheckStatus");
+            if (audioBtn != null)
+            {
+                audioBtn.Click += async (_, __) =>
+                {
+                    var i18n = Services.I18nService.Instance;
+                    audioBtn.IsEnabled = false;
+                    if (audioStatus != null)
+                    {
+                        audioStatus.Foreground = Avalonia.Media.Brush.Parse("#5F7A96");
+                        audioStatus.Text = i18n.Get("audio.checking", "Проверка…");
+                    }
+
+                    // Probe opens the real devices — run off the UI thread.
+                    var problems = await System.Threading.Tasks.Task.Run(
+                        () => Services.AudioDeviceCheck.Probe());
+
+                    if (audioStatus != null)
+                    {
+                        if (problems.Count == 0)
+                        {
+                            audioStatus.Foreground = Avalonia.Media.Brush.Parse("#17E0A0");
+                            audioStatus.Text = i18n.Get("audio.ok", "Микрофон и динамики в порядке.");
+                        }
+                        else
+                        {
+                            audioStatus.Foreground = Avalonia.Media.Brush.Parse("#FF6B6B");
+                            audioStatus.Text = string.Join(" ", problems);
+                        }
+                    }
+                    audioBtn.IsEnabled = true;
+                };
+            }
+
             var topBar = this.FindControl<TopBarControl>("TopBar");
             if (topBar != null)
             {
