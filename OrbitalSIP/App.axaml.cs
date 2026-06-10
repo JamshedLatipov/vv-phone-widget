@@ -18,6 +18,7 @@ namespace OrbitalSIP
         public static readonly LoggedCallService LoggedCallService = new LoggedCallService();
         public static readonly LeadService LeadService = new LeadService();
         public static readonly CallInfoService CallInfoService = new CallInfoService();
+        public static readonly FlowsService FlowsService = new FlowsService();
         public static readonly GlobalHotkeyService GlobalHotkeys = new GlobalHotkeyService();
         public static readonly UpdateService        Updater       = new UpdateService();
 
@@ -58,6 +59,7 @@ namespace OrbitalSIP
                     ScriptService.Dispose();
                     LeadService.Dispose();
                     CallInfoService.Dispose();
+                    FlowsService.Dispose();
                 };
             }
 

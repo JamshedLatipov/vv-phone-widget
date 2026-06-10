@@ -130,6 +130,10 @@ namespace OrbitalSIP.Views
             if (scriptBtn != null)
                 scriptBtn.Click += async (_, __) => await ShowScriptsDialog();
 
+            var surveyBtn = this.FindControl<Button>("SurveyBtn");
+            if (surveyBtn != null)
+                surveyBtn.Click += async (_, __) => await ShowSurveyDialog();
+
             var leadBtn = this.FindControl<Button>("CreateLeadBtn");
             if (leadBtn != null)
                 leadBtn.Click += async (_, __) => await CreateLeadAsync();
@@ -271,6 +275,16 @@ namespace OrbitalSIP.Views
                 if (leadBtn != null)
                     leadBtn.IsEnabled = true;
             }
+        }
+
+        private async Task ShowSurveyDialog()
+        {
+            var topLevel = TopLevel.GetTopLevel(this) as Window;
+            if (topLevel == null) return;
+
+            var callerNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? "";
+            var dialog = new SurveyDialog(callerNumber);
+            await dialog.ShowDialog(topLevel);
         }
 
         private async Task ShowScriptsDialog()
