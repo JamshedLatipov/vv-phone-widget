@@ -178,16 +178,17 @@ namespace OrbitalSIP.Services
                 request.Content = JsonContent.Create(new { });
 
                 var response = await _httpClient.SendAsync(request);
+                var body = await response.Content.ReadAsStringAsync();
                 if (response.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
-                    using var doc = JsonDocument.Parse(content);
+                    using var doc = JsonDocument.Parse(body);
                     if (doc.RootElement.TryGetProperty("currentNodeKey", out var el))
                         return el.GetString();
+                    AppLogger.Log("FlowsService", "Back: 2xx but no currentNodeKey");
+                    return null;
                 }
 
-                var errorBody = await response.Content.ReadAsStringAsync();
-                AppLogger.Log("FlowsService", $"Back failed. Status: {response.StatusCode}. Body: {errorBody}");
+                AppLogger.Log("FlowsService", $"Back failed. Status: {response.StatusCode}. Body: {body}");
             }
             catch (Exception ex)
             {

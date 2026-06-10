@@ -19,6 +19,7 @@ namespace OrbitalSIP.Views
         private bool _muted;
         private bool _onHold;
         private bool _leadCreated;
+        private bool _surveyOpen;
 
         public ActiveCallView()
             : this("Unknown", false)
@@ -279,12 +280,21 @@ namespace OrbitalSIP.Views
 
         private async Task ShowSurveyDialog()
         {
+            if (_surveyOpen) return;
             var topLevel = TopLevel.GetTopLevel(this) as Window;
             if (topLevel == null) return;
 
             var callerNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? "";
             var dialog = new SurveyDialog(callerNumber);
-            await dialog.ShowDialog(topLevel);
+            _surveyOpen = true;
+            try
+            {
+                await dialog.ShowDialog(topLevel);
+            }
+            finally
+            {
+                _surveyOpen = false;
+            }
         }
 
         private async Task ShowScriptsDialog()

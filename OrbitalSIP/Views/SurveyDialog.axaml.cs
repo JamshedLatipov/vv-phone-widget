@@ -15,7 +15,7 @@ namespace OrbitalSIP.Views
 {
     public partial class SurveyDialog : Window
     {
-        private static readonly FlowsService _svc = App.FlowsService;
+        private readonly FlowsService _svc = App.FlowsService;
 
         private readonly string _callerNumber;
 
@@ -29,6 +29,9 @@ namespace OrbitalSIP.Views
 
         // abandon
         private string? _selectedAbandonReason;
+
+        // handler leak guard
+        private EventHandler<TextChangedEventArgs>? _textChangedHandler;
 
         private static readonly string[] AbandonReasons =
         {
@@ -114,9 +117,11 @@ namespace OrbitalSIP.Views
                     if (list != null && section != null)
                     {
                         list.Children.Clear();
+                        var flowNameById = flows.ToDictionary(f => f.Id ?? "", f => f.Name ?? "Анкета");
                         foreach (var run in inProgress)
                         {
-                            var btn = MakeListButton($"Продолжить: {run.FlowId ?? run.Id}", "#1E4270", "#60A5FA");
+                            var label = $"Продолжить: {flowNameById.GetValueOrDefault(run.FlowId ?? "", "Анкета")}";
+                            var btn = MakeListButton(label, "#1E4270", "#60A5FA");
                             btn.Tag = run;
                             btn.Click += async (_, __) => await ResumeRunAsync(run.Id!);
                             list.Children.Add(btn);
@@ -354,13 +359,21 @@ namespace OrbitalSIP.Views
             {
                 var box = this.FindControl<TextBox>("TextAnswerBox");
                 if (box != null)
-                    box.TextChanged += (_, __) => { if (nextBtn != null) nextBtn.IsEnabled = !string.IsNullOrWhiteSpace(box.Text); };
+                {
+                    if (_textChangedHandler != null) box.TextChanged -= _textChangedHandler;
+                    _textChangedHandler = (_, __) => { if (nextBtn != null) nextBtn.IsEnabled = !string.IsNullOrWhiteSpace(box.Text); };
+                    box.TextChanged += _textChangedHandler;
+                }
             }
             else if (answerType == "number")
             {
                 var box = this.FindControl<TextBox>("NumberAnswerBox");
                 if (box != null)
-                    box.TextChanged += (_, __) => { if (nextBtn != null) nextBtn.IsEnabled = !string.IsNullOrWhiteSpace(box.Text); };
+                {
+                    if (_textChangedHandler != null) box.TextChanged -= _textChangedHandler;
+                    _textChangedHandler = (_, __) => { if (nextBtn != null) nextBtn.IsEnabled = !string.IsNullOrWhiteSpace(box.Text); };
+                    box.TextChanged += _textChangedHandler;
+                }
             }
         }
 
@@ -574,7 +587,12 @@ namespace OrbitalSIP.Views
         private async Task ConfirmAbandonAsync()
         {
             if (_runId == null) { Close(); return; }
-            await _svc.AbandonAsync(_runId, _selectedAbandonReason);
+            var ok = await _svc.AbandonAsync(_runId, _selectedAbandonReason);
+            if (!ok)
+            {
+                ShowHint("Не удалось прервать — попробуйте ещё раз");
+                return;
+            }
             Close();
         }
 
