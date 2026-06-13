@@ -47,12 +47,13 @@ Write-Host "MSI: $msi" -ForegroundColor Green
 & $iscc /DMyAppVersion=$newVersion $issFile
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "Done! dist\OrbitalSIP-Setup-$newVersion.exe" -ForegroundColor Green
+    Write-Host "Done! dist\PROFFI-Setup-$newVersion.exe" -ForegroundColor Green
 
     # ── Publish GitHub Release ────────────────────────────────────────────────
     # Requires GitHub CLI (winget install --id GitHub.cli) authenticated via `gh auth login`.
     # The release tag must match the version string used in UpdateService.cs (e.g. v1.0.8).
-    $installer = "$root\dist\OrbitalSIP-Setup-$newVersion.exe"
+    # Installer name comes from installer/OrbitalSIP.iss OutputBaseFilename = PROFFI-Setup-<ver>.
+    $installer = "$root\dist\PROFFI-Setup-$newVersion.exe"
     $tag       = "v$newVersion"
 
     if (Get-Command gh -ErrorAction SilentlyContinue) {
