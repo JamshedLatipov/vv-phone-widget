@@ -97,7 +97,8 @@ namespace OrbitalSIP
                 _anchorY = top  + (int)WidgetSize;
 
                 sip.Start(settings);
-                _ = App.StatusService.SetStateAsync(true, "offline");
+                _ = App.StatusService.SetStateAsync("offline", null);
+                App.StatusService.StartPolling();
                 SetMainContent(new Views.WidgetView());
             }
 
@@ -355,10 +356,9 @@ namespace OrbitalSIP
             popup.OnStatusUpdateRequested += async (_, args) =>
             {
                 var (status, duration) = args;
-                bool paused = status != "online";
-                string? reason = paused ? status : null;
+                string? manualStatus = status == "online" ? null : status;
 
-                await App.StatusService.SetStateAsync(paused, reason, duration);
+                await App.StatusService.SetStateAsync(manualStatus, null, duration);
                 HideStatusPopup();
             };
 

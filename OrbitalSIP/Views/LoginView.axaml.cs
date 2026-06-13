@@ -119,7 +119,8 @@ namespace OrbitalSIP.Views
                     settings.Password = sipCreds.Password;
 
                     App.SipService.Start(settings);
-                    _ = App.StatusService.SetStateAsync(true, "offline");
+                    _ = App.StatusService.SetStateAsync("offline", null);
+                    App.StatusService.StartPolling();
                     OnLoginSuccess?.Invoke(this, EventArgs.Empty);
                 }
                 else

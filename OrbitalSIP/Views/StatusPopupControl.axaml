@@ -88,8 +88,26 @@
                 </Grid>
             </Border>
 
+            <!-- Supervisor-pause lock banner (shown when force-paused by a supervisor) -->
+            <Border Name="SupervisorLockPanel" IsVisible="False"
+                    Background="#2A1A0A" BorderBrush="#F59E0B" BorderThickness="1"
+                    CornerRadius="8" Padding="10,8">
+                <Grid ColumnDefinitions="Auto,*">
+                    <Viewbox Width="15" Height="15" VerticalAlignment="Top" Margin="0,1,8,0">
+                        <Path Fill="#F59E0B" Stretch="Uniform"
+                              Data="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
+                    </Viewbox>
+                    <StackPanel Grid.Column="1" Spacing="2">
+                        <TextBlock Text="{i18n:I18n SupervisorPaused}" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="#FBBF24" TextWrapping="Wrap"/>
+                        <TextBlock Text="{i18n:I18n SupervisorPausedNote}" FontSize="11"
+                                   Foreground="#D6A65A" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
             <!-- Status Grid (2 columns) -->
-            <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,*">
+            <Grid Name="StatusGrid" RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,*">
                 <!-- Online -->
                 <RadioButton Grid.Row="0" Grid.Column="0"
                              GroupName="StatusGroup" Name="StatusOnline" Tag="online" IsChecked="True"
@@ -112,25 +130,11 @@
                                    Foreground="#F8FAFC" VerticalAlignment="Center"/>
                     </StackPanel>
                 </RadioButton>
-                <!-- Lunch -->
-                <RadioButton Grid.Row="1" Grid.Column="0"
-                             GroupName="StatusGroup" Name="StatusLunch" Tag="lunch"
-                             Classes="status-card" Background="#0D1B2E" BorderBrush="#1E3A5F"
-                             Margin="0,0,4,6">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
-                            <Path Fill="#F59E0B" Stretch="Uniform"
-                                  Data="M11,9H9V2H7V9H5V2H3V9C3,11.12 4.66,12.84 6.75,12.97V22H9.25V12.97C11.34,12.84 13,11.12 13,9V2H11V9M16,6V14H18.5V22H21V2C18.24,2 16,4.24 16,6Z"/>
-                        </Viewbox>
-                        <TextBlock Text="{i18n:I18n Lunch}" FontSize="13" FontWeight="SemiBold"
-                                   Foreground="#F8FAFC" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </RadioButton>
                 <!-- Break -->
-                <RadioButton Grid.Row="1" Grid.Column="1"
+                <RadioButton Grid.Row="1" Grid.Column="0"
                              GroupName="StatusGroup" Name="StatusBreak" Tag="break"
                              Classes="status-card" Background="#0D1B2E" BorderBrush="#1E3A5F"
-                             Margin="4,0,0,6">
+                             Margin="0,0,4,6">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                             <Path Fill="#38BDF8" Stretch="Uniform"
@@ -140,17 +144,59 @@
                                    Foreground="#F8FAFC" VerticalAlignment="Center"/>
                     </StackPanel>
                 </RadioButton>
-                <!-- Training (full width) -->
-                <RadioButton Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                <!-- Meeting -->
+                <RadioButton Grid.Row="1" Grid.Column="1"
+                             GroupName="StatusGroup" Name="StatusMeeting" Tag="meeting"
+                             Classes="status-card" Background="#0D1B2E" BorderBrush="#1E3A5F"
+                             Margin="4,0,0,6">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                            <Path Fill="#F59E0B" Stretch="Uniform"
+                                  Data="M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z"/>
+                        </Viewbox>
+                        <TextBlock Text="{i18n:I18n Meeting}" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="#F8FAFC" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </RadioButton>
+                <!-- Training -->
+                <RadioButton Grid.Row="2" Grid.Column="0"
                              GroupName="StatusGroup" Name="StatusTraining" Tag="training"
                              Classes="status-card" Background="#0D1B2E" BorderBrush="#1E3A5F"
-                             Margin="0">
+                             Margin="0,0,4,6">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                             <Path Fill="#C084FC" Stretch="Uniform"
                                   Data="M12,3L1,9L12,15L21,10.09V17H23V9M5,13.18V17.18L12,21L19,17.18V13.18L12,17L5,13.18Z"/>
                         </Viewbox>
                         <TextBlock Text="{i18n:I18n Training}" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="#F8FAFC" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </RadioButton>
+                <!-- DND -->
+                <RadioButton Grid.Row="2" Grid.Column="1"
+                             GroupName="StatusGroup" Name="StatusDnd" Tag="dnd"
+                             Classes="status-card" Background="#0D1B2E" BorderBrush="#1E3A5F"
+                             Margin="4,0,0,6">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                            <Path Fill="#EF4444" Stretch="Uniform"
+                                  Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4C10.1,4 8.4,4.6 7.1,5.7L18.3,16.9C19.3,15.5 20,13.8 20,12A8,8 0 0,0 12,4M16.9,18.3L5.7,7.1C4.6,8.4 4,10.1 4,12A8,8 0 0,0 12,20C13.9,20 15.6,19.4 16.9,18.3Z"/>
+                        </Viewbox>
+                        <TextBlock Text="{i18n:I18n Dnd}" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="#F8FAFC" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </RadioButton>
+                <!-- Pause (full width) -->
+                <RadioButton Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                             GroupName="StatusGroup" Name="StatusPause" Tag="pause"
+                             Classes="status-card" Background="#0D1B2E" BorderBrush="#1E3A5F"
+                             Margin="0">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                            <Path Fill="#94A3B8" Stretch="Uniform"
+                                  Data="M14,19H18V5H14M6,19H10V5H6V19Z"/>
+                        </Viewbox>
+                        <TextBlock Text="{i18n:I18n Pause}" FontSize="13" FontWeight="SemiBold"
                                    Foreground="#F8FAFC" VerticalAlignment="Center"/>
                     </StackPanel>
                 </RadioButton>

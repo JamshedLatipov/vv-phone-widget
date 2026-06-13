@@ -85,18 +85,24 @@ namespace OrbitalSIP.Views
 
             var queueState = App.StatusService.CurrentState;
             bool isQueuePaused = queueState != null && queueState.Paused;
+            bool isSupervisorPaused = queueState != null && queueState.IsSupervisorPaused;
+
+            // Default: clear any supervisor-pause tooltip; set below when locked.
+            ToolTip.SetTip(dot, null);
 
             switch (state)
             {
                 case RegistrationState.Registered:
-                    if (isQueuePaused)
+                    if (isSupervisorPaused)
                     {
                         dot.Fill = new SolidColorBrush(Color.Parse("#F59E0B")); // Amber
-                        string reason = queueState?.ReasonPaused ?? "Paused";
-                        if (!string.IsNullOrEmpty(reason))
-                        {
-                            lbl.Text = char.ToUpper(reason[0]) + reason.Substring(1); // Capitalize first letter
-                        }
+                        lbl.Text = Services.I18nService.Instance.Get("SupervisorPaused");
+                        ToolTip.SetTip(dot, Services.I18nService.Instance.Get("SupervisorPaused"));
+                    }
+                    else if (isQueuePaused)
+                    {
+                        dot.Fill = new SolidColorBrush(Color.Parse("#F59E0B")); // Amber
+                        lbl.Text = PresenceLabel(queueState?.ReasonPaused);
                     }
                     else
                     {
@@ -118,6 +124,21 @@ namespace OrbitalSIP.Views
                     lbl.Text = Services.I18nService.Instance.Get("Offline");
                     break;
             }
+        }
+
+        private static string PresenceLabel(string? status)
+        {
+            var i18n = Services.I18nService.Instance;
+            return (status?.ToLower() ?? "") switch
+            {
+                "break"    => i18n.Get("Break"),
+                "meeting"  => i18n.Get("Meeting"),
+                "training" => i18n.Get("Training"),
+                "dnd"      => i18n.Get("Dnd"),
+                "pause"    => i18n.Get("Pause"),
+                "offline"  => i18n.Get("Offline"),
+                _          => i18n.Get("ErrorPaused")
+            };
         }
 
         public void SetTitle(string title)
