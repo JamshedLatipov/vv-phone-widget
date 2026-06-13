@@ -30,6 +30,20 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # ── Installer ─────────────────────────────────────────────────────────────────
+# MSI (WiX v5, per-machine). Install once: dotnet tool install --global wix --version 5.0.2
+# (WiX v6+ needs the paid OSMF EULA — stay on v5, which is free.)
+$wxs = "$root\installer\OrbitalSIP.wxs"
+$msi = "$root\dist\PROFFI-Setup-$newVersion.msi"
+$wix = "$env:USERPROFILE\.dotnet\tools\wix.exe"
+if (-not (Test-Path $wix)) { $wix = "wix" }
+New-Item -ItemType Directory -Force "$root\dist" | Out-Null
+& $wix build $wxs -arch x64 -d Version=$newVersion -d PublishDir=$publishDir -o $msi
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "WiX MSI build FAILED." -ForegroundColor Red
+    exit 1
+}
+Write-Host "MSI: $msi" -ForegroundColor Green
+
 & $iscc /DMyAppVersion=$newVersion $issFile
 
 if ($LASTEXITCODE -eq 0) {
@@ -43,7 +57,7 @@ if ($LASTEXITCODE -eq 0) {
 
     if (Get-Command gh -ErrorAction SilentlyContinue) {
         Write-Host "Creating GitHub release $tag ..." -ForegroundColor Cyan
-        gh release create $tag $installer `
+        gh release create $tag $installer $msi `
             --title $tag `
             --generate-notes
 
@@ -54,7 +68,7 @@ if ($LASTEXITCODE -eq 0) {
         }
     } else {
         Write-Host "GitHub CLI (gh) not found. Install: winget install --id GitHub.cli" -ForegroundColor Yellow
-        Write-Host "Then run: gh release create $tag $installer --title $tag --generate-notes" -ForegroundColor Yellow
+        Write-Host "Then run: gh release create $tag $installer $msi --title $tag --generate-notes" -ForegroundColor Yellow
     }
 } else {
     Write-Host "Inno Setup FAILED." -ForegroundColor Red

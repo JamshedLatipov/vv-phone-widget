@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Per-machine MSI for OrbitalSIP (WiX v4).
+
+  Build (see build.ps1):
+    wix build installer\OrbitalSIP.wxs -arch x64 ^
+        -d Version=<x.y.z> -d PublishDir=publish\win-x64 ^
+        -ext WixToolset.UI.wixext -o dist\OrbitalSIP-Setup-<x.y.z>.msi
+
+  Silent deploy (GPO / SCCM / cmd):
+    msiexec /i OrbitalSIP-Setup-<x.y.z>.msi /qn
+
+  Harvests the entire self-contained publish folder (OrbitalSIP.exe + sounds\),
+  so it stays in sync with whatever `dotnet publish` produced — no per-file edits.
+  UpgradeCode is FIXED forever: changing it breaks upgrades.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Package Name="PROFFI - Phone"
+           Manufacturer="Proffi"
+           Version="$(Version)"
+           UpgradeCode="8b5f2a1c-3d4e-4f6a-9b7c-1e2d3f4a5b6c"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="Установлена более новая версия PROFFI - Phone." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Install root: Program Files\PROFFI - Phone -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="PROFFI - Phone" />
+    </StandardDirectory>
+
+    <!-- All published files (OrbitalSIP.exe + sounds\*.mp3) -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(PublishDir)\**" />
+    </ComponentGroup>
+
+    <!-- Start-menu folder -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppShortcutDir" Name="PROFFI - Phone" />
+    </StandardDirectory>
+
+    <!-- Start-menu shortcut -->
+    <Component Id="AppShortcut" Directory="AppShortcutDir" Guid="*">
+      <Shortcut Id="StartMenuShortcut"
+                Name="PROFFI - Phone"
+                Target="[INSTALLFOLDER]OrbitalSIP.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveAppShortcutDir" On="uninstall" />
+      <RegistryValue Root="HKMU"
+                     Key="Software\Proffi\OrbitalSIP"
+                     Name="installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <Feature Id="Main" Title="OrbitalSIP" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="AppShortcut" />
+    </Feature>
+  </Package>
+</Wix>
