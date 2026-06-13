@@ -97,13 +97,47 @@ namespace OrbitalSIP
                 _anchorY = top  + (int)WidgetSize;
 
                 sip.Start(settings);
-                _ = App.StatusService.SetStateAsync(true, "offline");
+                _ = App.StatusService.SetStateAsync("offline", null);
+                App.StatusService.StartPolling();
                 SetMainContent(new Views.WidgetView());
             }
+
+            // Handle tel:/callto:/sip: links opened while the app is already running.
+            Program.DialRequested += OnProtocolDialRequested;
+
+            // Handle a tel: link that launched the app itself.
+            if (!string.IsNullOrEmpty(Program.InitialDialNumber))
+                Dispatcher.UIThread.Post(() => HandleProtocolDial(Program.InitialDialNumber!));
+        }
+
+        private void OnProtocolDialRequested(string number) =>
+            Dispatcher.UIThread.Post(() => HandleProtocolDial(number));
+
+        /// <summary>Brings the window forward and starts an outgoing call from a tel: link.</summary>
+        private void HandleProtocolDial(string number)
+        {
+            if (string.IsNullOrWhiteSpace(number)) return;
+
+            // Surface the window so the user sees what's happening.
+            if (!IsVisible) Show();
+            Activate();
+
+            var sip = App.SipService;
+
+            // Not signed in yet \u2014 just show the window; the user can log in and redial.
+            if (string.IsNullOrEmpty(sip.CurrentSettings.Username) ||
+                string.IsNullOrEmpty(sip.CurrentSettings.Password))
+                return;
+
+            // Busy on another call \u2014 don't interrupt it.
+            if (sip.State != CallState.Idle) return;
+
+            StartOutgoingCall(number);
         }
 
         protected override void OnClosed(System.EventArgs e)
         {
+            Program.DialRequested -= OnProtocolDialRequested;
             HttpErrorNotifier.ErrorOccurred -= OnHttpErrorOccurred;
             _httpErrorHideTimer.Stop();
             base.OnClosed(e);
@@ -322,10 +356,9 @@ namespace OrbitalSIP
             popup.OnStatusUpdateRequested += async (_, args) =>
             {
                 var (status, duration) = args;
-                bool paused = status != "online";
-                string? reason = paused ? status : null;
+                string? manualStatus = status == "online" ? null : status;
 
-                await App.StatusService.SetStateAsync(paused, reason, duration);
+                await App.StatusService.SetStateAsync(manualStatus, null, duration);
                 HideStatusPopup();
             };
 

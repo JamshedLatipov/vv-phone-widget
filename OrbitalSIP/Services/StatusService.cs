@@ -14,6 +14,8 @@ namespace OrbitalSIP.Services
         private readonly HttpClient _httpClient;
         private DispatcherTimer? _autoOnlineTimer;
         private DateTime? _breakEndTime;
+        private int _pollTickCounter;
+        private bool _isFetching;
 
         public event Action<StatusState>? StateChanged;
 
@@ -38,27 +40,39 @@ namespace OrbitalSIP.Services
         public void StartPolling()
         {
             _ = FetchStateAsync();
+            // 1s timer drives both the break auto-online countdown and a ~20s
+            // periodic re-fetch (so live supervisor-pause + cross-UI status
+            // changes are reflected without a dedicated socket).
+            _autoOnlineTimer?.Start();
         }
 
         private async void OnTimerTick(object? sender, EventArgs e)
         {
+            // Break auto-online countdown.
             if (_breakEndTime.HasValue)
             {
-                var timeLeft = _breakEndTime.Value - DateTime.Now;
-                // Console.WriteLine($"[StatusService] Timer tick: {timeLeft.TotalSeconds} seconds remaining");
-
                 if (DateTime.Now >= _breakEndTime.Value)
                 {
                     AppLogger.Log("StatusService", "Timer expired. Setting status back to online.");
                     _breakEndTime = null;
-                    _autoOnlineTimer?.Stop();
-                    await SetStateAsync(false, null);
+                    await SetStateAsync(null, null);
                 }
+            }
+
+            // Periodic re-fetch every ~20 ticks (~20s).
+            _pollTickCounter++;
+            if (_pollTickCounter >= 20)
+            {
+                _pollTickCounter = 0;
+                await FetchStateAsync();
             }
         }
 
         public async Task FetchStateAsync()
         {
+            if (_isFetching)
+                return;
+            _isFetching = true;
             try
             {
                 var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
@@ -67,7 +81,7 @@ namespace OrbitalSIP.Services
                 if (string.IsNullOrEmpty(backendUrl) || string.IsNullOrEmpty(settings.AccessToken))
                     return;
 
-                var url = $"{backendUrl}/api/queue-members/my-state";
+                var url = $"{backendUrl}/api/presence/me";
                 AppLogger.Log("StatusService", $"Fetching state from: {url}");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -104,9 +118,13 @@ namespace OrbitalSIP.Services
                 AppLogger.Log("StatusService", details);
                 HttpErrorNotifier.NotifyException("StatusService", ex);
             }
+            finally
+            {
+                _isFetching = false;
+            }
         }
 
-        public async Task<bool> SetStateAsync(bool paused, string? reason, int? durationMinutes = null)
+        public async Task<bool> SetStateAsync(string? manualStatus, string? reason, int? durationMinutes = null)
         {
             try
             {
@@ -119,16 +137,16 @@ namespace OrbitalSIP.Services
                     return false;
                 }
 
-                var url = $"{backendUrl}/api/queue-members/0/pause";
+                var url = $"{backendUrl}/api/presence/me";
 
-                var body = new PauseRequest
+                var body = new SetPresenceRequest
                 {
-                    Paused = paused,
-                    ReasonPaused = reason
+                    ManualStatus = manualStatus,
+                    Reason = reason
                 };
 
                 AppLogger.Log("StatusService", $"Setting state to URL: {url}");
-                AppLogger.Log("StatusService", $"Payload: Paused={paused}, Reason={reason ?? "null"}, DurationMinutes={durationMinutes?.ToString() ?? "null"}");
+                AppLogger.Log("StatusService", $"Payload: ManualStatus={manualStatus ?? "null"}, Reason={reason ?? "null"}, DurationMinutes={durationMinutes?.ToString() ?? "null"}");
 
                 using var request = new HttpRequestMessage(HttpMethod.Put, url);
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
@@ -141,8 +159,20 @@ namespace OrbitalSIP.Services
                 {
                     AppLogger.Log("StatusService", "State successfully updated on server.");
 
-                    CurrentState.Paused = paused;
-                    CurrentState.ReasonPaused = reason;
+                    var content = await response.Content.ReadAsStringAsync();
+                    AppLogger.Log("StatusService", $"Set state response body: {content}");
+
+                    // Trust the server's returned shape (it enforces supervisor-pause).
+                    var data = JsonSerializer.Deserialize<StatusState>(content);
+                    if (data != null)
+                    {
+                        CurrentState = data;
+                    }
+                    else
+                    {
+                        CurrentState.ManualStatus = manualStatus;
+                        CurrentState.ManualReason = reason;
+                    }
 
                     if (durationMinutes.HasValue && durationMinutes.Value > 0)
                     {
@@ -153,8 +183,7 @@ namespace OrbitalSIP.Services
                     else
                     {
                         _breakEndTime = null;
-                        _autoOnlineTimer?.Stop();
-                        AppLogger.Log("StatusService", "Auto-online timer stopped/cleared.");
+                        AppLogger.Log("StatusService", "Auto-online timer cleared.");
                     }
 
                     Dispatcher.UIThread.Post(() => StateChanged?.Invoke(CurrentState));

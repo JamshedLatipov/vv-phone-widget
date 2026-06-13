@@ -1,0 +1,192 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="OrbitalSIP.Views.SurveyDialog"
+        Title="Анкеты"
+        Width="420" Height="560"
+        WindowStartupLocation="CenterOwner"
+        Background="#0F172A"
+        Topmost="True"
+        SystemDecorations="None"
+        CornerRadius="16">
+  <Border BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16">
+    <Grid RowDefinitions="Auto,*,Auto">
+
+      <!-- Header -->
+      <Border Background="#152132" CornerRadius="16,16,0,0" Padding="14">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Name="HeaderTitle" Text="АНКЕТЫ" Foreground="#E2E8F0" FontWeight="Bold" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Name="CloseBtn" Content="X" Width="24" Height="24"
+                  Background="Transparent" Foreground="#6E859D" BorderThickness="0"
+                  Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Cursor="Hand" />
+        </Grid>
+      </Border>
+
+      <!-- Content area — switched between list phase and wizard phase -->
+      <ScrollViewer Grid.Row="1" Name="ContentScroller"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled"
+                    Margin="14">
+        <StackPanel>
+
+        <!-- Phase: list -->
+        <StackPanel Name="ListPhase" Spacing="8">
+
+          <!-- Loading -->
+          <TextBlock Name="LoadingLabel" Text="Загрузка..."
+                     FontSize="13" Foreground="#6E859D"
+                     HorizontalAlignment="Center" Margin="0,24,0,0" />
+
+          <!-- Error -->
+          <TextBlock Name="ErrorLabel" IsVisible="False"
+                     Text="" FontSize="12" Foreground="#EF4444"
+                     TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,24,0,0" />
+
+          <!-- Empty -->
+          <TextBlock Name="EmptyLabel" IsVisible="False"
+                     Text="Нет доступных анкет" FontSize="13" Foreground="#6E859D"
+                     HorizontalAlignment="Center" Margin="0,24,0,0" />
+
+          <!-- In-progress runs section -->
+          <StackPanel Name="InProgressSection" IsVisible="False" Spacing="6">
+            <TextBlock Text="ПРОДОЛЖИТЬ" FontSize="10" FontWeight="Bold"
+                       LetterSpacing="1.4" Foreground="#7B92AA" Margin="0,4,0,2" />
+            <StackPanel Name="InProgressList" Spacing="6" />
+          </StackPanel>
+
+          <!-- Available flows section -->
+          <StackPanel Name="AvailableSection" IsVisible="False" Spacing="6">
+            <TextBlock Text="ДОСТУПНЫЕ АНКЕТЫ" FontSize="10" FontWeight="Bold"
+                       LetterSpacing="1.4" Foreground="#7B92AA" Margin="0,8,0,2" />
+            <StackPanel Name="AvailableList" Spacing="6" />
+          </StackPanel>
+
+        </StackPanel>
+
+        <!-- Phase: wizard (hidden until run started) -->
+        <StackPanel Name="WizardPhase" IsVisible="False" Spacing="12">
+
+          <!-- Step header -->
+          <StackPanel Spacing="2">
+            <TextBlock Name="StepLabel" Text="Шаг 1"
+                       FontSize="10" FontWeight="Bold" LetterSpacing="1.4" Foreground="#7B92AA" />
+            <TextBlock Name="NodeTitle" Text=""
+                       FontSize="15" FontWeight="Bold" Foreground="#E2E8F0"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+
+          <!-- Script text -->
+          <Border Background="#020617" BorderBrush="#1E293B" BorderThickness="1"
+                  CornerRadius="10" Padding="12" IsVisible="False" Name="ScriptBorder">
+            <TextBlock Name="ScriptText" Text=""
+                       FontSize="13" Foreground="#CBD5E1"
+                       TextWrapping="Wrap" />
+          </Border>
+
+          <!-- Verification result banner -->
+          <Border Name="VerificationBanner" IsVisible="False"
+                  Background="#1C1917" BorderBrush="#78350F" BorderThickness="1"
+                  CornerRadius="8" Padding="10,8">
+            <TextBlock Name="VerificationText" Text=""
+                       FontSize="12" Foreground="#FCD34D" TextWrapping="Wrap" />
+          </Border>
+
+          <!-- Answer area: buttons/select -->
+          <StackPanel Name="ButtonsArea" IsVisible="False" Spacing="6" />
+
+          <!-- Answer area: text -->
+          <StackPanel Name="TextArea" IsVisible="False" Spacing="6">
+            <TextBox Name="TextAnswerBox"
+                     Background="#1E293B" BorderBrush="#334155"
+                     Foreground="#E2E8F0" CornerRadius="8"
+                     Watermark="Введите ответ..." />
+          </StackPanel>
+
+          <!-- Answer area: number -->
+          <StackPanel Name="NumberArea" IsVisible="False" Spacing="6">
+            <TextBox Name="NumberAnswerBox"
+                     Background="#1E293B" BorderBrush="#334155"
+                     Foreground="#E2E8F0" CornerRadius="8"
+                     Watermark="Введите число..." />
+          </StackPanel>
+
+          <!-- Comment box (shown when allowComment) -->
+          <StackPanel Name="CommentArea" IsVisible="False" Spacing="4">
+            <TextBlock Text="Комментарий (необязательно)"
+                       FontSize="11" Foreground="#6E859D" />
+            <TextBox Name="CommentBox"
+                     Background="#1E293B" BorderBrush="#334155"
+                     Foreground="#E2E8F0" CornerRadius="8"
+                     Watermark="Добавить комментарий..." />
+          </StackPanel>
+
+          <!-- Completed state -->
+          <StackPanel Name="CompletedArea" IsVisible="False"
+                      HorizontalAlignment="Center" Spacing="8" Margin="0,16,0,0">
+            <TextBlock Text="Анкета завершена" FontSize="16" FontWeight="Bold"
+                       Foreground="#34D399" HorizontalAlignment="Center" />
+            <TextBlock Name="VerdictText" Text="" FontSize="12" Foreground="#94A3B8"
+                       HorizontalAlignment="Center" TextWrapping="Wrap" />
+          </StackPanel>
+
+        </StackPanel>
+
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Footer -->
+      <Border Grid.Row="2" Background="#152132" CornerRadius="0,0,16,16" Padding="14,10">
+        <Panel>
+
+          <!-- List phase footer: empty (close only via X) -->
+          <StackPanel Name="ListFooter" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" />
+
+          <!-- Wizard phase footer -->
+          <Grid Name="WizardFooter" IsVisible="False" ColumnDefinitions="Auto,*,Auto,Auto">
+            <Button Grid.Column="0" Name="AbandonBtn"
+                    Content="Прервать"
+                    Background="Transparent" BorderThickness="1" BorderBrush="#334155"
+                    Foreground="#EF4444" CornerRadius="8" Padding="10,6"
+                    FontSize="12" />
+            <Button Grid.Column="2" Name="BackBtn"
+                    Content="Назад"
+                    Background="#1E293B" BorderThickness="0"
+                    Foreground="#94A3B8" CornerRadius="8" Padding="10,6"
+                    FontSize="12" Margin="0,0,8,0" />
+            <Button Grid.Column="3" Name="NextBtn"
+                    Content="Далее"
+                    Background="#3B82F6" BorderThickness="0"
+                    Foreground="White" CornerRadius="8" Padding="12,6"
+                    FontSize="12" FontWeight="Bold" />
+          </Grid>
+
+          <!-- Completed phase footer -->
+          <Button Name="DoneBtn" IsVisible="False"
+                  Content="Закрыть"
+                  HorizontalAlignment="Right"
+                  Background="#3B82F6" BorderThickness="0"
+                  Foreground="White" CornerRadius="8" Padding="14,6"
+                  FontSize="12" FontWeight="Bold" />
+
+          <!-- Abandon reason picker -->
+          <StackPanel Name="AbandonArea" IsVisible="False" Spacing="8">
+            <TextBlock Text="Причина прерывания" FontSize="12" FontWeight="Bold" Foreground="#E2E8F0" />
+            <StackPanel Name="AbandonReasonList" Spacing="6" />
+            <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+              <Button Name="AbandonCancelBtn" Grid.Column="0"
+                      Content="Отмена"
+                      Background="Transparent" BorderThickness="1" BorderBrush="#334155"
+                      Foreground="#94A3B8" CornerRadius="8" Padding="10,6"
+                      FontSize="12" HorizontalAlignment="Left" />
+              <Button Name="AbandonConfirmBtn" Grid.Column="1"
+                      Content="Подтвердить"
+                      Background="#EF4444" BorderThickness="0"
+                      Foreground="White" CornerRadius="8" Padding="10,6"
+                      FontSize="12" FontWeight="Bold" />
+            </Grid>
+          </StackPanel>
+
+        </Panel>
+      </Border>
+    </Grid>
+  </Border>
+</Window>

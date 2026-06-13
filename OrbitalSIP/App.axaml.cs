@@ -18,6 +18,7 @@ namespace OrbitalSIP
         public static readonly LoggedCallService LoggedCallService = new LoggedCallService();
         public static readonly LeadService LeadService = new LeadService();
         public static readonly CallInfoService CallInfoService = new CallInfoService();
+        public static readonly FlowsService FlowsService = new FlowsService();
         public static readonly GlobalHotkeyService GlobalHotkeys = new GlobalHotkeyService();
         public static readonly UpdateService        Updater       = new UpdateService();
 
@@ -44,6 +45,11 @@ namespace OrbitalSIP
                 // a newer release is available. Fire-and-forget; errors are swallowed inside.
                 _ = Task.Run(() => App.Updater.SilentCheckAsync());
 
+                // Audio self-test: verify mic + speakers can actually open in the SIP
+                // format. Warns via the banner if the microphone/speakers are missing or
+                // can't be opened (the waveInOpen failure that caused one-way audio).
+                AudioDeviceCheck.RunInBackground();
+
                 desktop.Exit += (_, __) =>
                 {
                     App.Updater.Dispose();
@@ -53,6 +59,7 @@ namespace OrbitalSIP
                     ScriptService.Dispose();
                     LeadService.Dispose();
                     CallInfoService.Dispose();
+                    FlowsService.Dispose();
                 };
             }
 

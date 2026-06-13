@@ -11,6 +11,9 @@ namespace OrbitalSIP.Services
     {
         public static event Action<string>? ErrorOccurred;
 
+        /// <summary>Raise a plain pre-built message in the UI banner (e.g. audio device warnings).</summary>
+        public static void Notify(string message) => ErrorOccurred?.Invoke(message);
+
         public static void NotifyHttpError(string source, string? url, HttpStatusCode statusCode, string? details = null)
         {
             var message = $"{source}: HTTP {(int)statusCode} {statusCode}";

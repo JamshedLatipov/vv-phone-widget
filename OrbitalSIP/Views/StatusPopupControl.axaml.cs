@@ -61,9 +61,11 @@ namespace OrbitalSIP.Views
 
             WireStatusCard("StatusOnline",   isAway: false);
             WireStatusCard("StatusOffline",  isAway: false);
-            WireStatusCard("StatusLunch",    isAway: true);
             WireStatusCard("StatusBreak",    isAway: true);
+            WireStatusCard("StatusMeeting",  isAway: true);
             WireStatusCard("StatusTraining", isAway: true);
+            WireStatusCard("StatusDnd",      isAway: true);
+            WireStatusCard("StatusPause",    isAway: true);
         }
 
         private void WireStatusCard(string name, bool isAway)
@@ -82,7 +84,7 @@ namespace OrbitalSIP.Views
 
         private string GetSelectedStatus()
         {
-            string[] names = { "StatusOnline", "StatusOffline", "StatusLunch", "StatusBreak", "StatusTraining" };
+            string[] names = { "StatusOnline", "StatusOffline", "StatusBreak", "StatusMeeting", "StatusTraining", "StatusDnd", "StatusPause" };
             foreach (var name in names)
             {
                 var rb = this.FindControl<RadioButton>(name);
@@ -114,6 +116,10 @@ namespace OrbitalSIP.Views
             var svc = App.StatusService;
             var state = svc.CurrentState;
 
+            // Supervisor-pause lock: the operator cannot change status while a
+            // supervisor has force-paused them (the server enforces this too).
+            ApplySupervisorLock(state != null && state.IsSupervisorPaused);
+
             var panel = this.FindControl<Border>("ActiveStatusPanel");
             var text  = this.FindControl<TextBlock>("ActiveStatusText");
 
@@ -130,22 +136,57 @@ namespace OrbitalSIP.Views
                 // Pre-select the matching status button
                 string radioName = (state.ReasonPaused?.ToLower() ?? "") switch
                 {
-                    "lunch"    => "StatusLunch",
                     "break"    => "StatusBreak",
+                    "meeting"  => "StatusMeeting",
                     "training" => "StatusTraining",
-                    _          => "StatusOffline"
+                    "dnd"      => "StatusDnd",
+                    "pause"    => "StatusPause",
+                    "offline"  => "StatusOffline",
+                    _          => "StatusOnline"
                 };
                 var rb = this.FindControl<RadioButton>(radioName);
                 if (rb != null) rb.IsChecked = true;
 
                 var durationPanel = this.FindControl<StackPanel>("DurationPanel");
                 if (durationPanel != null)
-                    durationPanel.IsVisible = radioName is "StatusLunch" or "StatusBreak" or "StatusTraining";
+                    durationPanel.IsVisible = radioName is "StatusBreak" or "StatusMeeting"
+                        or "StatusTraining" or "StatusDnd" or "StatusPause";
             }
             else if (panel != null)
             {
                 panel.IsVisible = false;
                 _liveTimer.Stop();
+            }
+        }
+
+        private void ApplySupervisorLock(bool locked)
+        {
+            var lockPanel = this.FindControl<Border>("SupervisorLockPanel");
+            if (lockPanel != null)
+                lockPanel.IsVisible = locked;
+
+            var grid = this.FindControl<Grid>("StatusGrid");
+            if (grid != null)
+            {
+                grid.IsEnabled = !locked;
+                grid.Opacity = locked ? 0.4 : 1.0;
+            }
+
+            var updateBtn = this.FindControl<Button>("UpdateStatusBtn");
+            if (updateBtn != null)
+                updateBtn.IsEnabled = !locked;
+
+            // The operator cannot lift a supervisor pause themselves.
+            var endNowBtn = this.FindControl<Button>("EndNowBtn");
+            if (endNowBtn != null)
+                endNowBtn.IsVisible = !locked;
+
+            // While supervisor-paused there is no operator-set duration to show.
+            if (locked)
+            {
+                var durationPanel = this.FindControl<StackPanel>("DurationPanel");
+                if (durationPanel != null)
+                    durationPanel.IsVisible = false;
             }
         }
 
@@ -162,20 +203,41 @@ namespace OrbitalSIP.Views
 
             var svc = App.StatusService;
             var state = svc.CurrentState;
-            var reason = string.IsNullOrWhiteSpace(state?.ReasonPaused) ? "Break" : state!.ReasonPaused!;
-            var prettyReason = char.ToUpper(reason[0]) + reason.Substring(1);
+
+            if (state != null && state.IsSupervisorPaused)
+            {
+                text.Text = Services.I18nService.Instance.Get("SupervisorPaused");
+                return;
+            }
+
+            var label = PresenceLabel(state?.ReasonPaused);
 
             if (state?.Paused == true && svc.BreakEndTime.HasValue)
             {
                 var left = svc.BreakEndTime.Value - DateTime.Now;
                 if (left.TotalSeconds > 0)
                 {
-                    text.Text = $"{prettyReason}: {left.Minutes:D2}:{left.Seconds:D2} left";
+                    text.Text = $"{label}: {left.Minutes:D2}:{left.Seconds:D2}";
                     return;
                 }
             }
 
-            text.Text = prettyReason;
+            text.Text = label;
+        }
+
+        private static string PresenceLabel(string? status)
+        {
+            var i18n = Services.I18nService.Instance;
+            return (status?.ToLower() ?? "") switch
+            {
+                "break"    => i18n.Get("Break"),
+                "meeting"  => i18n.Get("Meeting"),
+                "training" => i18n.Get("Training"),
+                "dnd"      => i18n.Get("Dnd"),
+                "pause"    => i18n.Get("Pause"),
+                "offline"  => i18n.Get("Offline"),
+                _          => i18n.Get("Online")
+            };
         }
     }
 }

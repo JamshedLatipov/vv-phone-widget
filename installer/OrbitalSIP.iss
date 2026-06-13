@@ -56,6 +56,34 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
   ValueData: """{app}\{#MyAppExeName}"""; \
   Flags: uninsdeletevalue; Tasks: startupentry
 
+; ── tel: / callto: / sip: protocol handler ───────────────────────────────────
+; ProgId that knows how to open a tel-style link with our softphone.
+Root: HKLM; Subkey: "Software\Classes\OrbitalSIP.Tel"; \
+  ValueType: string; ValueData: "URL:Tel Protocol"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "Software\Classes\OrbitalSIP.Tel"; \
+  ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKLM; Subkey: "Software\Classes\OrbitalSIP.Tel\DefaultIcon"; \
+  ValueType: string; ValueData: "{app}\{#MyAppExeName},0"
+Root: HKLM; Subkey: "Software\Classes\OrbitalSIP.Tel\shell\open\command"; \
+  ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+
+; Register the app with its URL capabilities so Windows offers it as an option
+; for tel:/callto:/sip: links (Settings ▸ Default apps and the "Open with" picker).
+Root: HKLM; Subkey: "Software\OrbitalSIP"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "Software\OrbitalSIP\Capabilities"; \
+  ValueType: string; ValueName: "ApplicationName"; ValueData: "{#MyAppName}"
+Root: HKLM; Subkey: "Software\OrbitalSIP\Capabilities"; \
+  ValueType: string; ValueName: "ApplicationDescription"; ValueData: "{#MyAppName} softphone"
+Root: HKLM; Subkey: "Software\OrbitalSIP\Capabilities\UrlAssociations"; \
+  ValueType: string; ValueName: "tel"; ValueData: "OrbitalSIP.Tel"
+Root: HKLM; Subkey: "Software\OrbitalSIP\Capabilities\UrlAssociations"; \
+  ValueType: string; ValueName: "callto"; ValueData: "OrbitalSIP.Tel"
+Root: HKLM; Subkey: "Software\OrbitalSIP\Capabilities\UrlAssociations"; \
+  ValueType: string; ValueName: "sip"; ValueData: "OrbitalSIP.Tel"
+Root: HKLM; Subkey: "Software\RegisteredApplications"; \
+  ValueType: string; ValueName: "{#MyAppName}"; ValueData: "Software\OrbitalSIP\Capabilities"; \
+  Flags: uninsdeletevalue
+
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 

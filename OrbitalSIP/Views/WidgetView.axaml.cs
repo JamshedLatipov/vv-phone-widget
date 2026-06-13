@@ -115,6 +115,7 @@ namespace OrbitalSIP.Views
 
             var queueState = App.StatusService.CurrentState;
             bool isQueuePaused = queueState != null && queueState.Paused;
+            bool isSupervisorPaused = queueState != null && queueState.IsSupervisorPaused;
 
             switch (state)
             {
@@ -124,7 +125,9 @@ namespace OrbitalSIP.Views
                         color = Color.Parse("#F59E0B"); // Amber
                         pulseColorStart = Color.Parse("#FBBF24");
                         pulseColorEnd   = Color.Parse("#D97706");
-                        label = queueState?.ReasonPaused ?? Services.I18nService.Instance.Get("ErrorPaused");
+                        label = isSupervisorPaused
+                            ? Services.I18nService.Instance.Get("SupervisorPaused")
+                            : PresenceLabel(queueState?.ReasonPaused);
                     }
                     else
                     {
@@ -171,6 +174,21 @@ namespace OrbitalSIP.Views
             UpdateStatusTip(state, label);
         }
 
+        private static string PresenceLabel(string? status)
+        {
+            var i18n = Services.I18nService.Instance;
+            return (status?.ToLower() ?? "") switch
+            {
+                "break"    => i18n.Get("Break"),
+                "meeting"  => i18n.Get("Meeting"),
+                "training" => i18n.Get("Training"),
+                "dnd"      => i18n.Get("Dnd"),
+                "pause"    => i18n.Get("Pause"),
+                "offline"  => i18n.Get("Offline"),
+                _          => i18n.Get("ErrorPaused")
+            };
+        }
+
         private void UpdateStatusTip(RegistrationState state, string message)
         {
             var tip = this.FindControl<Avalonia.Controls.TextBlock>("StatusTip");
@@ -181,7 +199,9 @@ namespace OrbitalSIP.Views
                 var queueState = App.StatusService.CurrentState;
                 if (state == RegistrationState.Registered && queueState != null && queueState.Paused)
                 {
-                    tip.Text = queueState.ReasonPaused ?? Services.I18nService.Instance.Get("ErrorPaused");
+                    tip.Text = queueState.IsSupervisorPaused
+                        ? Services.I18nService.Instance.Get("SupervisorPaused")
+                        : PresenceLabel(queueState.ReasonPaused);
                 }
                 else
                 {
