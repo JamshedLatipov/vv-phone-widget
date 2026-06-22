@@ -458,6 +458,9 @@ namespace OrbitalSIP
                         StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight);
                         ShowActiveCallView(callerId);
                     }
+
+                    // Campaign call bound to a questionnaire → auto-open it.
+                    await MaybeAutoOpenSurveyAsync(callerId);
                 }
                 catch (Exception ex)
                 {
@@ -481,6 +484,29 @@ namespace OrbitalSIP
 
             SetMainContent(incoming);
             StartAnimation(Width, Height, IncomingWidth, IncomingHeight);
+        }
+
+        /// <summary>
+        /// When the answered call belongs to a campaign that has a bound flow
+        /// (анкета), open the questionnaire automatically. Non-campaign calls (or
+        /// campaigns with no bound flow) resolve to nothing and are left alone.
+        /// </summary>
+        private async System.Threading.Tasks.Task MaybeAutoOpenSurveyAsync(string callerNumber)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(callerNumber)) return;
+                var flows = await App.FlowsService.SuggestForNumberAsync(callerNumber);
+                var flow = flows.FirstOrDefault(f => f.IsActive && f.ActiveVersionId != null);
+                if (flow?.Id == null) return;
+
+                var dialog = new Views.SurveyDialog(callerNumber, flow.Id);
+                await dialog.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                Services.AppLogger.Log("MainWindow", $"Auto-survey error: {ex.Message}");
+            }
         }
 
         private void ShowActiveCallWidgetView(string callerId, TimeSpan elapsed)

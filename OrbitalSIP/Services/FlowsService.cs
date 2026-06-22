@@ -67,6 +67,38 @@ namespace OrbitalSIP.Services
             return new List<FlowDefinition>();
         }
 
+        /// <summary>
+        /// Flows bound to the campaign of an in-progress call to <paramref name="number"/>
+        /// (the other party's phone). Used to auto-open the bound questionnaire when a
+        /// campaign call is answered. Returns an empty list when nothing is bound.
+        /// </summary>
+        public async Task<List<FlowDefinition>> SuggestForNumberAsync(string number)
+        {
+            try
+            {
+                var cfg = GetSettings();
+                if (cfg == null || string.IsNullOrWhiteSpace(number)) return new List<FlowDefinition>();
+
+                var url = $"{cfg.Value.backendUrl}/api/flows/suggest-for-number?number={Uri.EscapeDataString(number)}";
+                using var request = AuthRequest(HttpMethod.Get, url);
+                var response = await _httpClient.SendAsync(request);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    return JsonSerializer.Deserialize<List<FlowDefinition>>(content) ?? new List<FlowDefinition>();
+                }
+
+                var errorBody = await response.Content.ReadAsStringAsync();
+                AppLogger.Log("FlowsService", $"SuggestForNumber failed. Status: {response.StatusCode}. Body: {errorBody}");
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("FlowsService", $"SuggestForNumber error: {ex.GetType().Name}: {ex.Message}");
+            }
+            return new List<FlowDefinition>();
+        }
+
         public async Task<List<FlowRun>> ListRunsAsync(string subjectId)
         {
             try

@@ -19,6 +19,10 @@ namespace OrbitalSIP.Views
 
         private readonly string _callerNumber;
 
+        // When set (campaign call with a bound questionnaire), the dialog jumps
+        // straight into this flow instead of showing the picker list.
+        private readonly string? _autoFlowId;
+
         // run state
         private string? _subjectId;
         private string? _runId;
@@ -41,9 +45,10 @@ namespace OrbitalSIP.Views
             "Другое"
         };
 
-        public SurveyDialog(string callerNumber)
+        public SurveyDialog(string callerNumber, string? autoFlowId = null)
         {
             _callerNumber = callerNumber;
+            _autoFlowId = autoFlowId;
             InitializeComponent();
             WireStaticButtons();
             _ = InitAsync();
@@ -61,6 +66,25 @@ namespace OrbitalSIP.Views
             if (uniqueId == null)
             {
                 ShowHint("Не удалось определить звонок — используется номер как идентификатор");
+            }
+
+            // Campaign call with a bound questionnaire → resume an in-progress run
+            // for this call if one exists, otherwise start the bound flow directly.
+            if (!string.IsNullOrEmpty(_autoFlowId))
+            {
+                if (_subjectId != null)
+                {
+                    var runs = await _svc.ListRunsAsync(_subjectId);
+                    var existing = runs.FirstOrDefault(
+                        r => r.Status == "in_progress" && r.FlowId == _autoFlowId);
+                    if (existing?.Id != null)
+                    {
+                        await ResumeRunAsync(existing.Id);
+                        return;
+                    }
+                }
+                await StartFlowAsync(_autoFlowId);
+                return;
             }
 
             await LoadListAsync();
