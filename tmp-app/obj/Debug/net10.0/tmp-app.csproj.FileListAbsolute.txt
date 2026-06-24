@@ -1,0 +1,15 @@
+/app/tmp-app/bin/Debug/net10.0/tmp-app
+/app/tmp-app/bin/Debug/net10.0/tmp-app.deps.json
+/app/tmp-app/bin/Debug/net10.0/tmp-app.runtimeconfig.json
+/app/tmp-app/bin/Debug/net10.0/tmp-app.dll
+/app/tmp-app/bin/Debug/net10.0/tmp-app.pdb
+/app/tmp-app/obj/Debug/net10.0/tmp-app.GeneratedMSBuildEditorConfig.editorconfig
+/app/tmp-app/obj/Debug/net10.0/tmp-app.AssemblyInfoInputs.cache
+/app/tmp-app/obj/Debug/net10.0/tmp-app.AssemblyInfo.cs
+/app/tmp-app/obj/Debug/net10.0/tmp-app.csproj.CoreCompileInputs.cache
+/app/tmp-app/obj/Debug/net10.0/tmp-app.sourcelink.json
+/app/tmp-app/obj/Debug/net10.0/tmp-app.dll
+/app/tmp-app/obj/Debug/net10.0/refint/tmp-app.dll
+/app/tmp-app/obj/Debug/net10.0/tmp-app.pdb
+/app/tmp-app/obj/Debug/net10.0/tmp-app.genruntimeconfig.cache
+/app/tmp-app/obj/Debug/net10.0/ref/tmp-app.dll

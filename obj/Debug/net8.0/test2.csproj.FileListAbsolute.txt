@@ -1,0 +1,5 @@
+/app/obj/Debug/net8.0/test2.GeneratedMSBuildEditorConfig.editorconfig
+/app/obj/Debug/net8.0/test2.AssemblyInfoInputs.cache
+/app/obj/Debug/net8.0/test2.AssemblyInfo.cs
+/app/obj/Debug/net8.0/test2.csproj.CoreCompileInputs.cache
+/app/obj/Debug/net8.0/test2.sourcelink.json
