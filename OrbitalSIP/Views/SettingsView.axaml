@@ -117,6 +117,28 @@
                       HorizontalAlignment="Stretch" />
           </StackPanel>
 
+          <!-- Microphone gain (50–200%) -->
+          <StackPanel Spacing="2">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="{i18n:I18n MicGain}" FontSize="11" Foreground="#5F7A96" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Name="MicGainValue" Text="100%" FontSize="11" FontWeight="Bold" Foreground="#17E0A0" VerticalAlignment="Center" />
+            </Grid>
+            <Slider Name="MicGainSlider" Minimum="50" Maximum="200"
+                    TickFrequency="50" IsSnapToTickEnabled="True" TickPlacement="BottomRight"
+                    SmallChange="50" LargeChange="50" />
+          </StackPanel>
+
+          <!-- Speaker gain (0–200%) -->
+          <StackPanel Spacing="2">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="{i18n:I18n SpeakerGain}" FontSize="11" Foreground="#5F7A96" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Name="SpeakerGainValue" Text="100%" FontSize="11" FontWeight="Bold" Foreground="#17E0A0" VerticalAlignment="Center" />
+            </Grid>
+            <Slider Name="SpeakerGainSlider" Minimum="0" Maximum="200"
+                    TickFrequency="50" IsSnapToTickEnabled="True" TickPlacement="BottomRight"
+                    SmallChange="50" LargeChange="50" />
+          </StackPanel>
+
           <!-- Audio self-test -->
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Grid.Column="0" Name="AudioCheckStatus"

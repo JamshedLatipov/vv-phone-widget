@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
@@ -94,6 +95,27 @@ namespace OrbitalSIP.Views
             micBox.ItemsSource   = inItems;
             micBox.SelectedIndex = _settings.AudioInDeviceIndex + 1;
             if (micBox.SelectedIndex < 0) micBox.SelectedIndex = 0;
+
+            // Gain sliders — snap to 50% ticks; the value label tracks the slider live.
+            InitGainSlider("MicGainSlider", "MicGainValue", _settings.MicGainPercent);
+            InitGainSlider("SpeakerGainSlider", "SpeakerGainValue", _settings.SpeakerGainPercent);
+        }
+
+        private void InitGainSlider(string sliderName, string valueName, int percent)
+        {
+            var slider = this.FindControl<Slider>(sliderName);
+            var label  = this.FindControl<TextBlock>(valueName);
+            if (slider == null) return;
+            slider.Value = percent;
+            if (label != null)
+            {
+                label.Text = $"{percent}%";
+                slider.PropertyChanged += (_, e) =>
+                {
+                    if (e.Property == RangeBase.ValueProperty)
+                        label.Text = $"{(int)slider.Value}%";
+                };
+            }
         }
 
         private void SetText(string name, string value)
@@ -302,6 +324,14 @@ namespace OrbitalSIP.Views
             var micBox = this.FindControl<ComboBox>("MicBox");
             if (micBox != null)
                 _settings.AudioInDeviceIndex = (micBox.SelectedIndex <= 0 ? -1 : micBox.SelectedIndex - 1);
+
+            var micGainSlider = this.FindControl<Slider>("MicGainSlider");
+            if (micGainSlider != null)
+                _settings.MicGainPercent = (int)micGainSlider.Value;
+
+            var speakerGainSlider = this.FindControl<Slider>("SpeakerGainSlider");
+            if (speakerGainSlider != null)
+                _settings.SpeakerGainPercent = (int)speakerGainSlider.Value;
 
             // Hotkeys – only persist if the text is a valid combo
             SaveHotkey("HotkeyMuteBox",   v => _settings.HotkeyMute   = v);

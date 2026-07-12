@@ -74,6 +74,8 @@
   "SignalStable": "Сигнал тұрақты",
   "SpeakerOutput": "Динамик / Шығару",
   "MicrophoneInput": "Микрофон / Кіріс",
+  "MicGain": "Микрофон дауысы",
+  "SpeakerGain": "Динамик дауысы",
   "TalkScript": "СӨЙЛЕСУ СКРИПТІ",
   "TransferToOperator": "ОПЕРАТОРҒА АУДАРУ",
   "Training": "Оқыту",

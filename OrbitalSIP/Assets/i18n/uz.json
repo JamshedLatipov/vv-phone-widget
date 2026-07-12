@@ -74,6 +74,8 @@
   "SignalStable": "Signal barqaror",
   "SpeakerOutput": "Dinamik / Chiqish",
   "MicrophoneInput": "Mikrofon / Kirish",
+  "MicGain": "Mikrofon balandligi",
+  "SpeakerGain": "Dinamik balandligi",
   "TalkScript": "SUHBAT SKRIPTI",
   "TransferToOperator": "OPERATORGA O'TKAZISH",
   "Training": "Ta'lim",

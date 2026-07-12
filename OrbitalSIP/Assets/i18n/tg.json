@@ -72,6 +72,8 @@
   "SignalStable": "Сигнал устувор аст",
   "SpeakerOutput": "Баландгӯяк / Хуруҷ",
   "MicrophoneInput": "Микрофон / Вуруд",
+  "MicGain": "Баландии микрофон",
+  "SpeakerGain": "Баландии баландгӯяк",
   "TalkScript": "СКРИПТИ СУҲБАТ",
   "TransferToOperator": "ГУЗАРОНИДАН БА ОПЕРАТОР",
   "Training": "Омӯзиш",

@@ -489,27 +489,6 @@ namespace OrbitalSIP.Services
             ApplyAudioState();
         }
 
-        public int MicGainPercent     => _settings.MicGainPercent;
-        public int SpeakerGainPercent => _settings.SpeakerGainPercent;
-
-        public void SetMicGain(int percent)
-        {
-            percent = Math.Clamp(percent, 50, 200);
-            _settings.MicGainPercent = percent;
-            if (_audioEndPoint != null) _audioEndPoint.SourceGain = percent / 100f;
-            try { _settings.Save(); } catch (Exception ex) { Log($"SetMicGain save failed: {ex.Message}"); }
-            Log($"Mic gain set to {percent}%");
-        }
-
-        public void SetSpeakerGain(int percent)
-        {
-            percent = Math.Clamp(percent, 0, 200);
-            _settings.SpeakerGainPercent = percent;
-            if (_audioEndPoint != null) _audioEndPoint.SinkGain = percent / 100f;
-            try { _settings.Save(); } catch (Exception ex) { Log($"SetSpeakerGain save failed: {ex.Message}"); }
-            Log($"Speaker gain set to {percent}%");
-        }
-
         public bool IsOnHold { get; private set; }
 
         public void ToggleHold()

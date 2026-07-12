@@ -558,8 +558,6 @@ namespace OrbitalSIP
             callView.OnExitAppRequested += (_, __) => ShutdownApp();
             callView.OnMuteToggled += (_, muted) => App.SipService.SetMuted(muted);
             callView.OnHoldToggled += (_, __) => App.SipService.ToggleHold();
-            callView.OnMicGainChanged     += (_, pct) => App.SipService.SetMicGain(pct);
-            callView.OnSpeakerGainChanged += (_, pct) => App.SipService.SetSpeakerGain(pct);
             callView.OnTransferRequested += async (_, dest) => await App.SipService.BlindTransferAsync(dest);
             callView.OnKeypadRequested += (_, __) => ShowDialer();
             callView.OnSettingsRequested += (_, __) => ShowSettings();

@@ -20,10 +20,6 @@ namespace OrbitalSIP.Views
         private bool _onHold;
         private bool _leadCreated;
         private bool _surveyOpen;
-        private int _micGain = 100;
-        private int _spkGain = 100;
-        private static readonly int[] MicPresets = { 50, 100, 150, 200 };
-        private static readonly int[] SpkPresets = { 0, 50, 100, 150, 200 };
 
         public ActiveCallView()
             : this("Unknown", false)
@@ -164,54 +160,6 @@ namespace OrbitalSIP.Views
             if (bottomNav != null) bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
             if (copy != null)
                 copy.Click += async (_, __) => await CopyCallerAsync();
-
-            WireGainPresets();
-        }
-
-        private void WireGainPresets()
-        {
-            _micGain = App.SipService.MicGainPercent;
-            _spkGain = App.SipService.SpeakerGainPercent;
-
-            foreach (var p in MicPresets)
-            {
-                var b = this.FindControl<Button>($"MicGain{p}");
-                if (b != null) b.Click += (_, __) => SetMicPreset(p);
-            }
-            foreach (var p in SpkPresets)
-            {
-                var b = this.FindControl<Button>($"SpkGain{p}");
-                if (b != null) b.Click += (_, __) => SetSpkPreset(p);
-            }
-            HighlightPresets("MicGain", MicPresets, _micGain);
-            HighlightPresets("SpkGain", SpkPresets, _spkGain);
-        }
-
-        private void SetMicPreset(int pct)
-        {
-            _micGain = pct;
-            HighlightPresets("MicGain", MicPresets, _micGain);
-            OnMicGainChanged?.Invoke(this, pct);
-        }
-
-        private void SetSpkPreset(int pct)
-        {
-            _spkGain = pct;
-            HighlightPresets("SpkGain", SpkPresets, _spkGain);
-            OnSpeakerGainChanged?.Invoke(this, pct);
-        }
-
-        private void HighlightPresets(string prefix, int[] presets, int selected)
-        {
-            foreach (var p in presets)
-            {
-                var b = this.FindControl<Button>($"{prefix}{p}");
-                if (b == null) continue;
-                bool sel = p == selected;
-                b.Background = new SolidColorBrush(Color.Parse(sel ? "#2563EB" : "#1E293B"));
-                if (b.Content is TextBlock tb)
-                    tb.Foreground = new SolidColorBrush(Color.Parse(sel ? "#FFFFFF" : "#8FA6BE"));
-            }
         }
 
         private async Task CopyCallerAsync()
@@ -414,8 +362,6 @@ namespace OrbitalSIP.Views
         public event EventHandler?        OnHangup;
         public event EventHandler<bool>?  OnMuteToggled;      // arg = isMuted
         public event EventHandler<bool>?  OnHoldToggled;      // arg = isOnHold
-        public event EventHandler<int>? OnMicGainChanged;      // arg = mic percent
-        public event EventHandler<int>? OnSpeakerGainChanged;  // arg = speaker percent
         public event EventHandler<string>? OnTransferRequested; // arg = destination
         public event EventHandler?        OnKeypadRequested;
         public event EventHandler?        OnMinimizeRequested;

@@ -70,6 +70,8 @@
   "SignalStable": "Сигнал стабилен",
   "SpeakerOutput": "Динамик / Вывод",
   "MicrophoneInput": "Микрофон / Ввод",
+  "MicGain": "Громкость микрофона",
+  "SpeakerGain": "Громкость динамика",
   "TalkScript": "СКРИПТ РАЗГОВОРА",
   "TransferToOperator": "ПЕРЕВОД НА ОПЕРАТОРА",
   "Training": "Обучение",
