@@ -30,6 +30,10 @@ namespace OrbitalSIP.Services
         public int AudioOutDeviceIndex { get; set; } = -1;
         /// <summary>NAudio WaveIn device index. -1 = system default.</summary>
         public int AudioInDeviceIndex  { get; set; } = -1;
+        /// <summary>Outgoing mic gain as a percent. 50..200. 100 = unity.</summary>
+        public int MicGainPercent { get; set; } = 100;
+        /// <summary>Incoming speaker gain as a percent. 0..200. 100 = unity.</summary>
+        public int SpeakerGainPercent { get; set; } = 100;
 
         // ── Hotkeys ──────────────────────────────────────────────────
         public string HotkeyMute   { get; set; } = "Alt+M";
