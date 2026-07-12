@@ -2,5 +2,7 @@
 .vscode/*
 OrbitalSIP/bin/*
 OrbitalSIP/obj/*
+OrbitalSIP.Tests/bin/*
+OrbitalSIP.Tests/obj/*
 dist/*
 publish/*
