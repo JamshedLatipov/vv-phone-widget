@@ -2,7 +2,17 @@
 
 **Date:** 2026-07-12
 **Component:** OrbitalSIP (.NET / Avalonia softphone)
-**Status:** Approved (design), pending implementation plan
+**Status:** Implemented
+
+> **Addendum (2026-07-12, post-implementation):** the gain control was moved out
+> of the in-call `ActiveCallView` into the **Settings** screen, per user request.
+> It is now two snap-to-tick **sliders** (mic 50–200%, speaker 0–200%, 50% ticks)
+> with a live value label, saved on Settings save and applied on the next call via
+> `SipService.Start(settings)` — the same mechanism as audio-device selection.
+> Consequently there is no live mid-call adjustment, and the `SipService`
+> `SetMicGain`/`SetSpeakerGain` live setters described in §4.3 were removed as
+> unused. The `AudioGain`, `GainAudioEndPoint`, and `SipSettings` design below is
+> unchanged; only the UI location and control type differ from §4.5/§4.6.
 
 ## 1. Goal
 
