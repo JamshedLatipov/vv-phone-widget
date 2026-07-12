@@ -10,6 +10,7 @@ using SIPSorcery.SIP.App;
 using SIPSorcery.Net;
 using SIPSorcery.Media;
 using SIPSorceryMedia.Windows;
+using OrbitalSIP.Services.Audio;
 
 namespace OrbitalSIP.Services
 {
@@ -27,7 +28,7 @@ namespace OrbitalSIP.Services
         private SIPUserAgent?                _activeCall;
         private SIPServerUserAgent?          _pendingUas;
         private VoIPMediaSession?            _mediaSession;
-        private WindowsAudioEndPoint?        _audioEndPoint;
+        private GainAudioEndPoint?           _audioEndPoint;
         private SipSettings                  _settings = new();
 
         // ── Public state ──────────────────────────────────────────────
@@ -488,6 +489,27 @@ namespace OrbitalSIP.Services
             ApplyAudioState();
         }
 
+        public int MicGainPercent     => _settings.MicGainPercent;
+        public int SpeakerGainPercent => _settings.SpeakerGainPercent;
+
+        public void SetMicGain(int percent)
+        {
+            percent = Math.Clamp(percent, 50, 200);
+            _settings.MicGainPercent = percent;
+            if (_audioEndPoint != null) _audioEndPoint.SourceGain = percent / 100f;
+            try { _settings.Save(); } catch (Exception ex) { Log($"SetMicGain save failed: {ex.Message}"); }
+            Log($"Mic gain set to {percent}%");
+        }
+
+        public void SetSpeakerGain(int percent)
+        {
+            percent = Math.Clamp(percent, 0, 200);
+            _settings.SpeakerGainPercent = percent;
+            if (_audioEndPoint != null) _audioEndPoint.SinkGain = percent / 100f;
+            try { _settings.Save(); } catch (Exception ex) { Log($"SetSpeakerGain save failed: {ex.Message}"); }
+            Log($"Speaker gain set to {percent}%");
+        }
+
         public bool IsOnHold { get; private set; }
 
         public void ToggleHold()
@@ -559,7 +581,7 @@ namespace OrbitalSIP.Services
                 Debug.WriteLine($"[SipService] Audio OUT: {outName}  IN: {inName}");
                 Log($"Audio devices. OUT={outName}; IN={inName}");
 
-                _audioEndPoint = new WindowsAudioEndPoint(
+                _audioEndPoint = new GainAudioEndPoint(
                     new AudioEncoder(),
                     audioOutDeviceIndex: outIdx,
                     audioInDeviceIndex:  inIdx);
@@ -568,6 +590,10 @@ namespace OrbitalSIP.Services
                     Debug.WriteLine($"[SipService] Audio source error: {err}");
                     Log($"Audio source error: {err}");
                 };
+
+                _audioEndPoint.SourceGain = _settings.MicGainPercent / 100f;
+                _audioEndPoint.SinkGain   = _settings.SpeakerGainPercent / 100f;
+                Log($"Applied gains. mic={_settings.MicGainPercent}% speaker={_settings.SpeakerGainPercent}%");
 
                 // G.722 (wideband HD), PCMU (G.711 μ-law), PCMA (G.711 A-law) —
                 // covers every mainstream SIP server and softphone.
