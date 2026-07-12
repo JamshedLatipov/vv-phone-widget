@@ -113,6 +113,47 @@
             </Border>
           </UniformGrid>
 
+          <!-- ── Volume presets (mic + speaker) ─────────────────── -->
+          <StackPanel Spacing="8" Margin="0,2,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+              <materialIcons:MaterialIcon Kind="Microphone" Width="16" Height="16" Foreground="#8FA6BE" VerticalAlignment="Center" />
+              <UniformGrid Columns="4" Rows="1" Width="238">
+                <Button Name="MicGain50"  Margin="2" Height="30" CornerRadius="8" Background="#1E293B" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                  <TextBlock Text="50%" FontSize="11" FontWeight="Bold" Foreground="#8FA6BE" />
+                </Button>
+                <Button Name="MicGain100" Margin="2" Height="30" CornerRadius="8" Background="#1E293B" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                  <TextBlock Text="100%" FontSize="11" FontWeight="Bold" Foreground="#8FA6BE" />
+                </Button>
+                <Button Name="MicGain150" Margin="2" Height="30" CornerRadius="8" Background="#1E293B" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                  <TextBlock Text="150%" FontSize="11" FontWeight="Bold" Foreground="#8FA6BE" />
+                </Button>
+                <Button Name="MicGain200" Margin="2" Height="30" CornerRadius="8" Background="#1E293B" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                  <TextBlock Text="200%" FontSize="11" FontWeight="Bold" Foreground="#8FA6BE" />
+                </Button>
+              </UniformGrid>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+              <materialIcons:MaterialIcon Kind="VolumeHigh" Width="16" Height="16" Foreground="#8FA6BE" VerticalAlignment="Center" />
+              <UniformGrid Columns="5" Rows="1" Width="238">
+                <Button Name="SpkGain0"   Margin="2" Height="30" CornerRadius="8" Background="#1E293B" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                  <TextBlock Text="0%" FontSize="11" FontWeight="Bold" Foreground="#8FA6BE" />
+                </Button>
+                <Button Name="SpkGain50"  Margin="2" Height="30" CornerRadius="8" Background="#1E293B" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                  <TextBlock Text="50%" FontSize="11" FontWeight="Bold" Foreground="#8FA6BE" />
+                </Button>
+                <Button Name="SpkGain100" Margin="2" Height="30" CornerRadius="8" Background="#1E293B" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                  <TextBlock Text="100%" FontSize="11" FontWeight="Bold" Foreground="#8FA6BE" />
+                </Button>
+                <Button Name="SpkGain150" Margin="2" Height="30" CornerRadius="8" Background="#1E293B" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                  <TextBlock Text="150%" FontSize="11" FontWeight="Bold" Foreground="#8FA6BE" />
+                </Button>
+                <Button Name="SpkGain200" Margin="2" Height="30" CornerRadius="8" Background="#1E293B" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                  <TextBlock Text="200%" FontSize="11" FontWeight="Bold" Foreground="#8FA6BE" />
+                </Button>
+              </UniformGrid>
+            </StackPanel>
+          </StackPanel>
+
           <Border Name="TransferPanel" IsVisible="False"
                   Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1"
                   CornerRadius="14" Padding="14,12" Margin="0,0,0,0">
