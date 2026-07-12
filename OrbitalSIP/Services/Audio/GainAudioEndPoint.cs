@@ -80,10 +80,10 @@ namespace OrbitalSIP.Services.Audio
         protected bool _isAudioSourceClosed;
         protected bool _isAudioSinkClosed;
 
-        /// <summary>Outgoing (mic) gain factor. 1.0 = unity. Set from the UI thread; read on the audio thread (single-float writes are atomic).</summary>
-        public float SourceGain = 1f;
+        /// <summary>Outgoing (mic) gain factor. 1.0 = unity. Written on the UI thread, read on the audio thread; volatile for timely cross-thread visibility (float writes are already atomic).</summary>
+        public volatile float SourceGain = 1f;
         /// <summary>Incoming (speaker) gain factor. 1.0 = unity.</summary>
-        public float SinkGain = 1f;
+        public volatile float SinkGain = 1f;
 
         /// <summary>
         /// Not used by this audio source.
