@@ -57,5 +57,18 @@ namespace OrbitalSIP.Tests
             AudioGain.Apply(b, 2.0f);
             Assert.True(b[0] >= a[0]);
         }
+
+        [Fact]
+        public void Boost_IsMonotonic_AcrossTheKnee()
+        {
+            // Both samples land above the 0.8 knee at gain 2.0 (20000/32768*2 = 1.22,
+            // 30000/32768*2 = 1.83), so this exercises the tanh compressive region.
+            short[] a = { 20000 };
+            short[] b = { 30000 };
+            AudioGain.Apply(a, 2.0f);
+            AudioGain.Apply(b, 2.0f);
+            Assert.True(b[0] >= a[0]);
+            Assert.InRange(a[0], (short)1, short.MaxValue);   // compressed, still positive
+        }
     }
 }
