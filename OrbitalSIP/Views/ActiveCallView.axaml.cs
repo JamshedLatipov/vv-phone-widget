@@ -20,6 +20,7 @@ namespace OrbitalSIP.Views
         private bool _onHold;
         private bool _leadCreated;
         private bool _surveyOpen;
+        private bool _taskOpen;
 
         public ActiveCallView()
             : this("Unknown", false)
@@ -138,6 +139,10 @@ namespace OrbitalSIP.Views
             var leadBtn = this.FindControl<Button>("CreateLeadBtn");
             if (leadBtn != null)
                 leadBtn.Click += async (_, __) => await CreateLeadAsync();
+
+            var taskBtn = this.FindControl<Button>("TaskBtn");
+            if (taskBtn != null)
+                taskBtn.Click += async (_, __) => await ShowTaskDialog();
 
             var callInfoBtn = this.FindControl<Button>("CallInfoBtn");
             if (callInfoBtn != null)
@@ -297,13 +302,86 @@ namespace OrbitalSIP.Views
             }
         }
 
+        private async Task ShowTaskDialog()
+        {
+            if (_taskOpen) return;
+            var topLevel = TopLevel.GetTopLevel(this) as Window;
+            if (topLevel == null) return;
+
+            var callerNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? "";
+
+            _taskOpen = true;
+            Models.CreateTaskRequest? request;
+            try
+            {
+                var dialog = new TaskDialog(callerNumber);
+                request = await dialog.ShowDialog<Models.CreateTaskRequest?>(topLevel);
+            }
+            finally
+            {
+                _taskOpen = false;
+            }
+
+            if (request == null) return;
+
+            // Assign to the current operator (numeric user id from the JWT), when available.
+            var sub = App.SipService?.CurrentSettings?.DecodedToken?.Sub;
+            if (int.TryParse(sub, out var userId))
+                request.AssignedToId = userId;
+
+            // Link the task to this call via its CallLog row id — the field the CRM reads
+            // to show the linked call. Resolve the call's Asterisk uniqueId, then ensure a
+            // CallLog row exists and grab its id (POST /api/cdr/log upserts by uniqueId).
+            if (!string.IsNullOrWhiteSpace(callerNumber))
+            {
+                var uniqueId = await App.ScriptService.GetChannelUniqueIdAsync(callerNumber);
+                if (!string.IsNullOrWhiteSpace(uniqueId))
+                {
+                    var callLogId = await App.ScriptService.SaveCallLogAsync(uniqueId);
+                    if (!string.IsNullOrWhiteSpace(callLogId))
+                        request.CallLogId = callLogId;
+                }
+            }
+
+            var taskBtn = this.FindControl<Button>("TaskBtn");
+            if (taskBtn != null) taskBtn.IsEnabled = false;
+
+            bool success = await App.TaskService.CreateTaskAsync(request);
+            AppLogger.Log("CreateTask", $"Request success: {success}");
+
+            if (taskBtn != null)
+            {
+                taskBtn.IsEnabled = true;
+                if (success) await FlashTaskCreated(taskBtn);
+            }
+        }
+
+        /// <summary>Briefly swaps the task-button icon to a checkmark to confirm creation.</summary>
+        private static async Task FlashTaskCreated(Button taskBtn)
+        {
+            if (taskBtn.Content is StackPanel panel)
+            {
+                foreach (var child in panel.Children)
+                {
+                    if (child is MaterialIcon icon)
+                    {
+                        var original = icon.Kind;
+                        icon.Kind = MaterialIconKind.Check;
+                        await Task.Delay(1200);
+                        icon.Kind = original;
+                        break;
+                    }
+                }
+            }
+        }
+
         private async Task ShowScriptsDialog()
         {
             var topLevel = TopLevel.GetTopLevel(this) as Window;
             if (topLevel == null) return;
 
             var dialog = new ScriptsDialog();
-            var result = await dialog.ShowDialog<Models.CallScript?>(topLevel);
+            var result = await dialog.ShowDialog<Models.ScriptSelection?>(topLevel);
 
             if (result != null)
             {
@@ -311,15 +389,7 @@ namespace OrbitalSIP.Views
                 var number = callerLabel?.Text?.Trim() ?? "";
                 var uniqueId = await App.ScriptService.GetChannelUniqueIdAsync(number);
                 if (uniqueId != null)
-                {
-                    bool success = await App.ScriptService.RegisterScriptAsync(uniqueId, result.Id!);
-                    if (success)
-                    {
-                        var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
-                        var operatorId = settings.DecodedToken?.Operator?.Username ?? settings.Username;
-                        App.LoggedCallService.MarkCallAsLogged(uniqueId, operatorId);
-                    }
-                }
+                    await App.ScriptService.RegisterAndMarkAsync(uniqueId, result);
             }
         }
 

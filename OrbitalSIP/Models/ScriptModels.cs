@@ -58,6 +58,24 @@ namespace OrbitalSIP.Models
         public List<CallScript>? Children { get; set; }
     }
 
+    /// <summary>Result of the scripts picker dialog: chosen script plus an optional operator note.</summary>
+    public class ScriptSelection
+    {
+        public CallScript Script { get; set; } = new CallScript();
+
+        public string Note { get; set; } = "";
+    }
+
+    /// <summary>Outcome of a scripts fetch: either a list, or an error message to show with a retry.</summary>
+    public class ScriptsResult
+    {
+        public List<CallScript> Scripts { get; set; } = new List<CallScript>();
+
+        public string? Error { get; set; }
+
+        public bool Failed => Error != null;
+    }
+
     public class CdrLogRequest
     {
         [JsonPropertyName("asteriskUniqueId")]

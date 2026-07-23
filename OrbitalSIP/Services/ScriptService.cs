@@ -21,7 +21,7 @@ namespace OrbitalSIP.Services
             _httpClient = new HttpClient(handler);
         }
 
-        public async Task<List<CallScript>> GetScriptsAsync()
+        public async Task<ScriptsResult> GetScriptsAsync()
         {
             try
             {
@@ -29,7 +29,7 @@ namespace OrbitalSIP.Services
                 var backendUrl = settings.BackendUrl?.TrimEnd('/');
 
                 if (string.IsNullOrEmpty(backendUrl) || string.IsNullOrEmpty(settings.AccessToken))
-                    return new List<CallScript>();
+                    return new ScriptsResult { Error = "not-configured" };
 
                 var url = $"{backendUrl}/api/call-scripts?tree=true&active=true";
 
@@ -42,12 +42,13 @@ namespace OrbitalSIP.Services
                 {
                     var content = await response.Content.ReadAsStringAsync();
                     var scripts = JsonSerializer.Deserialize<List<CallScript>>(content);
-                    return scripts ?? new List<CallScript>();
+                    return new ScriptsResult { Scripts = scripts ?? new List<CallScript>() };
                 }
 
                 var errorBody = await response.Content.ReadAsStringAsync();
                 AppLogger.Log("ScriptService", $"Fetch scripts failed. Status: {response.StatusCode}. Body: {errorBody}");
                 HttpErrorNotifier.NotifyHttpError("ScriptService", url, response.StatusCode, errorBody);
+                return new ScriptsResult { Error = $"HTTP {(int)response.StatusCode}" };
             }
             catch (Exception ex)
             {
@@ -57,9 +58,8 @@ namespace OrbitalSIP.Services
                 details += $" | StackTrace: {ex.StackTrace}";
                 AppLogger.Log("ScriptService", details);
                 HttpErrorNotifier.NotifyException("ScriptService", ex);
+                return new ScriptsResult { Error = ex.Message };
             }
-
-            return new List<CallScript>();
         }
 
         public async Task<string?> GetChannelUniqueIdAsync(string phoneNumber)
@@ -106,7 +106,77 @@ namespace OrbitalSIP.Services
             return null;
         }
 
-        public async Task<bool> RegisterScriptAsync(string uniqueId, string scriptId)
+        /// <summary>
+        /// Ensures a CallLog row exists for the given Asterisk uniqueId and returns its id —
+        /// the callLogId used to link a task (or lead) to the call. The backend upserts by
+        /// asteriskUniqueId, so repeat calls return the same id. Only the uniqueId is sent, so
+        /// this never overwrites a note/script already stored for the call. Null on failure.
+        /// </summary>
+        public async Task<string?> SaveCallLogAsync(string uniqueId)
+        {
+            if (string.IsNullOrWhiteSpace(uniqueId))
+                return null;
+
+            try
+            {
+                var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
+                var backendUrl = settings.BackendUrl?.TrimEnd('/');
+
+                if (string.IsNullOrEmpty(backendUrl) || string.IsNullOrEmpty(settings.AccessToken))
+                    return null;
+
+                var url = $"{backendUrl}/api/cdr/log";
+
+                using var request = new HttpRequestMessage(HttpMethod.Post, url);
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
+                // Send ONLY the uniqueId — omitting note/scriptBranch so an existing call log
+                // is not blanked out (backend saveLog forwards only provided fields).
+                request.Content = JsonContent.Create(new { asteriskUniqueId = uniqueId });
+
+                var response = await _httpClient.SendAsync(request);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    using var document = JsonDocument.Parse(content);
+                    if (document.RootElement.TryGetProperty("id", out var idElement) &&
+                        idElement.ValueKind == JsonValueKind.String)
+                    {
+                        return idElement.GetString();
+                    }
+                    AppLogger.Log("ScriptService", $"Save call log: no id in response. Body: {content}");
+                    return null;
+                }
+
+                var errorBody = await response.Content.ReadAsStringAsync();
+                AppLogger.Log("ScriptService", $"Save call log failed. Status: {response.StatusCode}. Body: {errorBody}");
+                HttpErrorNotifier.NotifyHttpError("ScriptService", url, response.StatusCode, errorBody);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("ScriptService", $"Error saving call log: {ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Registers the selection against the CDR entry and, on success, marks the call as
+        /// logged for the current operator. Shared by the active-call and history entry points.
+        /// </summary>
+        public async Task<bool> RegisterAndMarkAsync(string uniqueId, ScriptSelection selection)
+        {
+            bool success = await RegisterScriptAsync(uniqueId, selection.Script.Id!, selection.Note);
+            if (!success)
+                return false;
+
+            var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
+            var operatorId = settings.DecodedToken?.Operator?.Username ?? settings.Username;
+            App.LoggedCallService.MarkCallAsLogged(uniqueId, operatorId);
+            return true;
+        }
+
+        public async Task<bool> RegisterScriptAsync(string uniqueId, string scriptId, string note = "")
         {
             try
             {
@@ -121,7 +191,8 @@ namespace OrbitalSIP.Services
                 var payload = new CdrLogRequest
                 {
                     AsteriskUniqueId = uniqueId,
-                    ScriptBranch = scriptId
+                    ScriptBranch = scriptId,
+                    Note = note
                 };
 
                 using var request = new HttpRequestMessage(HttpMethod.Post, url);

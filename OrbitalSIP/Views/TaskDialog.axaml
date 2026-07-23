@@ -1,0 +1,97 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:i18n="clr-namespace:OrbitalSIP.Services"
+        x:Class="OrbitalSIP.Views.TaskDialog"
+        Title="Create Task"
+        Width="440" Height="540"
+        WindowStartupLocation="CenterOwner"
+        Background="#0F172A"
+        Topmost="True"
+        SystemDecorations="None"
+        CornerRadius="16">
+  <Border BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16">
+    <Grid RowDefinitions="Auto,*,Auto">
+
+      <!-- Header -->
+      <Border Name="HeaderBar" Background="#152132" CornerRadius="16,16,0,0" Padding="14">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{i18n:I18n TaskDialogTitle}" Foreground="#E2E8F0" FontWeight="Bold" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Name="CloseBtn" Content="X" Width="24" Height="24" Background="Transparent" Foreground="#6E859D" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Cursor="Hand" />
+        </Grid>
+      </Border>
+
+      <!-- Body -->
+      <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16" Spacing="12">
+
+          <!-- Title -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="{i18n:I18n TaskTitle}" FontSize="11" Foreground="#6E859D" />
+            <TextBox Name="TitleBox"
+                     Background="#1E293B" BorderBrush="#334155"
+                     Foreground="#E2E8F0" CornerRadius="8"
+                     MaxLength="200"
+                     Watermark="{i18n:I18n TaskTitle}" />
+          </StackPanel>
+
+          <!-- Description -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="{i18n:I18n TaskDescription}" FontSize="11" Foreground="#6E859D" />
+            <TextBox Name="DescriptionBox"
+                     Background="#1E293B" BorderBrush="#334155"
+                     Foreground="#E2E8F0" CornerRadius="8"
+                     AcceptsReturn="True" TextWrapping="Wrap"
+                     Height="72" MaxLength="1000"
+                     VerticalContentAlignment="Top" />
+          </StackPanel>
+
+          <!-- Priority -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="{i18n:I18n TaskPriority}" FontSize="11" Foreground="#6E859D" />
+            <ComboBox Name="PriorityBox"
+                      HorizontalAlignment="Stretch"
+                      Background="#1E293B" BorderBrush="#334155"
+                      Foreground="#E2E8F0" CornerRadius="8" />
+          </StackPanel>
+
+          <!-- Due date -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="{i18n:I18n TaskDueDate}" FontSize="11" Foreground="#6E859D" />
+            <ComboBox Name="DueBox"
+                      HorizontalAlignment="Stretch"
+                      Background="#1E293B" BorderBrush="#334155"
+                      Foreground="#E2E8F0" CornerRadius="8" />
+          </StackPanel>
+
+          <!-- Task type -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="{i18n:I18n TaskType}" FontSize="11" Foreground="#6E859D" />
+            <ComboBox Name="TypeBox"
+                      HorizontalAlignment="Stretch"
+                      Background="#1E293B" BorderBrush="#334155"
+                      Foreground="#E2E8F0" CornerRadius="8" />
+          </StackPanel>
+
+          <!-- Error -->
+          <TextBlock Name="ErrorLabel" IsVisible="False"
+                     FontSize="12" Foreground="#EF4444" TextWrapping="Wrap" />
+
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Footer -->
+      <Border Grid.Row="2" Background="#152132" CornerRadius="0,0,16,16" Padding="14,10">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <Button Grid.Column="0" Name="CancelBtn" Content="{i18n:I18n Cancel}"
+                  Background="Transparent" BorderThickness="1" BorderBrush="#334155"
+                  Foreground="#94A3B8" CornerRadius="8" Padding="12,6"
+                  FontSize="12" Cursor="Hand" />
+          <Button Grid.Column="2" Name="SaveBtn" Content="{i18n:I18n Save}"
+                  Background="#3B82F6" Foreground="White" BorderThickness="0"
+                  CornerRadius="8" Padding="14,6"
+                  FontSize="12" FontWeight="Bold" Cursor="Hand" />
+        </Grid>
+      </Border>
+    </Grid>
+  </Border>
+</Window>

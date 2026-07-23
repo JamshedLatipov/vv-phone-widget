@@ -50,6 +50,7 @@ namespace OrbitalSIP.Views
             _callerNumber = callerNumber;
             _autoFlowId = autoFlowId;
             InitializeComponent();
+            this.EnableDrag(this.FindControl<Border>("HeaderBar"));
             WireStaticButtons();
             _ = InitAsync();
         }

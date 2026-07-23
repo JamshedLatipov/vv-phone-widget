@@ -211,22 +211,40 @@
               </StackPanel>
             </Button>
 
-            <Button Grid.Column="4" Name="HangupBtn"
+            <Button Grid.Column="4" Name="TaskBtn"
                     Margin="2,0,0,0"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
-                    Background="#DC2626"
+                    Background="#1E293B"
                     BorderThickness="0"
                     CornerRadius="14"
                     Padding="0"
                     HorizontalContentAlignment="Center"
                     VerticalContentAlignment="Center">
               <StackPanel Spacing="4" HorizontalAlignment="Center">
-                <materialIcons:MaterialIcon Kind="PhoneHangup" Width="20" Height="20" Foreground="#FFFFFF" HorizontalAlignment="Center" />
-                <TextBlock Text="{i18n:I18n EndCall}" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" />
+                <materialIcons:MaterialIcon Kind="CalendarPlus" Width="20" Height="20" Foreground="#60A5FA" HorizontalAlignment="Center" />
+                <TextBlock Text="{i18n:I18n Task}" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" HorizontalAlignment="Center" />
               </StackPanel>
             </Button>
           </Grid>
+
+          <!-- End call (full-width, prominent) -->
+          <Button Name="HangupBtn"
+                  Margin="0,8,0,0"
+                  Height="52"
+                  HorizontalAlignment="Stretch"
+                  VerticalAlignment="Stretch"
+                  Background="#DC2626"
+                  BorderThickness="0"
+                  CornerRadius="14"
+                  Padding="0"
+                  HorizontalContentAlignment="Center"
+                  VerticalContentAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+              <materialIcons:MaterialIcon Kind="PhoneHangup" Width="20" Height="20" Foreground="#FFFFFF" VerticalAlignment="Center" />
+              <TextBlock Text="{i18n:I18n EndCall}" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
 
           <!-- ── Call Info Panel (toggled by Инфо button) ────────── -->
           <Border Name="CallInfoPanel" IsVisible="False"

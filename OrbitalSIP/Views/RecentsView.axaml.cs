@@ -152,18 +152,12 @@ namespace OrbitalSIP.Views
                 if (topLevel == null) return;
 
                 var dialog = new ScriptsDialog();
-                var result = await dialog.ShowDialog<CallScript?>(topLevel);
+                var result = await dialog.ShowDialog<ScriptSelection?>(topLevel);
 
                 if (result != null && !string.IsNullOrEmpty(vm.Entry.UniqueId))
                 {
-                    bool success = await App.ScriptService.RegisterScriptAsync(vm.Entry.UniqueId, result.Id!);
-                    if (success)
-                    {
-                        var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
-                        var operatorId = settings.DecodedToken?.Operator?.Username ?? settings.Username;
-                        App.LoggedCallService.MarkCallAsLogged(vm.Entry.UniqueId, operatorId);
+                    if (await App.ScriptService.RegisterAndMarkAsync(vm.Entry.UniqueId, result))
                         _ = LoadCallHistoryAsync();
-                    }
                 }
             }
         }

@@ -3,39 +3,164 @@
              xmlns:i18n="clr-namespace:OrbitalSIP.Services"
         x:Class="OrbitalSIP.Views.ScriptsDialog"
         Title="Call Scripts"
-        Width="400" Height="500"
+        Width="760" Height="580"
         WindowStartupLocation="CenterOwner"
         Background="#0F172A"
         Topmost="True"
         SystemDecorations="None"
         CornerRadius="16">
   <Border BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16">
-    <Grid RowDefinitions="Auto,Auto,*,Auto">
+    <Grid RowDefinitions="Auto,*,Auto">
+
       <!-- Header -->
-      <Border Background="#152132" CornerRadius="16,16,0,0" Padding="14">
+      <Border Name="HeaderBar" Background="#152132" CornerRadius="16,16,0,0" Padding="14">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Text="{i18n:I18n CallScripts}" Foreground="#E2E8F0" FontWeight="Bold" VerticalAlignment="Center" />
           <Button Grid.Column="1" Name="CloseBtn" Content="X" Width="24" Height="24" Background="Transparent" Foreground="#6E859D" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Cursor="Hand" />
         </Grid>
       </Border>
 
-      <!-- Search -->
-      <TextBox Grid.Row="1" Name="SearchBox"
-               Margin="14,14,14,0"
-               Background="#1E293B"
-               BorderBrush="#334155"
-               Foreground="#E2E8F0"
-               Watermark="{i18n:I18n SearchScripts}"
-               CornerRadius="8" />
+      <Grid Grid.Row="1" ColumnDefinitions="290,1,*">
 
-      <!-- Content -->
-      <ScrollViewer Grid.Row="2" Margin="14" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <TreeView Name="ScriptsTreeView" Background="Transparent" Foreground="#E2E8F0" />
-      </ScrollViewer>
+        <!-- Left: search, category chips, tree -->
+        <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*" Margin="14,14,14,14">
+
+          <TextBox Grid.Row="0" Name="SearchBox"
+                   Background="#1E293B"
+                   BorderBrush="#334155"
+                   Foreground="#E2E8F0"
+                   Watermark="{i18n:I18n SearchScripts}"
+                   CornerRadius="8" />
+
+          <ScrollViewer Grid.Row="1" Name="CategoryScroller"
+                        MaxHeight="96"
+                        HorizontalScrollBarVisibility="Disabled"
+                        VerticalScrollBarVisibility="Auto"
+                        Margin="0,10,0,0" IsVisible="False">
+            <WrapPanel Name="CategoryChips" />
+          </ScrollViewer>
+
+          <Panel Grid.Row="2" Margin="0,10,0,0">
+
+            <ScrollViewer Name="TreeScroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+              <TreeView Name="ScriptsTreeView" Background="Transparent" Foreground="#E2E8F0" />
+            </ScrollViewer>
+
+            <!-- Loading -->
+            <TextBlock Name="LoadingLabel" Text="{i18n:I18n ScriptsLoading}"
+                       FontSize="13" Foreground="#6E859D"
+                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0" />
+
+            <!-- Empty -->
+            <TextBlock Name="EmptyLabel" IsVisible="False" Text="{i18n:I18n ScriptsEmpty}"
+                       FontSize="13" Foreground="#6E859D" TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0" />
+
+            <!-- Error + retry -->
+            <StackPanel Name="ErrorPanel" IsVisible="False" Spacing="10"
+                        HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0">
+              <TextBlock Name="ErrorLabel" Text="{i18n:I18n ScriptsLoadError}"
+                         FontSize="12" Foreground="#EF4444" TextWrapping="Wrap"
+                         TextAlignment="Center" />
+              <Button Name="RetryBtn" Content="{i18n:I18n Retry}"
+                      HorizontalAlignment="Center"
+                      Background="#1E293B" Foreground="#E2E8F0" BorderThickness="0"
+                      CornerRadius="8" Padding="12,6" FontSize="12" Cursor="Hand" />
+            </StackPanel>
+
+          </Panel>
+        </Grid>
+
+        <!-- Divider -->
+        <Border Grid.Column="1" Background="#1E293B" />
+
+        <!-- Right: script details + comment -->
+        <Grid Grid.Column="2" RowDefinitions="*,Auto" Margin="14,14,14,14">
+
+          <Panel Grid.Row="0">
+
+            <TextBlock Name="DetailPlaceholder" Text="{i18n:I18n ScriptPickHint}"
+                       FontSize="13" Foreground="#475569"
+                       TextWrapping="Wrap" TextAlignment="Center"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+            <ScrollViewer Name="DetailScroller" IsVisible="False"
+                          HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+              <StackPanel Spacing="10">
+
+                <!-- Title + category chip -->
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Name="DetailTitle" Text=""
+                             FontSize="16" FontWeight="Bold" Foreground="#E2E8F0"
+                             TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Name="DetailCategoryChip" IsVisible="False"
+                          CornerRadius="10" Padding="8,3" Margin="10,0,0,0"
+                          VerticalAlignment="Center">
+                    <TextBlock Name="DetailCategoryText" Text=""
+                               FontSize="10" FontWeight="Bold" LetterSpacing="0.6"
+                               Foreground="#0F172A" />
+                  </Border>
+                </Grid>
+
+                <TextBlock Name="DetailDescription" Text="" IsVisible="False"
+                           FontSize="13" Foreground="#94A3B8" TextWrapping="Wrap" />
+
+                <Border Height="1" Background="#1E293B" />
+
+                <!-- Steps -->
+                <StackPanel Name="StepsSection" IsVisible="False" Spacing="6">
+                  <TextBlock Text="{i18n:I18n ScriptSteps}" FontSize="10" FontWeight="Bold"
+                             LetterSpacing="1.4" Foreground="#7B92AA" />
+                  <StackPanel Name="StepsList" Spacing="6" />
+                </StackPanel>
+
+                <!-- Questions -->
+                <StackPanel Name="QuestionsSection" IsVisible="False" Spacing="6">
+                  <TextBlock Text="{i18n:I18n ScriptQuestions}" FontSize="10" FontWeight="Bold"
+                             LetterSpacing="1.4" Foreground="#7B92AA" Margin="0,6,0,0" />
+                  <StackPanel Name="QuestionsList" Spacing="6" />
+                </StackPanel>
+
+                <!-- Tips -->
+                <StackPanel Name="TipsSection" IsVisible="False" Spacing="6">
+                  <TextBlock Text="{i18n:I18n ScriptTips}" FontSize="10" FontWeight="Bold"
+                             LetterSpacing="1.4" Foreground="#7B92AA" Margin="0,6,0,0" />
+                  <StackPanel Name="TipsList" Spacing="6" />
+                </StackPanel>
+
+              </StackPanel>
+            </ScrollViewer>
+          </Panel>
+
+          <!-- Comment (pinned) -->
+          <StackPanel Grid.Row="1" Spacing="4" Margin="0,12,0,0">
+            <TextBlock Text="{i18n:I18n ScriptComment}" FontSize="11" Foreground="#6E859D" />
+            <TextBox Name="CommentBox"
+                     Background="#1E293B" BorderBrush="#334155"
+                     Foreground="#E2E8F0" CornerRadius="8"
+                     AcceptsReturn="True" TextWrapping="Wrap"
+                     Height="66" MaxLength="1000"
+                     VerticalContentAlignment="Top"
+                     Watermark="{i18n:I18n ScriptCommentHint}" />
+          </StackPanel>
+
+        </Grid>
+      </Grid>
 
       <!-- Footer -->
-      <Border Grid.Row="3" Background="#152132" CornerRadius="0,0,16,16" Padding="14">
-        <Button Name="SelectBtn" Content="{i18n:I18n SelectScript}" HorizontalAlignment="Right" Background="#3B82F6" Foreground="White" BorderThickness="0" CornerRadius="8" Padding="12,6" />
+      <Border Grid.Row="2" Background="#152132" CornerRadius="0,0,16,16" Padding="14,10">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <Button Grid.Column="0" Name="CancelBtn" Content="{i18n:I18n Cancel}"
+                  Background="Transparent" BorderThickness="1" BorderBrush="#334155"
+                  Foreground="#94A3B8" CornerRadius="8" Padding="12,6"
+                  FontSize="12" Cursor="Hand" />
+          <Button Grid.Column="2" Name="SelectBtn" Content="{i18n:I18n Save}"
+                  IsEnabled="False"
+                  Background="#3B82F6" Foreground="White" BorderThickness="0"
+                  CornerRadius="8" Padding="14,6"
+                  FontSize="12" FontWeight="Bold" Cursor="Hand" />
+        </Grid>
       </Border>
     </Grid>
   </Border>
