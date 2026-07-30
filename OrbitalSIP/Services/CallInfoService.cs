@@ -92,40 +92,6 @@ namespace OrbitalSIP.Services
             }
         }
 
-        /// <summary>
-        /// Resolves a dot-notation key (e.g. "tarif.name") from a JsonElement.
-        /// Returns null if any segment is missing.
-        /// </summary>
-        public static string? ResolveField(JsonElement? data, string dotKey)
-        {
-            if (data == null || string.IsNullOrEmpty(dotKey))
-                return null;
-
-            var segments = dotKey.Split('.');
-            JsonElement current = data.Value;
-
-            foreach (var segment in segments)
-            {
-                if (current.ValueKind != JsonValueKind.Object)
-                    return null;
-
-                if (!current.TryGetProperty(segment, out var next))
-                    return null;
-
-                current = next;
-            }
-
-            return current.ValueKind switch
-            {
-                JsonValueKind.String => current.GetString(),
-                JsonValueKind.Number => current.GetRawText(),
-                JsonValueKind.True   => "Да",
-                JsonValueKind.False  => "Нет",
-                JsonValueKind.Null   => null,
-                _                   => current.GetRawText()
-            };
-        }
-
         public void Dispose()
         {
             _httpClient.Dispose();
