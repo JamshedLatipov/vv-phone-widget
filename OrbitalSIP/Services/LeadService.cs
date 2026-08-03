@@ -132,7 +132,6 @@ namespace OrbitalSIP.Services
                 int? existingLeadId = null;
                 string? existingLeadName = null;
                 string? existingLeadStatus = null;
-                string? existingLeadAssignedTo = null;
 
                 if (root.TryGetProperty("errors", out var errorsEl)
                     && errorsEl.ValueKind == JsonValueKind.Object)
@@ -146,7 +145,6 @@ namespace OrbitalSIP.Services
 
                     existingLeadName = ReadOptionalString(errorsEl, "existingLeadName");
                     existingLeadStatus = ReadOptionalString(errorsEl, "status");
-                    existingLeadAssignedTo = ReadOptionalString(errorsEl, "assignedTo");
                 }
 
                 // `message` is string|string[] across the API; this conflict sends a
@@ -157,7 +155,6 @@ namespace OrbitalSIP.Services
                     existingLeadId: existingLeadId,
                     existingLeadName: existingLeadName,
                     existingLeadStatus: existingLeadStatus,
-                    existingLeadAssignedTo: existingLeadAssignedTo,
                     message: message);
             }
             catch (JsonException)

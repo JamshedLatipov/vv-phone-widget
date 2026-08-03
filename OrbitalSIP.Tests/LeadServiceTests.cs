@@ -46,7 +46,6 @@ namespace OrbitalSIP.Tests
             // straight from the 409 without a second call-context round trip.
             Assert.Equal("Иванов Иван", result.ExistingLeadName);
             Assert.Equal("contacted", result.ExistingLeadStatus);
-            Assert.Equal("42", result.ExistingLeadAssignedTo);
         }
 
         /// <summary>An unassigned lead sends `assignedTo: null`, and a lead with no
@@ -74,7 +73,6 @@ namespace OrbitalSIP.Tests
             Assert.Equal(4821, result.ExistingLeadId);
             Assert.Null(result.ExistingLeadName);
             Assert.Null(result.ExistingLeadStatus);
-            Assert.Null(result.ExistingLeadAssignedTo);
         }
 
         /// <summary>Each `errors` key is read from its own name — a swap between the
@@ -98,7 +96,6 @@ namespace OrbitalSIP.Tests
             Assert.NotNull(result);
             Assert.Equal("имя", result!.ExistingLeadName);
             Assert.Equal("статус", result.ExistingLeadStatus);
-            Assert.Equal("ответственный", result.ExistingLeadAssignedTo);
             Assert.Equal("сообщение", result.Message);
         }
 

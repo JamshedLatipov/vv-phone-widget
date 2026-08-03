@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Markup.Xaml;
@@ -414,9 +415,14 @@ namespace OrbitalSIP.Views
             ApplyLeadPanelState();
         }
 
-        private static string CurrentCallKey() =>
+        /// <summary>
+        /// Null when this call has no reliable identity — nothing is cached then.
+        /// Keyed off CallerNumber(), the same source the lookup itself uses, so the
+        /// key can never describe a different number than the cached result.
+        /// </summary>
+        private string? CurrentCallKey() =>
             LeadCallPanelPresenter.BuildCallKey(
-                App.SipService?.ActiveCallerId,
+                CallerNumber(),
                 App.SipService?.ActiveCallStartedAt);
 
         /// <summary>
@@ -427,7 +433,8 @@ namespace OrbitalSIP.Views
         /// </summary>
         private bool RestoreCachedCallState()
         {
-            if (_leadCache == null || _leadCache.Key != CurrentCallKey()) return false;
+            var key = CurrentCallKey();
+            if (key == null || _leadCache == null || _leadCache.Key != key) return false;
 
             _leadContext = _leadCache.Context;
             _leadConflict = _leadCache.Conflict;
@@ -441,23 +448,32 @@ namespace OrbitalSIP.Views
             return _leadContext != null || _leadConflict != null;
         }
 
-        private void CacheForThisCall()
+        /// <summary>Returns the cache entry for the current call, or null when the
+        /// call has no reliable identity — in which case nothing is stored.</summary>
+        private LeadCallCache? CacheEntry()
         {
             var key = CurrentCallKey();
+            if (key == null) return null;
+
             if (_leadCache == null || _leadCache.Key != key)
                 _leadCache = new LeadCallCache { Key = key };
 
-            _leadCache.Context = _leadContext;
-            _leadCache.Conflict = _leadConflict;
+            return _leadCache;
         }
 
-        private static void RememberCommentDraft(string? text)
+        private void CacheForThisCall()
         {
-            var key = CurrentCallKey();
-            if (_leadCache == null || _leadCache.Key != key)
-                _leadCache = new LeadCallCache { Key = key };
+            var entry = CacheEntry();
+            if (entry == null) return;
 
-            _leadCache.CommentDraft = text ?? string.Empty;
+            entry.Context = _leadContext;
+            entry.Conflict = _leadConflict;
+        }
+
+        private void RememberCommentDraft(string? text)
+        {
+            var entry = CacheEntry();
+            if (entry != null) entry.CommentDraft = text ?? string.Empty;
         }
 
         private void ApplyLeadPanelState()
@@ -473,7 +489,7 @@ namespace OrbitalSIP.Views
             var createBtn = this.FindControl<Button>("CreateLeadBtn");
 
             if (createBtn != null && !_leadCreated)
-                createBtn.IsVisible = LeadCallPanelPresenter.ShowsCreateButton(state);
+                SetCreateButtonVisible(createBtn, LeadCallPanelPresenter.ShowsCreateButton(state));
 
             if (loading != null) loading.IsVisible = state == LeadPanelState.Loading;
             if (unavailable != null) unavailable.IsVisible = state == LeadPanelState.Unavailable;
@@ -538,7 +554,9 @@ namespace OrbitalSIP.Views
         /// </summary>
         private void RenderConflictLeadCard(Models.CreateLeadResult conflict)
         {
-            SetVisible<Button>("CreateLeadBtn", false);
+            var conflictCreateBtn = this.FindControl<Button>("CreateLeadBtn");
+            if (conflictCreateBtn != null) SetCreateButtonVisible(conflictCreateBtn, false);
+
             SetVisible<Border>("LeadPanel", true);
             SetVisible<StackPanel>("LeadCardBlock", true);
             SetVisible<TextBlock>("LeadLoadingLabel", false);
@@ -565,6 +583,23 @@ namespace OrbitalSIP.Views
             SetVisible<Button>("LeadTransferOwnerBtn", false);
             SetVisible<TextBlock>("LeadTransferBlockedLabel", false);
             SetVisible<StackPanel>("LeadCommentBlock", false);
+        }
+
+        /// <summary>
+        /// Hides «Создать лид» AND collapses its column, so the five-button action
+        /// grid closes up instead of leaving a hole on the left.
+        /// </summary>
+        private void SetCreateButtonVisible(Button createBtn, bool visible)
+        {
+            createBtn.IsVisible = visible;
+            createBtn.Margin = visible ? new Thickness(0, 0, 2, 0) : new Thickness(0);
+
+            var grid = this.FindControl<Grid>("CallActionsGrid");
+            if (grid == null || grid.ColumnDefinitions.Count == 0) return;
+
+            grid.ColumnDefinitions[0].Width = visible
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(0);
         }
 
         private void SetVisible<T>(string name, bool visible) where T : Control
@@ -653,14 +688,16 @@ namespace OrbitalSIP.Views
             try
             {
                 var payload = new Models.AddCallCommentRequest { Comment = comment };
-                await AttachCallLinkAsync(payload, CallerNumber());
+                var linked = await AttachCallLinkAsync(payload, CallerNumber());
 
                 var ok = await App.LeadService.AddCallCommentAsync(lead.Id, payload);
-                AppLogger.Log("LeadPanel", $"Add call comment to lead {lead.Id}: {ok}");
+                AppLogger.Log("LeadPanel", $"Add call comment to lead {lead.Id}: ok={ok} linked={linked}");
 
                 if (ok && box != null) box.Text = string.Empty;
                 if (ok) RememberCommentDraft(string.Empty);
-                _ = ShowCommentStatusAsync(ok ? "LeadPanelCommentSaved" : "LeadPanelCommentFailed");
+
+                _ = ShowCommentStatusAsync(
+                    LeadCallPanelPresenter.CommentStatusKey(saved: ok, linkedToCall: linked));
             }
             finally
             {
@@ -675,18 +712,41 @@ namespace OrbitalSIP.Views
         /// uniqueId is the fallback because an unresolvable one still saves the
         /// comment, just without call linkage.
         /// </summary>
-        private static async Task AttachCallLinkAsync(Models.AddCallCommentRequest payload, string? number)
+        /// <returns>
+        /// False when the comment will be saved with no link to the call at all.
+        /// The comment is NOT failed over this — losing the link is worth far less
+        /// than losing the note the operator just typed mid-call — but the operator
+        /// is told, because the link to the recording is the point of the
+        /// attribution.
+        /// </returns>
+        private static async Task<bool> AttachCallLinkAsync(Models.AddCallCommentRequest payload, string? number)
         {
-            if (string.IsNullOrWhiteSpace(number)) return;
+            if (string.IsNullOrWhiteSpace(number)) return false;
 
-            var uniqueId = await App.ScriptService.GetChannelUniqueIdAsync(number!);
-            if (string.IsNullOrWhiteSpace(uniqueId)) return;
+            // notifyErrors:false — a failure here costs only the link, and an error
+            // banner during a live call for an action that then succeeds is worse
+            // than the missing link itself. Both calls still log in full.
+            var uniqueId = await App.ScriptService.GetChannelUniqueIdAsync(number!, notifyErrors: false);
+            if (string.IsNullOrWhiteSpace(uniqueId))
+            {
+                AppLogger.Log("LeadPanel", "Call comment: could not resolve the channel uniqueId; saving without a call link.");
+                return false;
+            }
 
-            var callLogId = await App.ScriptService.SaveCallLogAsync(uniqueId!);
+            var callLogId = await App.ScriptService.SaveCallLogAsync(uniqueId!, notifyErrors: false);
             if (!string.IsNullOrWhiteSpace(callLogId))
+            {
                 payload.CallLogId = callLogId;
-            else
-                payload.CallUniqueId = uniqueId;
+                return true;
+            }
+
+            // Only an id that SaveCallLogAsync actually returned may go in
+            // callLogId — the backend 400s an unresolvable one. The raw uniqueId is
+            // the safe fallback: it saves the comment either way, linked if the
+            // backend can resolve it.
+            AppLogger.Log("LeadPanel", "Call comment: no callLogId; falling back to callUniqueId.");
+            payload.CallUniqueId = uniqueId;
+            return true;
         }
 
         private async Task ShowCommentStatusAsync(string key)

@@ -170,5 +170,6 @@
   "LeadStatusLost": "Потерян",
   "LeadStatusOverdue": "Просрочен",
   "LeadStatusStalled": "Зависший",
-  "LeadStatusNoAnswer": "Нет ответа"
+  "LeadStatusNoAnswer": "Нет ответа",
+  "LeadPanelCommentSavedNoLink": "Комментарий сохранён без ссылки на запись"
 }

@@ -160,5 +160,6 @@
   "LeadStatusLost": "Жоғалтылды",
   "LeadStatusOverdue": "Мерзімі өтті",
   "LeadStatusStalled": "Тұрып қалған",
-  "LeadStatusNoAnswer": "Жауап жоқ"
+  "LeadStatusNoAnswer": "Жауап жоқ",
+  "LeadPanelCommentSavedNoLink": "Пікір жазбаға сілтемесіз сақталды"
 }

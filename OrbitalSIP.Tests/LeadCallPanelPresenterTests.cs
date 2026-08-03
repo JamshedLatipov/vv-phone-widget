@@ -132,30 +132,42 @@ namespace OrbitalSIP.Tests
 
         // ── The create button: the invariant this feature exists for ─────────
 
+        /// <summary>
+        /// The button is withheld ONLY where we positively know it does not belong.
+        /// Anything else keeps it: hiding it on a lookup failure would remove a
+        /// capability operators already have, and the desktop ships separately from
+        /// the CRM, so a widget deployed first would otherwise strand everyone.
+        /// </summary>
         [Fact]
-        public void CreateButton_AppearsOnlyForOfferCreate()
+        public void CreateButton_IsWithheldOnlyWhereWeKnowItDoesNotBelong()
         {
-            Assert.True(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.OfferCreate));
-
-            Assert.False(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.Loading));
             Assert.False(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.ActiveLead));
             Assert.False(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.ConflictLead));
             Assert.False(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.Hidden));
-            Assert.False(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.Unavailable));
+
+            Assert.True(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.OfferCreate));
+            Assert.True(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.Unavailable));
+            Assert.True(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.Loading));
         }
 
-        /// <summary>End-to-end over the two paths that most look like "no lead".</summary>
+        /// <summary>
+        /// The capability survives every way the lookup can fail — a 403 on a role
+        /// that cannot reach call-context, a network error, or a CRM that has not
+        /// been deployed with the route yet. An optimistic create is safe now: a
+        /// duplicate comes back 409 and the panel renders the existing lead.
+        /// </summary>
         [Fact]
-        public void FailedLookup_NeverShowsCreateButton()
+        public void FailedLookup_KeepsTheCreateButton()
         {
-            Assert.False(LeadCallPanelPresenter.ShowsCreateButton(
-                LeadCallPanelPresenter.SelectState(LeadCallContextResult.Failed("boom"))));
+            Assert.True(LeadCallPanelPresenter.ShowsCreateButton(
+                LeadCallPanelPresenter.SelectState(LeadCallContextResult.Failed("HTTP 403"))));
 
-            Assert.False(LeadCallPanelPresenter.ShowsCreateButton(
+            Assert.True(LeadCallPanelPresenter.ShowsCreateButton(
                 LeadCallPanelPresenter.SelectState(Loaded(LeadCallStates.Unavailable))));
 
-            // Still loading — we do not yet know, so we do not offer.
-            Assert.False(LeadCallPanelPresenter.ShowsCreateButton(
+            // Still loading: the lookup can be slow, and that is the worst moment
+            // to have no button.
+            Assert.True(LeadCallPanelPresenter.ShowsCreateButton(
                 LeadCallPanelPresenter.SelectState(null)));
         }
 
@@ -264,6 +276,36 @@ namespace OrbitalSIP.Tests
             Assert.Equal(
                 LeadCallPanelPresenter.TransferBlockedUnknownKey,
                 LeadCallPanelPresenter.TransferBlockedKey("supervisor_ate_the_phone"));
+        }
+
+        // ── Comment confirmation ─────────────────────────────────────────────
+
+        /// <summary>
+        /// The call-link step can fail (a non-2xx from /cdr/channel-uniqueid or
+        /// /cdr/log) while the comment itself still saves. That must not read as a
+        /// failure — nor as an unqualified success, since the recording link is
+        /// exactly what the attribution is for.
+        /// </summary>
+        [Fact]
+        public void CommentStatus_DistinguishesSavedWithAndWithoutACallLink()
+        {
+            Assert.Equal("LeadPanelCommentSaved",
+                LeadCallPanelPresenter.CommentStatusKey(saved: true, linkedToCall: true));
+
+            Assert.Equal("LeadPanelCommentSavedNoLink",
+                LeadCallPanelPresenter.CommentStatusKey(saved: true, linkedToCall: false));
+        }
+
+        [Fact]
+        public void CommentStatus_IsAFailureOnlyWhenTheCommentItselfFailed()
+        {
+            Assert.Equal("LeadPanelCommentFailed",
+                LeadCallPanelPresenter.CommentStatusKey(saved: false, linkedToCall: false));
+
+            // A link with no saved comment cannot happen, but must still not claim
+            // success.
+            Assert.Equal("LeadPanelCommentFailed",
+                LeadCallPanelPresenter.CommentStatusKey(saved: false, linkedToCall: true));
         }
 
         // ── Card text ────────────────────────────────────────────────────────
@@ -495,6 +537,29 @@ namespace OrbitalSIP.Tests
             Assert.NotEqual(
                 LeadCallPanelPresenter.BuildCallKey("992900112233", startedAt),
                 LeadCallPanelPresenter.BuildCallKey("992900445566", startedAt));
+        }
+
+        /// <summary>
+        /// SipService leaves ActiveCallStartedAt null before answer and resets it on
+        /// hangup, while ActiveCallerId is never cleared. A placeholder key would
+        /// therefore be SHARED between a pre-answer view and a later call to the
+        /// same number, handing over a stale «no lead» and a stale comment draft.
+        /// No timestamp means no key at all, and no caching.
+        /// </summary>
+        [Fact]
+        public void CallKey_IsNullWithoutAStartTime()
+        {
+            Assert.Null(LeadCallPanelPresenter.BuildCallKey("992900112233", null));
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void CallKey_IsNullWithoutANumber(string? number)
+        {
+            Assert.Null(LeadCallPanelPresenter.BuildCallKey(
+                number, new DateTime(2026, 8, 4, 10, 0, 0)));
         }
 
         // ── URL launch guard ─────────────────────────────────────────────────

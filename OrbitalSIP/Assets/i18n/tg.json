@@ -158,5 +158,6 @@
   "LeadStatusLost": "Гум шуд",
   "LeadStatusOverdue": "Мӯҳлаташ гузашт",
   "LeadStatusStalled": "Боздошташуда",
-  "LeadStatusNoAnswer": "Ҷавоб нест"
+  "LeadStatusNoAnswer": "Ҷавоб нест",
+  "LeadPanelCommentSavedNoLink": "Шарҳ бе истинод ба сабт нигоҳ дошта шуд"
 }

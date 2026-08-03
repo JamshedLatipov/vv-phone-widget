@@ -302,7 +302,6 @@ namespace OrbitalSIP.Models
             int? existingLeadId,
             string? existingLeadName,
             string? existingLeadStatus,
-            string? existingLeadAssignedTo,
             string? message)
         {
             Success = success;
@@ -310,7 +309,6 @@ namespace OrbitalSIP.Models
             ExistingLeadId = existingLeadId;
             ExistingLeadName = existingLeadName;
             ExistingLeadStatus = existingLeadStatus;
-            ExistingLeadAssignedTo = existingLeadAssignedTo;
             Message = message;
         }
 
@@ -329,28 +327,25 @@ namespace OrbitalSIP.Models
         /// <summary>`errors.status` — the existing lead's LeadStatus.</summary>
         public string? ExistingLeadStatus { get; }
 
-        /// <summary>`errors.assignedTo` — the owner's user id as a string, or null
-        /// when the lead is unassigned. NOT the owner's name: resolving that needs
-        /// the call-context lookup.</summary>
-        public string? ExistingLeadAssignedTo { get; }
-
         /// <summary>The conflict's `message`, ready to show to the operator.</summary>
         public string? Message { get; }
 
+        // `errors.assignedTo` is deliberately NOT carried: it is a bare user id, and
+        // the panel needs a NAME, which only the call-context refresh can supply
+        // (LeadCallOwner.FullName). Parsing it here would be dead weight.
+
         public static CreateLeadResult Created() =>
-            new CreateLeadResult(true, false, null, null, null, null, null);
+            new CreateLeadResult(true, false, null, null, null, null);
 
         public static CreateLeadResult Duplicate(
             int? existingLeadId,
             string? existingLeadName,
             string? existingLeadStatus,
-            string? existingLeadAssignedTo,
             string? message) =>
             new CreateLeadResult(
-                false, true, existingLeadId, existingLeadName,
-                existingLeadStatus, existingLeadAssignedTo, message);
+                false, true, existingLeadId, existingLeadName, existingLeadStatus, message);
 
         public static CreateLeadResult Failed() =>
-            new CreateLeadResult(false, false, null, null, null, null, null);
+            new CreateLeadResult(false, false, null, null, null, null);
     }
 }

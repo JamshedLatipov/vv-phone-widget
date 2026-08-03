@@ -234,11 +234,13 @@
             </StackPanel>
           </Border>
 
-          <Grid ColumnDefinitions="*,*,*,*,*" Margin="0,10,0,0" Height="68">
-            <!-- Hidden until the call-context lookup says a create is actually
-                 safe AND permitted (LeadPanelState.OfferCreate). -->
+          <Grid Name="CallActionsGrid" ColumnDefinitions="*,*,*,*,*" Margin="0,10,0,0" Height="68">
+            <!-- Starts VISIBLE, matching the behaviour before this panel existed:
+                 the lookup only ever takes the button away (an existing lead, or no
+                 permission to create), never grants it. A widget running against a
+                 CRM without the call-context route must keep working.
+                 Column 0 collapses with it — see ApplyLeadPanelState. -->
             <Button Grid.Column="0" Name="CreateLeadBtn"
-                    IsVisible="False"
                     Margin="0,0,2,0"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"

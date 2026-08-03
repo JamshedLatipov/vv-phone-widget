@@ -113,9 +113,44 @@ namespace OrbitalSIP.Services
             return false;
         }
 
-        /// <summary>The one place that decides whether «Создать лид» is on screen.</summary>
-        public static bool ShowsCreateButton(LeadPanelState state) =>
-            state == LeadPanelState.OfferCreate;
+        /// <summary>
+        /// The one place that decides whether «Создать лид» is on screen.
+        ///
+        /// Withheld ONLY where we positively know it does not belong. Everything
+        /// else — including a failed lookup — keeps it, because hiding it there
+        /// would remove a capability operators have today: the desktop release ships
+        /// separately from the CRM (CLAUDE.md §12), so a widget deployed first would
+        /// leave EVERY operator unable to create a lead until the backend lands, and
+        /// an operator on a role that cannot reach `call-context` would lose it
+        /// permanently.
+        ///
+        /// This is deliberately NOT fail-closed, unlike the lead-card decisions
+        /// above, and the difference is the conflict card: an optimistic create is
+        /// now safe, because a duplicate comes back 409 and the panel renders the
+        /// existing lead instead of an error. The false affordance this feature
+        /// removes is a create that DEAD-ENDS, and it no longer does.
+        /// </summary>
+        public static bool ShowsCreateButton(LeadPanelState state) => state switch
+        {
+            // A lead is on screen — creating a second one is exactly the 409.
+            LeadPanelState.ActiveLead => false,
+            LeadPanelState.ConflictLead => false,
+            // No lead AND no `leads:create` (cc_operator / cc_manager): the server
+            // told us plainly that a create would 403.
+            LeadPanelState.Hidden => false,
+
+            LeadPanelState.OfferCreate => true,
+            // We could not check. Optimistic create, 409 handles the duplicate.
+            LeadPanelState.Unavailable => true,
+            // Still checking — the lookup can take a while (its server side runs a
+            // full AMI endpoint sweep) and that is the worst moment to have no
+            // button, mid-call.
+            LeadPanelState.Loading => true,
+
+            // A state added later should preserve the capability, not silently
+            // remove it. See above: an unnecessary create is cheap now.
+            _ => true,
+        };
 
         public static bool ShowsLeadCard(LeadPanelState state) =>
             state == LeadPanelState.ActiveLead || state == LeadPanelState.ConflictLead;
@@ -155,6 +190,19 @@ namespace OrbitalSIP.Services
                 // a disabled button with no explanation is worse than a generic one.
                 _ => TransferBlockedUnknownKey,
             };
+        }
+
+        /// <summary>
+        /// Which confirmation the comment box shows. A comment that saved without a
+        /// call link is a SUCCESS with a caveat, not a failure: the note is on the
+        /// lead either way, but the link to the recording — the point of attributing
+        /// it to this call — is missing, and silently claiming plain success would
+        /// hide that.
+        /// </summary>
+        public static string CommentStatusKey(bool saved, bool linkedToCall)
+        {
+            if (!saved) return "LeadPanelCommentFailed";
+            return linkedToCall ? "LeadPanelCommentSaved" : "LeadPanelCommentSavedNoLink";
         }
 
         /// <summary>Reasons the transfer is unavailable, with a generic fallback for
@@ -205,13 +253,21 @@ namespace OrbitalSIP.Services
 
         /// <summary>
         /// Identity of the CURRENT call, used to decide whether cached context may
-        /// be reused when the view is rebuilt. The start time is in the key on
-        /// purpose: the same number calling back later is a different call, and
-        /// reusing its stale «no lead» would re-offer a create for a caller who has
-        /// since acquired a lead.
+        /// be reused when the view is rebuilt, or null when there is no reliable
+        /// identity and NOTHING may be cached.
+        ///
+        /// The start time is in the key because the same number calling back later
+        /// is a different call, and reusing its stale «no lead» would re-offer a
+        /// create for a caller who has since acquired one. It is also why a null
+        /// start time yields no key at all rather than a placeholder: SipService
+        /// leaves it null before answer and resets it on hangup, while
+        /// ActiveCallerId is never cleared, so a shared «number + nothing» key would
+        /// let a pre-answer view hand its stale result to a later call.
         /// </summary>
-        public static string BuildCallKey(string? callerNumber, DateTime? callStartedAt) =>
-            $"{callerNumber}|{callStartedAt?.ToString("O") ?? "-"}";
+        public static string? BuildCallKey(string? callerNumber, DateTime? callStartedAt) =>
+            callStartedAt == null || string.IsNullOrWhiteSpace(callerNumber)
+                ? null
+                : $"{callerNumber}|{callStartedAt.Value.ToString("O")}";
 
         private static string JoinParts(string? first, string? second)
         {
