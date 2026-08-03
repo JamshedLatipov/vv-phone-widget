@@ -20,6 +20,7 @@ namespace OrbitalSIP
         public static readonly TaskService TaskService = new TaskService();
         public static readonly CallInfoService CallInfoService = new CallInfoService();
         public static readonly FlowsService FlowsService = new FlowsService();
+        public static readonly SmsService SmsService = new SmsService();
         public static readonly GlobalHotkeyService GlobalHotkeys = new GlobalHotkeyService();
         public static readonly UpdateService        Updater       = new UpdateService();
 
@@ -62,6 +63,7 @@ namespace OrbitalSIP
                     TaskService.Dispose();
                     CallInfoService.Dispose();
                     FlowsService.Dispose();
+                    SmsService.Dispose();
                 };
             }
 
