@@ -157,5 +157,7 @@
   "SmsSending": "SMS ба навбат гузошта мешавад…",
   "SmsQueuedSuccess": "SMS ба навбат гузошта шуд",
   "SmsSendError": "SMS-ро ба навбат гузоштан муяссар нашуд",
-  "SmsCancelled": "Ирсоли SMS бекор шуд"
+  "SmsCancelled": "Ирсоли SMS бекор шуд",
+  "Sms": "SMS",
+  "SmsActiveCallUnavailable": "Занги фаъолро барои SMS тасдиқ кардан муяссар нашуд. Боз кӯшиш кунед."
 }

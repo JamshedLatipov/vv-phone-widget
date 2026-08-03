@@ -159,5 +159,7 @@
   "SmsSending": "SMS кезекке қойылуда…",
   "SmsQueuedSuccess": "SMS кезекке қойылды",
   "SmsSendError": "SMS-ті кезекке қою мүмкін болмады",
-  "SmsCancelled": "SMS жіберу тоқтатылды"
+  "SmsCancelled": "SMS жіберу тоқтатылды",
+  "Sms": "SMS",
+  "SmsActiveCallUnavailable": "SMS үшін белсенді қоңырауды растау мүмкін болмады. Қайталап көріңіз."
 }

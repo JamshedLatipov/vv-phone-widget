@@ -159,5 +159,7 @@
   "SmsSending": "SMS navbatga qo'yilmoqda…",
   "SmsQueuedSuccess": "SMS navbatga qo'yildi",
   "SmsSendError": "SMS-ni navbatga qo'yib bo'lmadi",
-  "SmsCancelled": "SMS yuborish bekor qilindi"
+  "SmsCancelled": "SMS yuborish bekor qilindi",
+  "Sms": "SMS",
+  "SmsActiveCallUnavailable": "SMS uchun faol qo'ng'iroqni tasdiqlab bo'lmadi. Qayta urinib ko'ring."
 }

@@ -21,6 +21,7 @@ namespace OrbitalSIP.Views
         private bool _leadCreated;
         private bool _surveyOpen;
         private bool _taskOpen;
+        private bool _smsComposeOpen;
 
         public ActiveCallView()
             : this("Unknown", false)
@@ -143,6 +144,10 @@ namespace OrbitalSIP.Views
             var taskBtn = this.FindControl<Button>("TaskBtn");
             if (taskBtn != null)
                 taskBtn.Click += async (_, __) => await ShowTaskDialog();
+
+            var smsBtn = this.FindControl<Button>("SmsBtn");
+            if (smsBtn != null)
+                smsBtn.Click += async (_, __) => await ShowSmsComposeDialog();
 
             var callInfoBtn = this.FindControl<Button>("CallInfoBtn");
             if (callInfoBtn != null)
@@ -354,6 +359,52 @@ namespace OrbitalSIP.Views
                 taskBtn.IsEnabled = true;
                 if (success) await FlashTaskCreated(taskBtn);
             }
+        }
+
+        private async Task ShowSmsComposeDialog()
+        {
+            if (_smsComposeOpen) return;
+
+            var topLevel = TopLevel.GetTopLevel(this) as Window;
+            if (topLevel == null) return;
+
+            var displayNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? string.Empty;
+            var smsBtn = this.FindControl<Button>("SmsBtn");
+            _smsComposeOpen = true;
+            if (smsBtn != null) smsBtn.IsEnabled = false;
+            SetSmsComposeError(null);
+
+            try
+            {
+                var primaryLinkedId = await App.ScriptService.GetPrimaryLinkedIdAsync(displayNumber);
+                if (!Models.ActiveCallSmsContext.TryCreate(primaryLinkedId, displayNumber, out var context) || context is null)
+                {
+                    SetSmsComposeError(I18nService.Instance.Get("SmsActiveCallUnavailable"));
+                    return;
+                }
+
+                var dialog = new SmsComposeDialog(context.Source, context.LockedDisplayNumber);
+                await dialog.ShowDialog(topLevel);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("ActiveCallSms", $"Failed to open SMS compose: {ex.GetType().Name}");
+                SetSmsComposeError(I18nService.Instance.Get("SmsActiveCallUnavailable"));
+            }
+            finally
+            {
+                _smsComposeOpen = false;
+                if (smsBtn != null) smsBtn.IsEnabled = true;
+            }
+        }
+
+        private void SetSmsComposeError(string? message)
+        {
+            var errorLabel = this.FindControl<TextBlock>("SmsComposeErrorLabel");
+            if (errorLabel == null) return;
+
+            errorLabel.Text = message ?? string.Empty;
+            errorLabel.IsVisible = !string.IsNullOrWhiteSpace(message);
         }
 
         /// <summary>Briefly swaps the task-button icon to a checkmark to confirm creation.</summary>

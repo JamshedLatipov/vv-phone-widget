@@ -169,5 +169,7 @@
   "SmsSending": "SMS ставится в очередь…",
   "SmsQueuedSuccess": "SMS поставлено в очередь",
   "SmsSendError": "Не удалось поставить SMS в очередь",
-  "SmsCancelled": "Отправка SMS отменена"
+  "SmsCancelled": "Отправка SMS отменена",
+  "Sms": "SMS",
+  "SmsActiveCallUnavailable": "Не удалось подтвердить активный звонок для SMS. Повторите попытку."
 }
