@@ -116,6 +116,25 @@ public class PrimaryLinkedIdClientTests
         }
     }
 
+    [Fact]
+    public async Task GetPrimaryLinkedIdAsync_PropagatesLifecycleCancellationWithoutStartingLookup()
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse("""{ "uniqueid": "1719990000.42" }"""));
+        using var client = new HttpClient(handler);
+        using var service = new ScriptService(client, () => new SipSettings
+        {
+            BackendUrl = "https://crm.example/",
+            AccessToken = "widget-token",
+        }, ownsHttpClient: false);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.GetPrimaryLinkedIdAsync("+992 900 000 000", cancellation.Token));
+
+        Assert.Empty(handler.Requests);
+    }
+
     private static HttpResponseMessage JsonResponse(string body) => new(HttpStatusCode.OK)
     {
         Content = new StringContent(body, Encoding.UTF8, "application/json"),
@@ -127,6 +146,7 @@ public class PrimaryLinkedIdClientTests
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Requests.Add(new CapturedRequest(
                 request.Method,
                 request.RequestUri,

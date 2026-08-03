@@ -1,4 +1,5 @@
 ﻿using System;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Markup.Xaml;
@@ -21,7 +22,10 @@ namespace OrbitalSIP.Views
         private bool _leadCreated;
         private bool _surveyOpen;
         private bool _taskOpen;
-        private bool _smsComposeOpen;
+        private readonly string _callIdentity;
+        private readonly Models.ActiveCallSmsLaunchGuard _smsComposeLaunchGuard = new();
+        private Action<CallState>? _smsCallStateChangedHandler;
+        private SmsComposeDialog? _activeSmsDialog;
 
         public ActiveCallView()
             : this("Unknown", false)
@@ -30,6 +34,7 @@ namespace OrbitalSIP.Views
 
         public ActiveCallView(string callerId, bool isOutgoing = false, TimeSpan? initialElapsed = null)
         {
+            _callIdentity = callerId;
             InitializeComponent();
 
             var callerLabel  = this.FindControl<TextBlock>("CallerLabel");
@@ -47,6 +52,36 @@ namespace OrbitalSIP.Views
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+
+        protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnAttachedToVisualTree(e);
+
+            if (_smsCallStateChangedHandler == null)
+            {
+                _smsCallStateChangedHandler = _ => Dispatcher.UIThread.Post(() =>
+                {
+                    if (!IsSourceCallCurrent())
+                        InvalidateSmsComposeForCallLifecycle();
+                });
+                App.SipService.CallStateChanged += _smsCallStateChangedHandler;
+            }
+
+            if (!IsSourceCallCurrent())
+                InvalidateSmsComposeForCallLifecycle();
+        }
+
+        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            InvalidateSmsComposeForCallLifecycle();
+            if (_smsCallStateChangedHandler != null)
+            {
+                App.SipService.CallStateChanged -= _smsCallStateChangedHandler;
+                _smsCallStateChangedHandler = null;
+            }
+
+            base.OnDetachedFromVisualTree(e);
+        }
 
         // в”Ђв”Ђ Timer в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
         private void StartTimer()
@@ -106,6 +141,7 @@ namespace OrbitalSIP.Views
                 hangup.Click += (_, __) =>
                 {
                     _timer?.Stop();
+                    InvalidateSmsComposeForCallLifecycle();
                     OnHangup?.Invoke(this, EventArgs.Empty);
                 };
 
@@ -363,39 +399,82 @@ namespace OrbitalSIP.Views
 
         private async Task ShowSmsComposeDialog()
         {
-            if (_smsComposeOpen) return;
-
             var topLevel = TopLevel.GetTopLevel(this) as Window;
-            if (topLevel == null) return;
+            if (topLevel == null || !IsSourceCallCurrent()) return;
 
             var displayNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? string.Empty;
             var smsBtn = this.FindControl<Button>("SmsBtn");
-            _smsComposeOpen = true;
+            if (!_smsComposeLaunchGuard.TryBegin(_callIdentity, displayNumber, out var snapshot, out var cancellationToken))
+                return;
+
             if (smsBtn != null) smsBtn.IsEnabled = false;
             SetSmsComposeError(null);
+            SmsComposeDialog? dialog = null;
+            EventHandler? closedHandler = null;
 
             try
             {
-                var primaryLinkedId = await App.ScriptService.GetPrimaryLinkedIdAsync(displayNumber);
-                if (!Models.ActiveCallSmsContext.TryCreate(primaryLinkedId, displayNumber, out var context) || context is null)
+                var primaryLinkedId = await App.ScriptService.GetPrimaryLinkedIdAsync(snapshot.DisplayNumber, cancellationToken);
+                if (cancellationToken.IsCancellationRequested ||
+                    !_smsComposeLaunchGuard.IsCurrent(snapshot) ||
+                    !IsSourceCallCurrent())
+                    return;
+
+                if (!Models.ActiveCallSmsContext.TryCreate(primaryLinkedId, snapshot.DisplayNumber, out var context) || context is null)
                 {
                     SetSmsComposeError(I18nService.Instance.Get("SmsActiveCallUnavailable"));
                     return;
                 }
 
-                var dialog = new SmsComposeDialog(context.Source, context.LockedDisplayNumber);
+                dialog = new SmsComposeDialog(context.Source, context.LockedDisplayNumber);
+                _activeSmsDialog = dialog;
+                closedHandler = (_, _) =>
+                {
+                    if (ReferenceEquals(_activeSmsDialog, dialog))
+                        _activeSmsDialog = null;
+                };
+                dialog.Closed += closedHandler;
                 await dialog.ShowDialog(topLevel);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Call/view invalidation is expected and must not show an error.
             }
             catch (Exception ex)
             {
-                AppLogger.Log("ActiveCallSms", $"Failed to open SMS compose: {ex.GetType().Name}");
-                SetSmsComposeError(I18nService.Instance.Get("SmsActiveCallUnavailable"));
+                if (!cancellationToken.IsCancellationRequested &&
+                    _smsComposeLaunchGuard.IsCurrent(snapshot) &&
+                    IsSourceCallCurrent())
+                {
+                    AppLogger.Log("ActiveCallSms", $"Failed to open SMS compose: {ex.GetType().Name}");
+                    SetSmsComposeError(I18nService.Instance.Get("SmsActiveCallUnavailable"));
+                }
             }
             finally
             {
-                _smsComposeOpen = false;
-                if (smsBtn != null) smsBtn.IsEnabled = true;
+                if (dialog != null && closedHandler != null)
+                    dialog.Closed -= closedHandler;
+                if (ReferenceEquals(_activeSmsDialog, dialog))
+                    _activeSmsDialog = null;
+                _smsComposeLaunchGuard.Complete(snapshot);
+                if (smsBtn != null && IsSourceCallCurrent())
+                    smsBtn.IsEnabled = true;
             }
+        }
+
+        private bool IsSourceCallCurrent()
+        {
+            var state = App.SipService.State;
+            return (state == CallState.Active || state == CallState.OnHold) &&
+                   string.Equals(App.SipService.ActiveCallerId, _callIdentity, StringComparison.Ordinal);
+        }
+
+        private void InvalidateSmsComposeForCallLifecycle()
+        {
+            _smsComposeLaunchGuard.Invalidate();
+            var dialog = _activeSmsDialog;
+            _activeSmsDialog = null;
+            dialog?.Close(false);
         }
 
         private void SetSmsComposeError(string? message)
@@ -478,7 +557,12 @@ namespace OrbitalSIP.Views
         // -- Public hotkey triggers
         public void TriggerMute()   => ToggleMute();
         public void TriggerHold()   => ToggleHold();
-        public void TriggerHangup() { _timer?.Stop(); OnHangup?.Invoke(this, System.EventArgs.Empty); }
+        public void TriggerHangup()
+        {
+            _timer?.Stop();
+            InvalidateSmsComposeForCallLifecycle();
+            OnHangup?.Invoke(this, System.EventArgs.Empty);
+        }
 
         public event EventHandler?        OnHangup;
         public event EventHandler<bool>?  OnMuteToggled;      // arg = isMuted

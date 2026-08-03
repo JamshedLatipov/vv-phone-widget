@@ -80,13 +80,17 @@ namespace OrbitalSIP.Services
         /// legacy JSON property name <c>uniqueid</c>, but its value is the primary
         /// linkedid selected for the authenticated operator's channel.
         /// </summary>
-        public async Task<string?> GetPrimaryLinkedIdAsync(string phoneNumber)
-            => await GetPrimaryLinkedIdAsync(phoneNumber, notifyFailure: false);
+        public async Task<string?> GetPrimaryLinkedIdAsync(string phoneNumber, CancellationToken cancellationToken = default)
+            => await GetPrimaryLinkedIdAsync(phoneNumber, notifyFailure: false, cancellationToken);
 
-        private async Task<string?> GetPrimaryLinkedIdAsync(string phoneNumber, bool notifyFailure)
+        private async Task<string?> GetPrimaryLinkedIdAsync(
+            string phoneNumber,
+            bool notifyFailure,
+            CancellationToken cancellationToken = default)
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var settings = _settingsProvider?.Invoke() ?? App.SipService?.CurrentSettings ?? SipSettings.Load();
                 var backendUrl = settings.BackendUrl?.TrimEnd('/');
 
@@ -98,7 +102,7 @@ namespace OrbitalSIP.Services
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
 
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, cancellationToken);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -115,6 +119,10 @@ namespace OrbitalSIP.Services
                 AppLogger.Log("ScriptService", $"Fetch channel unique ID failed. Status: {response.StatusCode}. Body: {errorBody}");
                 if (notifyFailure)
                     HttpErrorNotifier.NotifyHttpError("ScriptService", url, response.StatusCode, errorBody);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
