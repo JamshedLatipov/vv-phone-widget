@@ -35,6 +35,35 @@ public class SmsServiceTests
         Assert.Equal("Текст", template.Content);
     }
 
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{ \"data\": null }")]
+    [InlineData("{ \"data\": {} }")]
+    public async Task GetTemplatesAsync_RejectsMissingNullOrNonArrayData(string body)
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse(body));
+        using var service = CreateService(handler);
+
+        var error = await Assert.ThrowsAsync<SmsApiException>(() => service.GetTemplatesAsync());
+
+        Assert.Equal(HttpStatusCode.OK, error.StatusCode);
+        Assert.Equal("SMS API returned an invalid response.", error.ApiMessage);
+    }
+
+    [Theory]
+    [InlineData("{ \"data\": [{ \"id\": \"00000000-0000-0000-0000-000000000000\", \"name\": \"Шаблон\", \"content\": \"Текст\" }] }")]
+    [InlineData("{ \"data\": [{ \"id\": \"22222222-2222-2222-2222-222222222222\", \"name\": \"   \", \"content\": \"Текст\" }] }")]
+    [InlineData("{ \"data\": [{ \"id\": \"22222222-2222-2222-2222-222222222222\", \"name\": \"Шаблон\" }] }")]
+    public async Task GetTemplatesAsync_RejectsTemplateItemsMissingRequiredComposeFields(string body)
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse(body));
+        using var service = CreateService(handler);
+
+        var error = await Assert.ThrowsAsync<SmsApiException>(() => service.GetTemplatesAsync());
+
+        Assert.Equal("SMS API returned an invalid response.", error.ApiMessage);
+    }
+
     [Fact]
     public async Task SendFromCallAsync_SendsOnlyCallAnchoredPayloadAndReturnsQueuedResult()
     {
@@ -64,6 +93,24 @@ public class SmsServiceTests
         Assert.DoesNotContain("phone", captured.Body, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(Guid.Parse("33333333-3333-3333-3333-333333333333"), result.MessageId);
         Assert.Equal("queued", result.Status);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{ \"messageId\": null, \"status\": \"queued\" }")]
+    [InlineData("{ \"messageId\": \"00000000-0000-0000-0000-000000000000\", \"status\": \"queued\" }")]
+    [InlineData("{ \"messageId\": \"33333333-3333-3333-3333-333333333333\", \"status\": null }")]
+    [InlineData("{ \"messageId\": \"33333333-3333-3333-3333-333333333333\", \"status\": \" \" }")]
+    [InlineData("{ \"messageId\": \"33333333-3333-3333-3333-333333333333\", \"status\": \"sent\" }")]
+    public async Task SendFromCallAsync_RejectsMissingOrInvalidQueuedResponse(string body)
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse(body));
+        using var service = CreateService(handler);
+
+        var error = await Assert.ThrowsAsync<SmsApiException>(() => service.SendFromCallAsync(ValidSmsRequest()));
+
+        Assert.Equal(HttpStatusCode.OK, error.StatusCode);
+        Assert.Equal("SMS API returned an invalid response.", error.ApiMessage);
     }
 
     [Fact]
@@ -97,11 +144,74 @@ public class SmsServiceTests
         Assert.Equal("SMS запрещено политикой контакта", error.ApiMessage);
     }
 
+    [Theory]
+    [InlineData("<html>token=top-secret</html>")]
+    [InlineData("{ \"error\": \"top-secret\" }")]
+    public async Task SendFromCallAsync_DoesNotReflectUntrustedErrorBodies(string body)
+    {
+        using var handler = new RecordingHandler(_ => ErrorResponse(body));
+        using var service = CreateService(handler);
+
+        var error = await Assert.ThrowsAsync<SmsApiException>(() => service.SendFromCallAsync(ValidSmsRequest()));
+
+        Assert.Equal("SMS API вернул ошибку (HTTP 403).", error.ApiMessage);
+        Assert.DoesNotContain("top-secret", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SendFromCallAsync_CapsAllowlistedApiErrorMessage()
+    {
+        var longMessage = new string('x', 600);
+        using var handler = new RecordingHandler(_ => ErrorResponse($$"""{ "message": "{{longMessage}}" }"""));
+        using var service = CreateService(handler);
+
+        var error = await Assert.ThrowsAsync<SmsApiException>(() => service.SendFromCallAsync(ValidSmsRequest()));
+
+        Assert.True(error.ApiMessage.Length <= 256);
+        Assert.EndsWith("…", error.ApiMessage);
+    }
+
+    [Fact]
+    public async Task Dispose_DoesNotDisposeExternallyProvidedHttpClient()
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse("{}"));
+        using var client = new HttpClient(handler);
+        var service = new SmsService(client, SettingsProvider);
+
+        service.Dispose();
+        using var response = await client.GetAsync("https://crm.example/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Dispose_DisposesOwnedHttpClient()
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse("{}"));
+        using var client = new HttpClient(handler);
+        var service = new SmsService(client, SettingsProvider, ownsHttpClient: true);
+
+        service.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => client.GetAsync("https://crm.example/health"));
+    }
+
     private static SmsService CreateService(HttpMessageHandler handler) => new(
         new HttpClient(handler),
-        () => new SipSettings { BackendUrl = "https://crm.example/", AccessToken = "widget-token" });
+        SettingsProvider,
+        ownsHttpClient: true);
+
+    private static SipSettings SettingsProvider() => new() { BackendUrl = "https://crm.example/", AccessToken = "widget-token" };
+
+    private static SendCallSmsRequest ValidSmsRequest() => new(
+        Guid.NewGuid(), new SmsCallSource("active", "unique-id"), "Текст", null);
 
     private static HttpResponseMessage JsonResponse(string body) => new(HttpStatusCode.OK)
+    {
+        Content = new StringContent(body, Encoding.UTF8, "application/json"),
+    };
+
+    private static HttpResponseMessage ErrorResponse(string body) => new(HttpStatusCode.Forbidden)
     {
         Content = new StringContent(body, Encoding.UTF8, "application/json"),
     };
