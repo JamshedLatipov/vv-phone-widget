@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
@@ -27,6 +28,32 @@ namespace OrbitalSIP.Views
         private Action<CallState>? _smsCallStateChangedHandler;
         private SmsComposeDialog? _activeSmsDialog;
 
+        /// <summary>Null until the first call-context lookup returns — which is
+        /// LeadPanelState.Loading, deliberately distinct from «no lead».</summary>
+        private Models.LeadCallContextResult? _leadContext;
+        private bool _leadContextLoading;
+
+        /// <summary>A 409 card is on screen. It is proof the lead exists, so no
+        /// later refresh may downgrade the panel below it — see SelectState.</summary>
+        private Models.CreateLeadResult? _leadConflict;
+
+        /// <summary>
+        /// Per-call scratch state, static because MainWindow builds a NEW
+        /// ActiveCallView on every expand from the mini-widget and after every
+        /// transfer. Without this the lookup — whose server side runs a full AMI
+        /// endpoint sweep — re-ran on each expand, and a half-typed comment was lost
+        /// on every collapse.
+        /// </summary>
+        private sealed class LeadCallCache
+        {
+            public string Key = string.Empty;
+            public Models.LeadCallContextResult? Context;
+            public Models.CreateLeadResult? Conflict;
+            public string CommentDraft = string.Empty;
+        }
+
+        private static LeadCallCache? _leadCache;
+
         public ActiveCallView()
             : this("Unknown", false)
         {
@@ -49,6 +76,11 @@ namespace OrbitalSIP.Views
             SetStatus(App.SipService.IsOnHold);
             UpdateTimeUI();
             StartTimer();
+
+            // A rebuild of this view for the same call reuses what we already
+            // fetched; only a genuinely new call hits the network.
+            if (!RestoreCachedCallState())
+                _ = LoadLeadContextAsync();
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
@@ -184,6 +216,28 @@ namespace OrbitalSIP.Views
             if (taskBtn != null)
                 taskBtn.Click += async (_, __) => await ShowTaskDialog();
 
+            var leadRetryBtn = this.FindControl<Button>("LeadRetryBtn");
+            if (leadRetryBtn != null)
+                leadRetryBtn.Click += async (_, __) => await LoadLeadContextAsync();
+
+            var leadOpenBtn = this.FindControl<Button>("LeadOpenBtn");
+            if (leadOpenBtn != null)
+                leadOpenBtn.Click += (_, __) => OpenLeadInCrm();
+
+            var leadTransferOwnerBtn = this.FindControl<Button>("LeadTransferOwnerBtn");
+            if (leadTransferOwnerBtn != null)
+                leadTransferOwnerBtn.Click += (_, __) => TransferToLeadOwner();
+
+            var leadCommentAddBtn = this.FindControl<Button>("LeadCommentAddBtn");
+            if (leadCommentAddBtn != null)
+                leadCommentAddBtn.Click += async (_, __) => await AddLeadCommentAsync();
+
+            // Keeps a half-typed comment alive across a collapse/expand, which
+            // rebuilds this whole view.
+            var leadCommentBox = this.FindControl<TextBox>("LeadCommentBox");
+            if (leadCommentBox != null)
+                leadCommentBox.TextChanged += (_, __) => RememberCommentDraft(leadCommentBox.Text);
+
             var smsBtn = this.FindControl<Button>("SmsBtn");
             if (smsBtn != null)
                 smsBtn.Click += async (_, __) => await ShowSmsComposeDialog();
@@ -295,12 +349,41 @@ namespace OrbitalSIP.Views
             if (leadBtn != null)
                 leadBtn.IsEnabled = false;
 
-            bool success = await App.LeadService.CreateLeadAsync(request);
+            var result = await App.LeadService.CreateLeadAsync(request);
+            bool success = result.Success;
             AppLogger.Log("CreateLead", $"Request success: {success}");
+
+            if (result.AlreadyOpen)
+            {
+                // The caller already had a lead — the race this panel normally
+                // prevents (context said «none», someone created one in between).
+                // Render what the 409 already told us, then refresh in the
+                // background for the owner and the actions it cannot carry.
+                AppLogger.Log("CreateLead", $"Lead already open: id={result.ExistingLeadId?.ToString() ?? "?"} name='{result.ExistingLeadName}'");
+
+                // Recorded BEFORE the refresh: SelectState reads it to refuse any
+                // downgrade below the card, and without it a refresh returning
+                // `none` would put the create button back — still disabled, since
+                // this branch skips the re-enable below.
+                _leadConflict = result;
+                if (leadBtn != null) leadBtn.IsEnabled = true;
+
+                RenderConflictLeadCard(result);
+                CacheForThisCall();
+                _ = LoadLeadContextAsync(showLoading: false);
+                return;
+            }
 
             if (success)
             {
                 _leadCreated = true;
+
+                // Refresh so the cache holds the lead that now exists. Without this
+                // the cached «none» outlives the create, and the next expand — which
+                // rebuilds this view and resets _leadCreated — would re-arm the
+                // create button for a caller who now has a lead.
+                _ = LoadLeadContextAsync(showLoading: false);
+
                 if (leadBtn != null)
                 {
                     leadBtn.Opacity = 0.5; // Visually indicate it's disabled permanently for this call
@@ -325,6 +408,399 @@ namespace OrbitalSIP.Views
                 if (leadBtn != null)
                     leadBtn.IsEnabled = true;
             }
+        }
+
+        // ── Active-lead panel ────────────────────────────────────────────────
+        private string CallerNumber() =>
+            this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? string.Empty;
+
+        /// <summary>
+        /// Loads the caller's lead context and repaints the panel. Any failure ends
+        /// up as LeadPanelState.Unavailable — never as «no lead», which would put
+        /// the create button back in front of a caller who already has one.
+        ///
+        /// <paramref name="showLoading"/> is false for the background refresh after
+        /// a 409: the card is already on screen from the conflict payload, and
+        /// resetting to «Ищем активный лид…» would blank it for the duration of the
+        /// request — the exact wait that rendering from the 409 exists to avoid.
+        /// </summary>
+        private async Task LoadLeadContextAsync(bool showLoading = true)
+        {
+            if (_leadContextLoading) return;
+
+            // Nothing to look up for a withheld number — and the endpoint would 400
+            // on it anyway. SelectState renders this as Hidden.
+            if (!LeadCallPanelPresenter.IsLookupablePhone(CallerNumber()))
+            {
+                AppLogger.Log("LeadPanel", "Skipping call-context lookup: caller number has no digits.");
+                ApplyLeadPanelState();
+                return;
+            }
+
+            _leadContextLoading = true;
+
+            if (showLoading)
+            {
+                _leadContext = null;
+                ApplyLeadPanelState();
+            }
+
+            try
+            {
+                _leadContext = await App.LeadService.GetCallContextAsync(CallerNumber());
+            }
+            finally
+            {
+                _leadContextLoading = false;
+            }
+
+            CacheForThisCall();
+            ApplyLeadPanelState();
+        }
+
+        /// <summary>
+        /// Null when this call has no reliable identity — nothing is cached then.
+        /// Keyed off CallerNumber(), the same source the lookup itself uses, so the
+        /// key can never describe a different number than the cached result.
+        /// </summary>
+        private string? CurrentCallKey() =>
+            LeadCallPanelPresenter.BuildCallKey(
+                CallerNumber(),
+                App.SipService?.ActiveCallStartedAt);
+
+        /// <summary>
+        /// Restores context, conflict card and comment draft when this view is a
+        /// rebuild for the SAME call. A different call — including a call-back from
+        /// the same number — misses, because reusing a stale «no lead» would offer a
+        /// create for a caller who has since acquired a lead.
+        /// </summary>
+        private bool RestoreCachedCallState()
+        {
+            var key = CurrentCallKey();
+            if (key == null || _leadCache == null || _leadCache.Key != key) return false;
+
+            _leadContext = _leadCache.Context;
+            _leadConflict = _leadCache.Conflict;
+
+            if (_leadConflict != null) RenderConflictLeadCard(_leadConflict);
+            ApplyLeadPanelState();
+
+            var box = this.FindControl<TextBox>("LeadCommentBox");
+            if (box != null) box.Text = _leadCache.CommentDraft;
+
+            return _leadContext != null || _leadConflict != null;
+        }
+
+        /// <summary>Returns the cache entry for the current call, or null when the
+        /// call has no reliable identity — in which case nothing is stored.</summary>
+        private LeadCallCache? CacheEntry()
+        {
+            var key = CurrentCallKey();
+            if (key == null) return null;
+
+            if (_leadCache == null || _leadCache.Key != key)
+                _leadCache = new LeadCallCache { Key = key };
+
+            return _leadCache;
+        }
+
+        private void CacheForThisCall()
+        {
+            var entry = CacheEntry();
+            if (entry == null) return;
+
+            entry.Context = _leadContext;
+            entry.Conflict = _leadConflict;
+        }
+
+        private void RememberCommentDraft(string? text)
+        {
+            var entry = CacheEntry();
+            if (entry != null) entry.CommentDraft = text ?? string.Empty;
+        }
+
+        private void ApplyLeadPanelState()
+        {
+            var state = LeadCallPanelPresenter.SelectState(
+                CallerNumber(), _leadContext, _leadConflict != null);
+            var context = _leadContext?.Context;
+
+            var panel = this.FindControl<Border>("LeadPanel");
+            var loading = this.FindControl<TextBlock>("LeadLoadingLabel");
+            var unavailable = this.FindControl<StackPanel>("LeadUnavailableBlock");
+            var card = this.FindControl<StackPanel>("LeadCardBlock");
+            var createBtn = this.FindControl<Button>("CreateLeadBtn");
+
+            if (createBtn != null && !_leadCreated)
+                SetCreateButtonVisible(createBtn, LeadCallPanelPresenter.ShowsCreateButton(state));
+
+            if (loading != null) loading.IsVisible = state == LeadPanelState.Loading;
+            if (unavailable != null) unavailable.IsVisible = state == LeadPanelState.Unavailable;
+            if (card != null) card.IsVisible = LeadCallPanelPresenter.ShowsLeadCard(state);
+
+            // Nothing to say in OfferCreate (the button speaks) or Hidden.
+            if (panel != null)
+                panel.IsVisible = state == LeadPanelState.Loading
+                                  || state == LeadPanelState.Unavailable
+                                  || LeadCallPanelPresenter.ShowsLeadCard(state);
+
+            // Only a full ActiveLead repaints the card. ConflictLead leaves whatever
+            // RenderConflictLeadCard already put there — the refresh had nothing
+            // better to offer.
+            if (state == LeadPanelState.ActiveLead && context?.Lead != null)
+                RenderLeadCard(context);
+        }
+
+        private void RenderLeadCard(Models.LeadCallContext context)
+        {
+            var lead = context.Lead!;
+            var i18n = Services.I18nService.Instance;
+
+            var headline = this.FindControl<TextBlock>("LeadHeadlineLabel");
+            if (headline != null) headline.Text = LeadCallPanelPresenter.LeadHeadline(lead);
+
+            var subline = this.FindControl<TextBlock>("LeadSublineLabel");
+            if (subline != null)
+            {
+                // Unknown status falls back to the raw backend value, exactly as the
+                // CRM's own statusLabel() does.
+                var statusKey = LeadCallPanelPresenter.LeadStatusKey(lead.Status);
+                var statusText = statusKey == null ? lead.Status : i18n.Get(statusKey);
+                subline.Text = LeadCallPanelPresenter.LeadSubline(statusText, lead.StageName);
+            }
+
+            var ownerLabel = this.FindControl<TextBlock>("LeadOwnerLabel");
+            if (ownerLabel != null)
+            {
+                var ownerName = string.IsNullOrWhiteSpace(context.Owner?.FullName)
+                    ? i18n.Get("LeadPanelOwnerUnknown")
+                    : context.Owner!.FullName;
+                ownerLabel.Text = $"{i18n.Get("LeadPanelOwner")}: {ownerName}";
+            }
+
+            var openBtn = this.FindControl<Button>("LeadOpenBtn");
+            if (openBtn != null)
+                openBtn.IsVisible = context.Actions.CanOpenLead
+                                    && LeadCallPanelPresenter.IsLaunchableUrl(lead.Url);
+
+            RenderTransferRow(context);
+
+            var commentBlock = this.FindControl<StackPanel>("LeadCommentBlock");
+            if (commentBlock != null) commentBlock.IsVisible = context.Actions.CanComment;
+        }
+
+        /// <summary>
+        /// Paints the lead card from a 409 alone, so the operator sees the existing
+        /// lead immediately. Transfer/comment/open stay hidden: the conflict carries
+        /// the lead but not the owner's name, extension or this operator's rights —
+        /// LoadLeadContextAsync fills those in a moment later.
+        /// </summary>
+        private void RenderConflictLeadCard(Models.CreateLeadResult conflict)
+        {
+            var conflictCreateBtn = this.FindControl<Button>("CreateLeadBtn");
+            if (conflictCreateBtn != null) SetCreateButtonVisible(conflictCreateBtn, false);
+
+            SetVisible<Border>("LeadPanel", true);
+            SetVisible<StackPanel>("LeadCardBlock", true);
+            SetVisible<TextBlock>("LeadLoadingLabel", false);
+            SetVisible<StackPanel>("LeadUnavailableBlock", false);
+
+            var headline = this.FindControl<TextBlock>("LeadHeadlineLabel");
+            if (headline != null)
+                headline.Text = LeadCallPanelPresenter.ConflictHeadline(
+                    conflict.ExistingLeadId, conflict.ExistingLeadName, conflict.Message);
+
+            var subline = this.FindControl<TextBlock>("LeadSublineLabel");
+            if (subline != null)
+            {
+                var statusKey = LeadCallPanelPresenter.LeadStatusKey(conflict.ExistingLeadStatus);
+                subline.Text = statusKey == null
+                    ? conflict.ExistingLeadStatus ?? string.Empty
+                    : Services.I18nService.Instance.Get(statusKey);
+            }
+
+            var ownerLabel = this.FindControl<TextBlock>("LeadOwnerLabel");
+            if (ownerLabel != null) ownerLabel.Text = string.Empty;
+
+            SetVisible<Button>("LeadOpenBtn", false);
+            SetVisible<Button>("LeadTransferOwnerBtn", false);
+            SetVisible<TextBlock>("LeadTransferBlockedLabel", false);
+            SetVisible<StackPanel>("LeadCommentBlock", false);
+        }
+
+        /// <summary>
+        /// Hides «Создать лид» AND collapses its column, so the five-button action
+        /// grid closes up instead of leaving a hole on the left.
+        /// </summary>
+        private void SetCreateButtonVisible(Button createBtn, bool visible)
+        {
+            createBtn.IsVisible = visible;
+            createBtn.Margin = visible ? new Thickness(0, 0, 2, 0) : new Thickness(0);
+
+            var grid = this.FindControl<Grid>("CallActionsGrid");
+            if (grid == null || grid.ColumnDefinitions.Count == 0) return;
+
+            grid.ColumnDefinitions[0].Width = visible
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(0);
+        }
+
+        private void SetVisible<T>(string name, bool visible) where T : Control
+        {
+            var control = this.FindControl<T>(name);
+            if (control != null) control.IsVisible = visible;
+        }
+
+        private void RenderTransferRow(Models.LeadCallContext context)
+        {
+            var i18n = Services.I18nService.Instance;
+            var canTransfer = LeadCallPanelPresenter.CanTransferToOwner(context);
+
+            var transferBtn = this.FindControl<Button>("LeadTransferOwnerBtn");
+            if (transferBtn != null)
+            {
+                // Shown whenever there is an owner to name, disabled when blocked —
+                // the reason below is what makes the disabled state informative.
+                transferBtn.IsVisible = context.Owner != null;
+                transferBtn.IsEnabled = canTransfer;
+                transferBtn.Opacity = canTransfer ? 1.0 : 0.5;
+                transferBtn.Content = $"{i18n.Get("LeadPanelTransferTo")} {context.Owner?.FullName}".Trim();
+            }
+
+            var blockedLabel = this.FindControl<TextBlock>("LeadTransferBlockedLabel");
+            if (blockedLabel != null)
+            {
+                // Straight from the server's reason — see TransferBlockedKey on why
+                // this must not be re-derived from ManualStatus.
+                var key = canTransfer
+                    ? null
+                    : LeadCallPanelPresenter.TransferBlockedKeyOrDefault(
+                        context.Actions.TransferBlockedReason);
+
+                blockedLabel.IsVisible = key != null;
+                blockedLabel.Text = key == null ? string.Empty : i18n.Get(key);
+            }
+        }
+
+        private void OpenLeadInCrm()
+        {
+            var url = _leadContext?.Context?.Lead?.Url;
+
+            // Re-validated here even though the backend builds and checks it: this
+            // string is handed to the OS shell.
+            if (!LeadCallPanelPresenter.IsLaunchableUrl(url))
+            {
+                AppLogger.Log("LeadPanel", $"Refused to open non-http(s) lead url: '{url}'");
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo(url!) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("LeadPanel", $"Failed to open lead url: {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        private void TransferToLeadOwner()
+        {
+            var context = _leadContext?.Context;
+            if (!LeadCallPanelPresenter.CanTransferToOwner(context)) return;
+
+            // The dialable extension, never a SIP endpoint id.
+            var extension = context!.Owner!.ExtensionNumber!.Trim();
+            AppLogger.Log("LeadPanel", $"Transferring call to lead owner extension {extension}");
+            OnTransferRequested?.Invoke(this, extension);
+        }
+
+        private async Task AddLeadCommentAsync()
+        {
+            var context = _leadContext?.Context;
+            var lead = context?.Lead;
+            if (lead == null || context?.Actions.CanComment != true) return;
+
+            var box = this.FindControl<TextBox>("LeadCommentBox");
+            var comment = box?.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(comment)) return;
+
+            var addBtn = this.FindControl<Button>("LeadCommentAddBtn");
+            if (addBtn != null) addBtn.IsEnabled = false;
+
+            try
+            {
+                var payload = new Models.AddCallCommentRequest { Comment = comment };
+                var linked = await AttachCallLinkAsync(payload, CallerNumber());
+
+                var ok = await App.LeadService.AddCallCommentAsync(lead.Id, payload);
+                AppLogger.Log("LeadPanel", $"Add call comment to lead {lead.Id}: ok={ok} linked={linked}");
+
+                if (ok && box != null) box.Text = string.Empty;
+                if (ok) RememberCommentDraft(string.Empty);
+
+                _ = ShowCommentStatusAsync(
+                    LeadCallPanelPresenter.CommentStatusKey(saved: ok, linkedToCall: linked));
+            }
+            finally
+            {
+                if (addBtn != null) addBtn.IsEnabled = true;
+            }
+        }
+
+        /// <summary>
+        /// Links the comment to this call the same way ShowTaskDialog links a task.
+        /// A callLogId that the backend cannot resolve is rejected outright (400),
+        /// so only an id actually returned by SaveCallLogAsync is ever sent; the raw
+        /// uniqueId is the fallback because an unresolvable one still saves the
+        /// comment, just without call linkage.
+        /// </summary>
+        /// <returns>
+        /// False when the comment will be saved with no link to the call at all.
+        /// The comment is NOT failed over this — losing the link is worth far less
+        /// than losing the note the operator just typed mid-call — but the operator
+        /// is told, because the link to the recording is the point of the
+        /// attribution.
+        /// </returns>
+        private static async Task<bool> AttachCallLinkAsync(Models.AddCallCommentRequest payload, string? number)
+        {
+            if (string.IsNullOrWhiteSpace(number)) return false;
+
+            // notifyErrors:false — a failure here costs only the link, and an error
+            // banner during a live call for an action that then succeeds is worse
+            // than the missing link itself. Both calls still log in full.
+            var uniqueId = await App.ScriptService.GetChannelUniqueIdAsync(number!, notifyErrors: false);
+            if (string.IsNullOrWhiteSpace(uniqueId))
+            {
+                AppLogger.Log("LeadPanel", "Call comment: could not resolve the channel uniqueId; saving without a call link.");
+                return false;
+            }
+
+            var callLogId = await App.ScriptService.SaveCallLogAsync(uniqueId!, notifyErrors: false);
+            if (!string.IsNullOrWhiteSpace(callLogId))
+            {
+                payload.CallLogId = callLogId;
+                return true;
+            }
+
+            // Only an id that SaveCallLogAsync actually returned may go in
+            // callLogId — the backend 400s an unresolvable one. The raw uniqueId is
+            // the safe fallback: it saves the comment either way, linked if the
+            // backend can resolve it.
+            AppLogger.Log("LeadPanel", "Call comment: no callLogId; falling back to callUniqueId.");
+            payload.CallUniqueId = uniqueId;
+            return true;
+        }
+
+        private async Task ShowCommentStatusAsync(string key)
+        {
+            var label = this.FindControl<TextBlock>("LeadCommentStatusLabel");
+            if (label == null) return;
+
+            label.Text = Services.I18nService.Instance.Get(key);
+            label.IsVisible = true;
+            await Task.Delay(2500);
+            label.IsVisible = false;
         }
 
         private async Task ShowSurveyDialog()

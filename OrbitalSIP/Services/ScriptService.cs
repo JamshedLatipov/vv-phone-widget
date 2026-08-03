@@ -72,8 +72,14 @@ namespace OrbitalSIP.Services
             }
         }
 
-        public async Task<string?> GetChannelUniqueIdAsync(string phoneNumber)
-            => await GetPrimaryLinkedIdAsync(phoneNumber, notifyFailure: true);
+        /// <param name="notifyErrors">
+        /// False suppresses the error banner (the log still records everything).
+        /// Used by the in-call comment box, where failing to resolve the channel
+        /// only costs the call link — the comment itself still saves — so a toast
+        /// would report an error for an action that succeeded, mid-call.
+        /// </param>
+        public async Task<string?> GetChannelUniqueIdAsync(string phoneNumber, bool notifyErrors = true)
+            => await GetPrimaryLinkedIdAsync(phoneNumber, notifyFailure: notifyErrors);
 
         /// <summary>
         /// Resolves the active call's primary Asterisk linkedid. The server keeps the
@@ -144,7 +150,9 @@ namespace OrbitalSIP.Services
         /// asteriskUniqueId, so repeat calls return the same id. Only the uniqueId is sent, so
         /// this never overwrites a note/script already stored for the call. Null on failure.
         /// </summary>
-        public async Task<string?> SaveCallLogAsync(string uniqueId)
+        /// <param name="notifyErrors">False suppresses the error banner — see
+        /// GetChannelUniqueIdAsync.</param>
+        public async Task<string?> SaveCallLogAsync(string uniqueId, bool notifyErrors = true)
         {
             if (string.IsNullOrWhiteSpace(uniqueId))
                 return null;
@@ -182,7 +190,8 @@ namespace OrbitalSIP.Services
 
                 var errorBody = await response.Content.ReadAsStringAsync();
                 AppLogger.Log("ScriptService", $"Save call log failed. Status: {response.StatusCode}. Body: {errorBody}");
-                HttpErrorNotifier.NotifyHttpError("ScriptService", url, response.StatusCode, errorBody);
+                if (notifyErrors)
+                    HttpErrorNotifier.NotifyHttpError("ScriptService", url, response.StatusCode, errorBody);
                 return null;
             }
             catch (Exception ex)
