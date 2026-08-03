@@ -17,6 +17,9 @@ namespace OrbitalSIP.Views
     {
         private DispatcherTimer? _cdrTimer;
         private static readonly HttpClient _httpClient;
+        private SmsComposeDialog? _historySmsDialog;
+        private bool _historySmsLaunchInProgress;
+        private bool _isDetached;
         public ObservableCollection<CdrItemViewModel> CdrItems { get; } = new ObservableCollection<CdrItemViewModel>();
 
         public event EventHandler? OnCloseRequested;
@@ -55,8 +58,19 @@ namespace OrbitalSIP.Views
 
         protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
         {
+            _isDetached = true;
             base.OnDetachedFromVisualTree(e);
             _cdrTimer?.Stop();
+            var dialog = _historySmsDialog;
+            _historySmsDialog = null;
+            dialog?.Close(false);
+        }
+
+        protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            base.OnAttachedToVisualTree(e);
+            _isDetached = false;
+            _cdrTimer?.Start();
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
@@ -160,6 +174,74 @@ namespace OrbitalSIP.Views
                         _ = LoadCallHistoryAsync();
                 }
             }
+        }
+
+        private async void OnCdrSmsClicked(object? sender, RoutedEventArgs e)
+        {
+            if (sender is Button { Tag: CdrItemViewModel vm } smsButton)
+                await ShowHistorySmsComposeDialogAsync(vm, smsButton);
+        }
+
+        private async Task ShowHistorySmsComposeDialogAsync(CdrItemViewModel vm, Button smsButton)
+        {
+            if (_isDetached || _historySmsLaunchInProgress || _historySmsDialog is not null)
+                return;
+
+            if (!HistoryCallSmsContext.TryCreate(vm.Entry, vm.DisplayNumber, out var context) || context is null)
+            {
+                SetSmsComposeError(I18nService.Instance.Get("SmsHistoryCallUnavailable"));
+                return;
+            }
+
+            var owner = TopLevel.GetTopLevel(this) as Window;
+            if (owner is null)
+                return;
+
+            _historySmsLaunchInProgress = true;
+            smsButton.IsEnabled = false;
+            SetSmsComposeError(null);
+            SmsComposeDialog? dialog = null;
+            EventHandler? closedHandler = null;
+
+            try
+            {
+                dialog = new SmsComposeDialog(context.Source, context.LockedDisplayNumber);
+                _historySmsDialog = dialog;
+                closedHandler = (_, _) =>
+                {
+                    if (ReferenceEquals(_historySmsDialog, dialog))
+                        _historySmsDialog = null;
+                };
+                dialog.Closed += closedHandler;
+                await dialog.ShowDialog(owner);
+            }
+            catch (Exception ex)
+            {
+                if (!_isDetached)
+                {
+                    AppLogger.Log("HistoryCallSms", $"Failed to open SMS compose: {ex.GetType().Name}");
+                    SetSmsComposeError(I18nService.Instance.Get("SmsHistoryCallUnavailable"));
+                }
+            }
+            finally
+            {
+                if (dialog is not null && closedHandler is not null)
+                    dialog.Closed -= closedHandler;
+                if (ReferenceEquals(_historySmsDialog, dialog))
+                    _historySmsDialog = null;
+                _historySmsLaunchInProgress = false;
+                if (!_isDetached)
+                    smsButton.IsEnabled = true;
+            }
+        }
+
+        private void SetSmsComposeError(string? message)
+        {
+            var errorLabel = this.FindControl<TextBlock>("SmsComposeErrorLabel");
+            if (errorLabel is null) return;
+
+            errorLabel.Text = message ?? string.Empty;
+            errorLabel.IsVisible = !string.IsNullOrWhiteSpace(message);
         }
     }
 }

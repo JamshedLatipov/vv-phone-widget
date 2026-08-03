@@ -68,6 +68,17 @@
                                 BorderThickness="0"
                                 Padding="6"
                                 Cursor="Hand"
+                                Click="OnCdrSmsClicked"
+                                Tag="{Binding}"
+                                ToolTip.Tip="{i18n:I18n Sms}">
+                          <materialIcons:MaterialIcon Kind="MessageTextOutline" Width="19" Height="19" Foreground="#60A5FA" VerticalAlignment="Center" />
+                        </Button>
+                          <Button
+                                Width="32" Height="32"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="6"
+                                Cursor="Hand"
                                 Click="OnCdrScriptClicked"
                                 Tag="{Binding}">
                           <materialIcons:MaterialIcon Kind="ScriptTextOutline" Width="20" Height="20" Foreground="{Binding ScriptIconColor}" VerticalAlignment="Center" />
@@ -78,6 +89,11 @@
               </ItemsControl.ItemTemplate>
           </ItemsControl>
       </ScrollViewer>
+
+      <TextBlock Grid.Row="2" Name="SmsComposeErrorLabel" IsVisible="False"
+                 VerticalAlignment="Bottom" Margin="14,0,14,10"
+                 FontSize="11" Foreground="#FCA5A5" TextWrapping="Wrap"
+                 TextAlignment="Center" />
 
       <!-- Bottom tab bar -->
       <Views:BottomNavControl Grid.Row="3" Name="BottomNav" />

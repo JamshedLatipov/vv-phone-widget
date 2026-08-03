@@ -11,6 +11,8 @@ namespace OrbitalSIP.Services
     public class ScriptService : IDisposable
     {
         private readonly HttpClient _httpClient;
+        private readonly Func<SipSettings>? _settingsProvider;
+        private readonly bool _ownsHttpClient;
 
         public ScriptService()
         {
@@ -19,6 +21,14 @@ namespace OrbitalSIP.Services
                 ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
             };
             _httpClient = new HttpClient(handler);
+            _ownsHttpClient = true;
+        }
+
+        public ScriptService(HttpClient httpClient, Func<SipSettings> settingsProvider, bool ownsHttpClient = false)
+        {
+            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
+            _ownsHttpClient = ownsHttpClient;
         }
 
         public async Task<ScriptsResult> GetScriptsAsync()
@@ -63,10 +73,25 @@ namespace OrbitalSIP.Services
         }
 
         public async Task<string?> GetChannelUniqueIdAsync(string phoneNumber)
+            => await GetPrimaryLinkedIdAsync(phoneNumber, notifyFailure: true);
+
+        /// <summary>
+        /// Resolves the active call's primary Asterisk linkedid. The server keeps the
+        /// legacy JSON property name <c>uniqueid</c>, but its value is the primary
+        /// linkedid selected for the authenticated operator's channel.
+        /// </summary>
+        public async Task<string?> GetPrimaryLinkedIdAsync(string phoneNumber, CancellationToken cancellationToken = default)
+            => await GetPrimaryLinkedIdAsync(phoneNumber, notifyFailure: false, cancellationToken);
+
+        private async Task<string?> GetPrimaryLinkedIdAsync(
+            string phoneNumber,
+            bool notifyFailure,
+            CancellationToken cancellationToken = default)
         {
             try
             {
-                var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
+                cancellationToken.ThrowIfCancellationRequested();
+                var settings = _settingsProvider?.Invoke() ?? App.SipService?.CurrentSettings ?? SipSettings.Load();
                 var backendUrl = settings.BackendUrl?.TrimEnd('/');
 
                 if (string.IsNullOrEmpty(backendUrl) || string.IsNullOrEmpty(settings.AccessToken))
@@ -77,7 +102,7 @@ namespace OrbitalSIP.Services
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
 
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, cancellationToken);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -85,13 +110,19 @@ namespace OrbitalSIP.Services
                     using var document = JsonDocument.Parse(content);
                     if (document.RootElement.TryGetProperty("uniqueid", out var uniqueIdElement))
                     {
-                        return uniqueIdElement.GetString();
+                        var primaryLinkedId = uniqueIdElement.GetString();
+                        return string.IsNullOrWhiteSpace(primaryLinkedId) ? null : primaryLinkedId;
                     }
                 }
 
                 var errorBody = await response.Content.ReadAsStringAsync();
                 AppLogger.Log("ScriptService", $"Fetch channel unique ID failed. Status: {response.StatusCode}. Body: {errorBody}");
-                HttpErrorNotifier.NotifyHttpError("ScriptService", url, response.StatusCode, errorBody);
+                if (notifyFailure)
+                    HttpErrorNotifier.NotifyHttpError("ScriptService", url, response.StatusCode, errorBody);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -100,7 +131,8 @@ namespace OrbitalSIP.Services
                     details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
                 details += $" | StackTrace: {ex.StackTrace}";
                 AppLogger.Log("ScriptService", details);
-                HttpErrorNotifier.NotifyException("ScriptService", ex);
+                if (notifyFailure)
+                    HttpErrorNotifier.NotifyException("ScriptService", ex);
             }
 
             return null;
@@ -223,7 +255,8 @@ namespace OrbitalSIP.Services
 
         public void Dispose()
         {
-            _httpClient.Dispose();
+            if (_ownsHttpClient)
+                _httpClient.Dispose();
         }
     }
 }
