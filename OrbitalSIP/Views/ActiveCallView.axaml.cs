@@ -251,7 +251,7 @@ namespace OrbitalSIP.Views
             if (leadBtn != null)
                 leadBtn.IsEnabled = false;
 
-            bool success = await App.LeadService.CreateLeadAsync(request);
+            bool success = (await App.LeadService.CreateLeadAsync(request)).Success;
             AppLogger.Log("CreateLead", $"Request success: {success}");
 
             if (success)
