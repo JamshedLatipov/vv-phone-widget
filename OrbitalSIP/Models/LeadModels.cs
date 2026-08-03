@@ -296,11 +296,21 @@ namespace OrbitalSIP.Models
     /// </summary>
     public sealed class CreateLeadResult
     {
-        private CreateLeadResult(bool success, bool alreadyOpen, int? existingLeadId, string? message)
+        private CreateLeadResult(
+            bool success,
+            bool alreadyOpen,
+            int? existingLeadId,
+            string? existingLeadName,
+            string? existingLeadStatus,
+            string? existingLeadAssignedTo,
+            string? message)
         {
             Success = success;
             AlreadyOpen = alreadyOpen;
             ExistingLeadId = existingLeadId;
+            ExistingLeadName = existingLeadName;
+            ExistingLeadStatus = existingLeadStatus;
+            ExistingLeadAssignedTo = existingLeadAssignedTo;
             Message = message;
         }
 
@@ -312,16 +322,35 @@ namespace OrbitalSIP.Models
         /// <summary>`errors.existingLeadId` from the conflict body, when present.</summary>
         public int? ExistingLeadId { get; }
 
+        /// <summary>`errors.existingLeadName` — enough to render the lead card
+        /// straight from the conflict, with no second call-context round trip.</summary>
+        public string? ExistingLeadName { get; }
+
+        /// <summary>`errors.status` — the existing lead's LeadStatus.</summary>
+        public string? ExistingLeadStatus { get; }
+
+        /// <summary>`errors.assignedTo` — the owner's user id as a string, or null
+        /// when the lead is unassigned. NOT the owner's name: resolving that needs
+        /// the call-context lookup.</summary>
+        public string? ExistingLeadAssignedTo { get; }
+
         /// <summary>The conflict's `message`, ready to show to the operator.</summary>
         public string? Message { get; }
 
         public static CreateLeadResult Created() =>
-            new CreateLeadResult(true, false, null, null);
+            new CreateLeadResult(true, false, null, null, null, null, null);
 
-        public static CreateLeadResult Duplicate(int? existingLeadId, string? message) =>
-            new CreateLeadResult(false, true, existingLeadId, message);
+        public static CreateLeadResult Duplicate(
+            int? existingLeadId,
+            string? existingLeadName,
+            string? existingLeadStatus,
+            string? existingLeadAssignedTo,
+            string? message) =>
+            new CreateLeadResult(
+                false, true, existingLeadId, existingLeadName,
+                existingLeadStatus, existingLeadAssignedTo, message);
 
         public static CreateLeadResult Failed() =>
-            new CreateLeadResult(false, false, null, null);
+            new CreateLeadResult(false, false, null, null, null, null, null);
     }
 }

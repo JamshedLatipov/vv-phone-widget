@@ -41,6 +41,65 @@ namespace OrbitalSIP.Tests
             Assert.False(result.Success);
             Assert.Equal(4821, result.ExistingLeadId);
             Assert.Equal("У клиента уже есть открытый лид", result.Message);
+
+            // The whole `errors` payload, so the panel can render the existing lead
+            // straight from the 409 without a second call-context round trip.
+            Assert.Equal("Иванов Иван", result.ExistingLeadName);
+            Assert.Equal("contacted", result.ExistingLeadStatus);
+            Assert.Equal("42", result.ExistingLeadAssignedTo);
+        }
+
+        /// <summary>An unassigned lead sends `assignedTo: null`, and a lead with no
+        /// stage sends nulls elsewhere — JSON null must read as absent, not as the
+        /// string "null".</summary>
+        [Fact]
+        public void AlreadyOpenConflict_NullErrorFieldsReadAsAbsent()
+        {
+            var result = LeadService.ParseAlreadyOpenConflict("""
+            {
+              "statusCode": 409,
+              "message": "У клиента уже есть открытый лид",
+              "error": "LEAD_ALREADY_OPEN",
+              "errors": {
+                "existingLeadId": 4821,
+                "existingLeadName": null,
+                "status": null,
+                "assignedTo": null
+              }
+            }
+            """);
+
+            Assert.NotNull(result);
+            Assert.True(result!.AlreadyOpen);
+            Assert.Equal(4821, result.ExistingLeadId);
+            Assert.Null(result.ExistingLeadName);
+            Assert.Null(result.ExistingLeadStatus);
+            Assert.Null(result.ExistingLeadAssignedTo);
+        }
+
+        /// <summary>Each `errors` key is read from its own name — a swap between the
+        /// three adjacent strings must not go unnoticed.</summary>
+        [Fact]
+        public void AlreadyOpenConflict_MapsEachErrorKeyToItsOwnField()
+        {
+            var result = LeadService.ParseAlreadyOpenConflict("""
+            {
+              "error": "LEAD_ALREADY_OPEN",
+              "message": "сообщение",
+              "errors": {
+                "existingLeadId": 7,
+                "existingLeadName": "имя",
+                "status": "статус",
+                "assignedTo": "ответственный"
+              }
+            }
+            """);
+
+            Assert.NotNull(result);
+            Assert.Equal("имя", result!.ExistingLeadName);
+            Assert.Equal("статус", result.ExistingLeadStatus);
+            Assert.Equal("ответственный", result.ExistingLeadAssignedTo);
+            Assert.Equal("сообщение", result.Message);
         }
 
         /// <summary>A 409 from some other unique constraint must keep taking the
@@ -102,15 +161,21 @@ namespace OrbitalSIP.Tests
             Assert.NotNull(noErrors);
             Assert.True(noErrors!.AlreadyOpen);
             Assert.Null(noErrors.ExistingLeadId);
+            Assert.Null(noErrors.ExistingLeadName);
             Assert.Equal("У клиента уже есть открытый лид", noErrors.Message);
 
+            // A type-mismatched field is why this parses by hand instead of
+            // deserializing: Deserialize would throw here and the conflict would be
+            // lost, where this still reports AlreadyOpen with an unusable id.
             var stringId = LeadService.ParseAlreadyOpenConflict("""
-            { "error": "LEAD_ALREADY_OPEN", "errors": { "existingLeadId": "4821" } }
+            { "error": "LEAD_ALREADY_OPEN",
+              "errors": { "existingLeadId": "4821", "existingLeadName": "Иванов Иван" } }
             """);
 
             Assert.NotNull(stringId);
             Assert.True(stringId!.AlreadyOpen);
             Assert.Null(stringId.ExistingLeadId);
+            Assert.Equal("Иванов Иван", stringId.ExistingLeadName);
             Assert.Null(stringId.Message);
         }
 

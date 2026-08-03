@@ -99,7 +99,14 @@ namespace OrbitalSIP.Services
         /// generic failure path (log + error banner).
         ///
         /// `error`/`errors`, not a top-level field: AllExceptionsFilter on the backend
-        /// forwards only message/error/errors, so `existingLeadId` lives under `errors`.
+        /// forwards only message/error/errors, so the payload lives under `errors`.
+        ///
+        /// Walks JsonDocument by hand rather than deserializing into a type with
+        /// _readOptions, deliberately: a field of an unexpected JSON kind (say a
+        /// stringified `existingLeadId`) must degrade to null while the conflict is
+        /// still reported as a conflict, whereas Deserialize would throw on it and
+        /// lose the AlreadyOpen signal entirely — i.e. the widget would fall back to
+        /// a generic error on the one case this method exists to recognise.
         ///
         /// Static and public so the parsing is testable without a live server.
         /// </summary>
@@ -122,23 +129,35 @@ namespace OrbitalSIP.Services
                     return null;
 
                 int? existingLeadId = null;
+                string? existingLeadName = null;
+                string? existingLeadStatus = null;
+                string? existingLeadAssignedTo = null;
+
                 if (root.TryGetProperty("errors", out var errorsEl)
-                    && errorsEl.ValueKind == JsonValueKind.Object
-                    && errorsEl.TryGetProperty("existingLeadId", out var idEl)
-                    && idEl.ValueKind == JsonValueKind.Number
-                    && idEl.TryGetInt32(out var id))
+                    && errorsEl.ValueKind == JsonValueKind.Object)
                 {
-                    existingLeadId = id;
+                    if (errorsEl.TryGetProperty("existingLeadId", out var idEl)
+                        && idEl.ValueKind == JsonValueKind.Number
+                        && idEl.TryGetInt32(out var id))
+                    {
+                        existingLeadId = id;
+                    }
+
+                    existingLeadName = ReadOptionalString(errorsEl, "existingLeadName");
+                    existingLeadStatus = ReadOptionalString(errorsEl, "status");
+                    existingLeadAssignedTo = ReadOptionalString(errorsEl, "assignedTo");
                 }
 
                 // `message` is string|string[] across the API; this conflict sends a
                 // string, and an array is left as «no message» rather than guessed at.
-                string? message = root.TryGetProperty("message", out var messageEl)
-                                  && messageEl.ValueKind == JsonValueKind.String
-                    ? messageEl.GetString()
-                    : null;
+                string? message = ReadOptionalString(root, "message");
 
-                return CreateLeadResult.Duplicate(existingLeadId, message);
+                return CreateLeadResult.Duplicate(
+                    existingLeadId: existingLeadId,
+                    existingLeadName: existingLeadName,
+                    existingLeadStatus: existingLeadStatus,
+                    existingLeadAssignedTo: existingLeadAssignedTo,
+                    message: message);
             }
             catch (JsonException)
             {
@@ -147,6 +166,13 @@ namespace OrbitalSIP.Services
                 return null;
             }
         }
+
+        /// <summary>Reads a property only if it is actually a JSON string; any other
+        /// kind (null, number, object) reads as absent rather than as a value.</summary>
+        private static string? ReadOptionalString(JsonElement parent, string propertyName) =>
+            parent.TryGetProperty(propertyName, out var el) && el.ValueKind == JsonValueKind.String
+                ? el.GetString()
+                : null;
 
         /// <summary>
         /// GET /api/leads/call-context?phone=… — whether this caller already has an
