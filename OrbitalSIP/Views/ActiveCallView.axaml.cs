@@ -59,11 +59,14 @@ namespace OrbitalSIP.Views
 
             if (_smsCallStateChangedHandler == null)
             {
-                _smsCallStateChangedHandler = _ => Dispatcher.UIThread.Post(() =>
+                _smsCallStateChangedHandler = state =>
                 {
-                    if (!IsSourceCallCurrent())
-                        InvalidateSmsComposeForCallLifecycle();
-                });
+                    var capturedState = state;
+                    if (!Models.ActiveCallSmsLifecycle.ShouldInvalidate(capturedState))
+                        return;
+
+                    Dispatcher.UIThread.Post(InvalidateSmsComposeForCallLifecycle);
+                };
                 App.SipService.CallStateChanged += _smsCallStateChangedHandler;
             }
 
