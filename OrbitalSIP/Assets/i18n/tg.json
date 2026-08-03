@@ -152,6 +152,7 @@
   "SmsConfirmTitle": "Ирсолро тасдиқ кунед",
   "SmsConfirmHint": "Қабулкунанда ва матни ниҳоиро санҷед.",
   "SmsBack": "Бозгашт",
+  "SmsCancelSend": "Бекор кардани ирсол",
   "SmsConfirmSend": "Тасдиқ ва ба навбат гузоштан",
   "SmsSending": "SMS ба навбат гузошта мешавад…",
   "SmsQueuedSuccess": "SMS ба навбат гузошта шуд",

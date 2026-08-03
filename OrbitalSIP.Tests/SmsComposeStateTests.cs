@@ -142,6 +142,45 @@ public class SmsComposeStateTests
     }
 
     [Fact]
+    public void CancelCurrentSend_CancelsAttemptAndKeepsConfirmationRetryableWithSameRequestId()
+    {
+        var state = NewFreeTextState();
+        state.EditContent("Отменяемый текст");
+        state.RequestConfirmation();
+        using var session = new SmsComposeSendSession(state);
+        Assert.True(session.TryBeginSend(out var attempt));
+
+        Assert.True(session.CanCancelSend);
+        Assert.True(session.CancelCurrentSend());
+
+        Assert.True(attempt!.CancellationToken.IsCancellationRequested);
+        Assert.False(state.IsInFlight);
+        Assert.True(state.IsConfirmationVisible);
+        Assert.Equal("SmsCancelled", session.StatusMessageKey);
+        Assert.True(session.TryBeginSend(out var retry));
+        Assert.Equal(attempt.Request.RequestId, retry!.Request.RequestId);
+    }
+
+    [Fact]
+    public void CancelCurrentSend_RejectsStaleSuccessFromCancelledAttempt()
+    {
+        var state = NewFreeTextState();
+        state.EditContent("Отменяемый текст");
+        state.RequestConfirmation();
+        using var session = new SmsComposeSendSession(state);
+        Assert.True(session.TryBeginSend(out var attempt));
+
+        session.CancelCurrentSend();
+        var accepted = session.CompleteSuccess(attempt!);
+
+        Assert.False(accepted);
+        Assert.False(state.IsQueued);
+        Assert.False(state.IsInFlight);
+        Assert.True(state.IsConfirmationVisible);
+        Assert.Equal("SmsCancelled", session.StatusMessageKey);
+    }
+
+    [Fact]
     public void EditContent_AfterFailureHidesConfirmationAndRegeneratesRequestId()
     {
         var state = NewFreeTextState();

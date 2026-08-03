@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 namespace OrbitalSIP.Models;
 
@@ -160,5 +161,154 @@ public sealed class SmsComposeState
     {
         _requestId = null;
         IsConfirmationVisible = false;
+    }
+}
+
+/// <summary>One cancellable send attempt owned by <see cref="SmsComposeSendSession"/>.</summary>
+public sealed class SmsComposeSendAttempt
+{
+    private readonly CancellationTokenSource _cancellation = new();
+
+    internal SmsComposeSendAttempt(SendCallSmsRequest request)
+    {
+        Request = request;
+    }
+
+    public SendCallSmsRequest Request { get; }
+    public CancellationToken CancellationToken => _cancellation.Token;
+
+    internal void Cancel() => _cancellation.Cancel();
+    internal void Dispose() => _cancellation.Dispose();
+}
+
+/// <summary>
+/// Presentation-level owner for the active request token. It keeps cancellation
+/// retryable and rejects completions from attempts which are no longer current.
+/// </summary>
+public sealed class SmsComposeSendSession : IDisposable
+{
+    public const string CancelledMessageKey = "SmsCancelled";
+
+    private readonly object _gate = new();
+    private readonly SmsComposeState _state;
+    private SmsComposeSendAttempt? _currentAttempt;
+    private string? _statusMessageKey;
+    private bool _disposed;
+
+    public SmsComposeSendSession(SmsComposeState state)
+    {
+        _state = state ?? throw new ArgumentNullException(nameof(state));
+    }
+
+    public bool CanCancelSend
+    {
+        get
+        {
+            lock (_gate)
+                return !_disposed && _currentAttempt is not null && _state.IsInFlight;
+        }
+    }
+
+    public string? StatusMessageKey
+    {
+        get
+        {
+            lock (_gate)
+                return _statusMessageKey;
+        }
+    }
+
+    public bool TryBeginSend(out SmsComposeSendAttempt? attempt)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            attempt = null;
+            if (_currentAttempt is not null || !_state.TryBeginSend(out var request) || request is null)
+                return false;
+
+            attempt = new SmsComposeSendAttempt(request);
+            _currentAttempt = attempt;
+            _statusMessageKey = null;
+            return true;
+        }
+    }
+
+    public bool CancelCurrentSend()
+    {
+        SmsComposeSendAttempt? cancelled;
+        lock (_gate)
+        {
+            if (_disposed || _currentAttempt is null)
+                return false;
+
+            cancelled = _currentAttempt;
+            _currentAttempt = null;
+            _state.FinishSendFailure();
+            _statusMessageKey = CancelledMessageKey;
+        }
+
+        cancelled.Cancel();
+        return true;
+    }
+
+    public bool CompleteSuccess(SmsComposeSendAttempt attempt)
+    {
+        ArgumentNullException.ThrowIfNull(attempt);
+        var accepted = false;
+        lock (_gate)
+        {
+            if (ReferenceEquals(_currentAttempt, attempt))
+            {
+                _currentAttempt = null;
+                _state.FinishSendSuccess();
+                _statusMessageKey = null;
+                accepted = true;
+            }
+        }
+
+        attempt.Dispose();
+        return accepted;
+    }
+
+    public bool CompleteFailure(SmsComposeSendAttempt attempt, string? statusMessageKey = null)
+    {
+        ArgumentNullException.ThrowIfNull(attempt);
+        var accepted = false;
+        lock (_gate)
+        {
+            if (ReferenceEquals(_currentAttempt, attempt))
+            {
+                _currentAttempt = null;
+                _state.FinishSendFailure();
+                _statusMessageKey = statusMessageKey;
+                accepted = true;
+            }
+        }
+
+        attempt.Dispose();
+        return accepted;
+    }
+
+    public void Dispose()
+    {
+        SmsComposeSendAttempt? cancelled;
+        lock (_gate)
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+            cancelled = _currentAttempt;
+            _currentAttempt = null;
+            if (cancelled is not null)
+                _state.FinishSendFailure();
+        }
+
+        if (cancelled is not null)
+        {
+            cancelled.Cancel();
+            cancelled.Dispose();
+        }
     }
 }

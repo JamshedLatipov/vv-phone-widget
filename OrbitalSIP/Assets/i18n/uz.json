@@ -154,6 +154,7 @@
   "SmsConfirmTitle": "Yuborishni tasdiqlang",
   "SmsConfirmHint": "Qabul qiluvchi va yakuniy matnni tekshiring.",
   "SmsBack": "Orqaga",
+  "SmsCancelSend": "Yuborishni bekor qilish",
   "SmsConfirmSend": "Tasdiqlash va navbatga qo'yish",
   "SmsSending": "SMS navbatga qo'yilmoqda…",
   "SmsQueuedSuccess": "SMS navbatga qo'yildi",

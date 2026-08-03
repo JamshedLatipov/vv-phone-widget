@@ -20,10 +20,10 @@ public partial class SmsComposeDialog : Window
     private static readonly IBrush InvalidCountBrush = Brush.Parse("#F87171");
 
     private readonly SmsComposeState _state;
+    private readonly SmsComposeSendSession _sendSession;
     private readonly SmsService _smsService;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly bool _loadTemplates;
-    private CancellationTokenSource? _sendCancellation;
     private bool _contentWasEdited;
 
     private TextBlock _recipientValue = null!;
@@ -42,6 +42,7 @@ public partial class SmsComposeDialog : Window
     private Button _sendButton = null!;
     private Button _cancelButton = null!;
     private Button _backButton = null!;
+    private Button _cancelSendButton = null!;
     private Button _confirmButton = null!;
     private TextBlock _confirmRecipientValue = null!;
     private TextBlock _confirmContentValue = null!;
@@ -64,6 +65,7 @@ public partial class SmsComposeDialog : Window
         bool loadTemplates)
     {
         _state = new SmsComposeState(source, lockedRecipient);
+        _sendSession = new SmsComposeSendSession(_state);
         _smsService = smsService ?? throw new ArgumentNullException(nameof(smsService));
         _loadTemplates = loadTemplates;
 
@@ -94,6 +96,7 @@ public partial class SmsComposeDialog : Window
         _sendButton = this.FindControl<Button>("SendBtn")!;
         _cancelButton = this.FindControl<Button>("CancelBtn")!;
         _backButton = this.FindControl<Button>("BackBtn")!;
+        _cancelSendButton = this.FindControl<Button>("CancelSendBtn")!;
         _confirmButton = this.FindControl<Button>("ConfirmBtn")!;
         _confirmRecipientValue = this.FindControl<TextBlock>("ConfirmRecipientValue")!;
         _confirmContentValue = this.FindControl<TextBlock>("ConfirmContentValue")!;
@@ -110,6 +113,7 @@ public partial class SmsComposeDialog : Window
         _contentBox.TextChanged += (_, _) => EditContent();
         _sendButton.Click += (_, _) => ShowConfirmation();
         _backButton.Click += (_, _) => HideConfirmation();
+        _cancelSendButton.Click += (_, _) => CancelActiveSend();
         _confirmButton.Click += async (_, _) => await SendConfirmedAsync();
 
         this.EnableDrag(this.FindControl<Border>("HeaderBar"));
@@ -117,7 +121,7 @@ public partial class SmsComposeDialog : Window
         Opened += OnOpened;
         Closed += (_, _) =>
         {
-            _sendCancellation?.Cancel();
+            _sendSession.Dispose();
             _lifetimeCancellation.Cancel();
             _lifetimeCancellation.Dispose();
         };
@@ -234,48 +238,49 @@ public partial class SmsComposeDialog : Window
 
     private async Task SendConfirmedAsync()
     {
-        if (!_state.TryBeginSend(out var request) || request is null)
+        if (!_sendSession.TryBeginSend(out var attempt) || attempt is null)
             return;
 
         ClearTransientMessages();
-        _sendCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            attempt.CancellationToken,
+            _lifetimeCancellation.Token);
         Render();
+        _cancelSendButton.Focus();
 
         try
         {
-            await _smsService.SendFromCallAsync(request, _sendCancellation.Token);
-            _state.FinishSendSuccess();
+            await _smsService.SendFromCallAsync(attempt.Request, cancellation.Token);
+            _sendSession.CompleteSuccess(attempt);
         }
-        catch (OperationCanceledException) when (_sendCancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
-            _state.FinishSendFailure();
-            if (!_lifetimeCancellation.IsCancellationRequested)
+            if (!_lifetimeCancellation.IsCancellationRequested &&
+                _sendSession.CompleteFailure(attempt, SmsComposeSendSession.CancelledMessageKey))
                 ShowError(I18nService.Instance.Get("SmsCancelled"));
         }
         catch (SmsApiException ex)
         {
-            _state.FinishSendFailure();
-            ShowError(ex.ApiMessage);
+            if (_sendSession.CompleteFailure(attempt))
+                ShowError(ex.ApiMessage);
         }
         catch (HttpRequestException)
         {
-            _state.FinishSendFailure();
-            ShowError(I18nService.Instance.Get("SmsSendError"));
+            if (_sendSession.CompleteFailure(attempt))
+                ShowError(I18nService.Instance.Get("SmsSendError"));
         }
         catch (InvalidOperationException)
         {
-            _state.FinishSendFailure();
-            ShowError(I18nService.Instance.Get("SmsSendError"));
+            if (_sendSession.CompleteFailure(attempt))
+                ShowError(I18nService.Instance.Get("SmsSendError"));
         }
         catch (Exception)
         {
-            _state.FinishSendFailure();
-            ShowError(I18nService.Instance.Get("SmsSendError"));
+            if (_sendSession.CompleteFailure(attempt))
+                ShowError(I18nService.Instance.Get("SmsSendError"));
         }
         finally
         {
-            _sendCancellation.Dispose();
-            _sendCancellation = null;
             if (!_lifetimeCancellation.IsCancellationRequested)
                 Render();
         }
@@ -283,9 +288,9 @@ public partial class SmsComposeDialog : Window
 
     private void CancelOrClose()
     {
-        if (_state.IsInFlight)
+        if (_sendSession.CanCancelSend)
         {
-            _sendCancellation?.Cancel();
+            CancelActiveSend();
             return;
         }
 
@@ -294,8 +299,24 @@ public partial class SmsComposeDialog : Window
 
     private void CloseDialog()
     {
-        _sendCancellation?.Cancel();
+        if (_sendSession.CanCancelSend)
+        {
+            CancelActiveSend();
+            return;
+        }
+
         Close(_state.IsQueued);
+    }
+
+    private void CancelActiveSend()
+    {
+        if (!_sendSession.CancelCurrentSend())
+            return;
+
+        var key = _sendSession.StatusMessageKey ?? SmsComposeSendSession.CancelledMessageKey;
+        ShowError(I18nService.Instance.Get(key));
+        Render();
+        _confirmButton.Focus();
     }
 
     private void OnDialogKeyDown(object? sender, KeyEventArgs e)
@@ -333,7 +354,10 @@ public partial class SmsComposeDialog : Window
 
         _composeFooter.IsVisible = !_state.IsConfirmationVisible && !_state.IsQueued;
         _confirmationFooter.IsVisible = _state.IsConfirmationVisible && !_state.IsQueued;
+        _backButton.IsVisible = !_state.IsInFlight;
         _backButton.IsEnabled = !_state.IsInFlight;
+        _cancelSendButton.IsVisible = _sendSession.CanCancelSend;
+        _cancelSendButton.IsEnabled = _sendSession.CanCancelSend;
         _confirmButton.IsEnabled = !_state.IsInFlight;
         _progressLabel.IsVisible = _state.IsInFlight;
 

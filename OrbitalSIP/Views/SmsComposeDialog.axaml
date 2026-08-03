@@ -111,6 +111,10 @@
               <Button Name="BackBtn" Grid.Column="0" Content="{i18n:I18n SmsBack}"
                       Background="Transparent" BorderThickness="1" BorderBrush="#334155"
                       Foreground="#94A3B8" CornerRadius="8" Padding="11,7" Cursor="Hand" />
+              <Button Name="CancelSendBtn" Grid.Column="0" IsVisible="False"
+                      Content="{i18n:I18n SmsCancelSend}"
+                      Background="Transparent" BorderThickness="1" BorderBrush="#F87171"
+                      Foreground="#FCA5A5" CornerRadius="8" Padding="11,7" Cursor="Hand" />
               <Button Name="ConfirmBtn" Grid.Column="2" Content="{i18n:I18n SmsConfirmSend}"
                       Background="#3B82F6" Foreground="White" BorderThickness="0"
                       CornerRadius="8" Padding="13,7" FontWeight="Bold" Cursor="Hand" />

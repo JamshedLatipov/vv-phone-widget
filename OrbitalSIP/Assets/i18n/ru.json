@@ -164,6 +164,7 @@
   "SmsConfirmTitle": "Подтвердите отправку",
   "SmsConfirmHint": "Проверьте получателя и итоговый текст.",
   "SmsBack": "Назад",
+  "SmsCancelSend": "Отменить отправку",
   "SmsConfirmSend": "Подтвердить и поставить в очередь",
   "SmsSending": "SMS ставится в очередь…",
   "SmsQueuedSuccess": "SMS поставлено в очередь",

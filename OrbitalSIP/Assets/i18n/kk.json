@@ -154,6 +154,7 @@
   "SmsConfirmTitle": "Жіберуді растаңыз",
   "SmsConfirmHint": "Алушы мен соңғы мәтінді тексеріңіз.",
   "SmsBack": "Артқа",
+  "SmsCancelSend": "Жіберуді тоқтату",
   "SmsConfirmSend": "Растау және кезекке қою",
   "SmsSending": "SMS кезекке қойылуда…",
   "SmsQueuedSuccess": "SMS кезекке қойылды",
