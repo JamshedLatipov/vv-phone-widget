@@ -133,11 +133,11 @@ public sealed class SmsService : IDisposable
         {
             if (item.ValueKind != JsonValueKind.Object ||
                 !TryGetNonEmptyGuid(item, "id", out var id) ||
-                !TryGetNonBlankString(item, "name", out var name) ||
-                !TryGetNonBlankString(item, "content", out var content))
+                !TryGetNonBlankString(item, "name", out var name))
                 throw InvalidSuccessResponse(statusCode);
 
-            templates.Add(new MessageTemplateDto(id, name, content));
+            if (TryGetNonBlankString(item, "content", out var content))
+                templates.Add(new MessageTemplateDto(id, name, content));
         }
 
         return templates;

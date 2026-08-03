@@ -53,8 +53,7 @@ public class SmsServiceTests
     [Theory]
     [InlineData("{ \"data\": [{ \"id\": \"00000000-0000-0000-0000-000000000000\", \"name\": \"Шаблон\", \"content\": \"Текст\" }] }")]
     [InlineData("{ \"data\": [{ \"id\": \"22222222-2222-2222-2222-222222222222\", \"name\": \"   \", \"content\": \"Текст\" }] }")]
-    [InlineData("{ \"data\": [{ \"id\": \"22222222-2222-2222-2222-222222222222\", \"name\": \"Шаблон\" }] }")]
-    public async Task GetTemplatesAsync_RejectsTemplateItemsMissingRequiredComposeFields(string body)
+    public async Task GetTemplatesAsync_RejectsTemplateItemsMissingRequiredIdentityFields(string body)
     {
         using var handler = new RecordingHandler(_ => JsonResponse(body));
         using var service = CreateService(handler);
@@ -62,6 +61,47 @@ public class SmsServiceTests
         var error = await Assert.ThrowsAsync<SmsApiException>(() => service.GetTemplatesAsync());
 
         Assert.Equal("SMS API returned an invalid response.", error.ApiMessage);
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("\"   \"")]
+    public async Task GetTemplatesAsync_FiltersNonComposeReadyTemplatesFromMixedPage(string unavailableContent)
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse($$"""
+            {
+              "data": [
+                { "id": "22222222-2222-2222-2222-222222222222", "name": "Готов", "content": "Текст" },
+                { "id": "33333333-3333-3333-3333-333333333333", "name": "Не готов", "content": {{unavailableContent}} }
+              ]
+            }
+            """));
+        using var service = CreateService(handler);
+
+        var templates = await service.GetTemplatesAsync();
+
+        var template = Assert.Single(templates);
+        Assert.Equal(Guid.Parse("22222222-2222-2222-2222-222222222222"), template.Id);
+        Assert.Equal("Текст", template.Content);
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("\"   \"")]
+    public async Task GetTemplatesAsync_ReturnsEmptyWhenOnlyNonComposeReadyTemplatesExist(string unavailableContent)
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse($$"""
+            {
+              "data": [
+                { "id": "33333333-3333-3333-3333-333333333333", "name": "Не готов", "content": {{unavailableContent}} }
+              ]
+            }
+            """));
+        using var service = CreateService(handler);
+
+        var templates = await service.GetTemplatesAsync();
+
+        Assert.Empty(templates);
     }
 
     [Fact]
