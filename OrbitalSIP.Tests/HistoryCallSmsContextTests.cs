@@ -38,6 +38,10 @@ public class HistoryCallSmsContextTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("asterisk-unique-id")]
+    [InlineData(" 11111111-1111-1111-1111-111111111111")]
+    [InlineData("11111111-1111-1111-1111-111111111111 ")]
+    [InlineData("{11111111-1111-1111-1111-111111111111}")]
+    [InlineData("11111111111111111111111111111111")]
     public void TryCreate_BlocksComposeWhenCdrIdIsMissingOrNotUuid(string? cdrId)
     {
         var cdr = new CdrEntry
@@ -52,5 +56,18 @@ public class HistoryCallSmsContextTests
 
         Assert.False(created);
         Assert.Null(context);
+    }
+
+    [Fact]
+    public void TryCreate_AcceptsCanonicalUppercaseUuidAndPreservesItsOriginalValue()
+    {
+        const string cdrId = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE";
+        var cdr = new CdrEntry { Id = cdrId };
+
+        var created = HistoryCallSmsContext.TryCreate(cdr, "+992 ** *** 12 34", out var context);
+
+        Assert.True(created);
+        Assert.NotNull(context);
+        Assert.Equal(cdrId, context.Source.Id);
     }
 }

@@ -7,14 +7,14 @@ public sealed record HistoryCallSmsContext(SmsCallSource Source, string LockedDi
 {
     public static bool TryCreate(CdrEntry? entry, string lockedDisplayNumber, out HistoryCallSmsContext? context)
     {
-        if (entry is null || !Guid.TryParse(entry.Id, out _))
+        if (entry?.Id is not { Length: 36 } cdrId || !Guid.TryParseExact(cdrId, "D", out _))
         {
             context = null;
             return false;
         }
 
         context = new HistoryCallSmsContext(
-            new SmsCallSource("history", entry.Id),
+            new SmsCallSource("history", cdrId),
             lockedDisplayNumber);
         return true;
     }
