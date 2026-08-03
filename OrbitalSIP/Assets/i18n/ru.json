@@ -171,5 +171,6 @@
   "SmsSendError": "Не удалось поставить SMS в очередь",
   "SmsCancelled": "Отправка SMS отменена",
   "Sms": "SMS",
-  "SmsActiveCallUnavailable": "Не удалось подтвердить активный звонок для SMS. Повторите попытку."
+  "SmsActiveCallUnavailable": "Не удалось подтвердить активный звонок для SMS. Повторите попытку.",
+  "SmsHistoryCallUnavailable": "Не удалось подтвердить запись истории для SMS. Повторите попытку."
 }

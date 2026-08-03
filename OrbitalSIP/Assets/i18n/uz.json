@@ -161,5 +161,6 @@
   "SmsSendError": "SMS-ni navbatga qo'yib bo'lmadi",
   "SmsCancelled": "SMS yuborish bekor qilindi",
   "Sms": "SMS",
-  "SmsActiveCallUnavailable": "SMS uchun faol qo'ng'iroqni tasdiqlab bo'lmadi. Qayta urinib ko'ring."
+  "SmsActiveCallUnavailable": "SMS uchun faol qo'ng'iroqni tasdiqlab bo'lmadi. Qayta urinib ko'ring.",
+  "SmsHistoryCallUnavailable": "SMS uchun qo'ng'iroqlar tarixidagi yozuvni tasdiqlab bo'lmadi. Qayta urinib ko'ring."
 }
