@@ -151,6 +151,55 @@ namespace OrbitalSIP.Tests
         }
 
         /// <summary>
+        /// A LeadPanelState added later must keep the button until someone decides
+        /// otherwise deliberately. Without this, adding a state silently removes the
+        /// create button for it — which is precisely the failure this whole item was
+        /// about, arriving through the default arm instead of an explicit one.
+        /// </summary>
+        [Fact]
+        public void CreateButton_SurvivesAStateThisBuildDoesNotKnow()
+        {
+            var unmapped = (LeadPanelState)9999;
+
+            Assert.False(Enum.IsDefined(typeof(LeadPanelState), unmapped));
+            Assert.True(LeadCallPanelPresenter.ShowsCreateButton(unmapped));
+        }
+
+        /// <summary>
+        /// `Hidden` has two producers and the button is withheld for both, for
+        /// different reasons — pinned side by side so neither can drift into the
+        /// other's justification. (1) the server said no `leads:create`;
+        /// (2) the number has no digits, so there is nothing to look up and nothing
+        /// to put on the lead.
+        /// </summary>
+        [Fact]
+        public void Hidden_ComesFromBothProducersAndWithholdsCreateInEach()
+        {
+            var noPermission = LeadCallPanelPresenter.SelectState(
+                "992900112233",
+                Loaded(LeadCallStates.None, canCreateLead: false),
+                conflictShown: false);
+
+            var withheldNumber = LeadCallPanelPresenter.SelectState(
+                "anonymous", null, conflictShown: false);
+
+            Assert.Equal(LeadPanelState.Hidden, noPermission);
+            Assert.Equal(LeadPanelState.Hidden, withheldNumber);
+
+            Assert.False(LeadCallPanelPresenter.ShowsCreateButton(noPermission));
+            Assert.False(LeadCallPanelPresenter.ShowsCreateButton(withheldNumber));
+
+            // The withheld-number case is decided with NO backend involved: it holds
+            // even when the lookup failed outright, unlike every other failure path,
+            // which keeps the button (see FailedLookup_KeepsTheCreateButton).
+            var withheldAndLookupFailed = LeadCallPanelPresenter.SelectState(
+                "anonymous", LeadCallContextResult.Failed("HTTP 403"), conflictShown: false);
+
+            Assert.Equal(LeadPanelState.Hidden, withheldAndLookupFailed);
+            Assert.False(LeadCallPanelPresenter.ShowsCreateButton(withheldAndLookupFailed));
+        }
+
+        /// <summary>
         /// The capability survives every way the lookup can fail — a 403 on a role
         /// that cannot reach call-context, a network error, or a CRM that has not
         /// been deployed with the route yet. An optimistic create is safe now: a

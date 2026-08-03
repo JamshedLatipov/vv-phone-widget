@@ -135,8 +135,24 @@ namespace OrbitalSIP.Services
             // A lead is on screen — creating a second one is exactly the 409.
             LeadPanelState.ActiveLead => false,
             LeadPanelState.ConflictLead => false,
-            // No lead AND no `leads:create` (cc_operator / cc_manager): the server
-            // told us plainly that a create would 403.
+            // `Hidden` has TWO producers, and the button is withheld for both —
+            // for different reasons, so neither can be removed on the other's
+            // argument:
+            //
+            //  1. The lookup succeeded and said no lead AND no `leads:create`
+            //     (cc_operator / cc_manager). The server told us plainly that a
+            //     create would come back 403.
+            //
+            //  2. The caller number carries no digits — withheld / anonymous /
+            //     «Неизвестный» — so there is nothing to look up and nothing to
+            //     put ON the lead. A lead minted here has no number to call back
+            //     on: junk its owner then has to clean up.
+            //     This one is decided CLIENT-side, with no backend involved, so
+            //     the deploy-ordering argument above deliberately does NOT rescue
+            //     it — that argument is about not letting an unreachable CRM cost
+            //     us the button, and this decision needs no CRM to be correct.
+            //     It IS a behaviour change: before this panel, «Лид» on a withheld
+            //     number created one named after whatever the label showed.
             LeadPanelState.Hidden => false,
 
             LeadPanelState.OfferCreate => true,
