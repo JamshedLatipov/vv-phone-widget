@@ -149,5 +149,16 @@
   "LeadTransferBlockedNotRegistered": "Жауапты желіде емес",
   "LeadTransferBlockedOnCall": "Жауапты қазір қоңырауда",
   "LeadTransferBlockedPaused": "Жауапты үзілісте",
-  "LeadTransferBlockedUnknown": "Аудару қолжетімсіз"
+  "LeadTransferBlockedUnknown": "Аудару қолжетімсіз",
+  "LeadStatusNew": "Жаңа",
+  "LeadStatusContacted": "Байланыс орнатылды",
+  "LeadStatusQualified": "Біліктілігі расталды",
+  "LeadStatusProposalSent": "КҰ жіберілді",
+  "LeadStatusNegotiating": "Келіссөздерде",
+  "LeadStatusConverted": "Конверттелген",
+  "LeadStatusRejected": "Қабылданбады",
+  "LeadStatusLost": "Жоғалтылды",
+  "LeadStatusOverdue": "Мерзімі өтті",
+  "LeadStatusStalled": "Тұрып қалған",
+  "LeadStatusNoAnswer": "Жауап жоқ"
 }

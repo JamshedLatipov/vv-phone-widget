@@ -28,6 +28,27 @@ namespace OrbitalSIP.Views
         private Models.LeadCallContextResult? _leadContext;
         private bool _leadContextLoading;
 
+        /// <summary>A 409 card is on screen. It is proof the lead exists, so no
+        /// later refresh may downgrade the panel below it — see SelectState.</summary>
+        private Models.CreateLeadResult? _leadConflict;
+
+        /// <summary>
+        /// Per-call scratch state, static because MainWindow builds a NEW
+        /// ActiveCallView on every expand from the mini-widget and after every
+        /// transfer. Without this the lookup — whose server side runs a full AMI
+        /// endpoint sweep — re-ran on each expand, and a half-typed comment was lost
+        /// on every collapse.
+        /// </summary>
+        private sealed class LeadCallCache
+        {
+            public string Key = string.Empty;
+            public Models.LeadCallContextResult? Context;
+            public Models.CreateLeadResult? Conflict;
+            public string CommentDraft = string.Empty;
+        }
+
+        private static LeadCallCache? _leadCache;
+
         public ActiveCallView()
             : this("Unknown", false)
         {
@@ -49,7 +70,11 @@ namespace OrbitalSIP.Views
             SetStatus(App.SipService.IsOnHold);
             UpdateTimeUI();
             StartTimer();
-            _ = LoadLeadContextAsync();
+
+            // A rebuild of this view for the same call reuses what we already
+            // fetched; only a genuinely new call hits the network.
+            if (!RestoreCachedCallState())
+                _ = LoadLeadContextAsync();
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
@@ -166,6 +191,12 @@ namespace OrbitalSIP.Views
             var leadCommentAddBtn = this.FindControl<Button>("LeadCommentAddBtn");
             if (leadCommentAddBtn != null)
                 leadCommentAddBtn.Click += async (_, __) => await AddLeadCommentAsync();
+
+            // Keeps a half-typed comment alive across a collapse/expand, which
+            // rebuilds this whole view.
+            var leadCommentBox = this.FindControl<TextBox>("LeadCommentBox");
+            if (leadCommentBox != null)
+                leadCommentBox.TextChanged += (_, __) => RememberCommentDraft(leadCommentBox.Text);
 
             var callInfoBtn = this.FindControl<Button>("CallInfoBtn");
             if (callInfoBtn != null)
@@ -285,7 +316,16 @@ namespace OrbitalSIP.Views
                 // Render what the 409 already told us, then refresh in the
                 // background for the owner and the actions it cannot carry.
                 AppLogger.Log("CreateLead", $"Lead already open: id={result.ExistingLeadId?.ToString() ?? "?"} name='{result.ExistingLeadName}'");
+
+                // Recorded BEFORE the refresh: SelectState reads it to refuse any
+                // downgrade below the card, and without it a refresh returning
+                // `none` would put the create button back — still disabled, since
+                // this branch skips the re-enable below.
+                _leadConflict = result;
+                if (leadBtn != null) leadBtn.IsEnabled = true;
+
                 RenderConflictLeadCard(result);
+                CacheForThisCall();
                 _ = LoadLeadContextAsync(showLoading: false);
                 return;
             }
@@ -293,6 +333,13 @@ namespace OrbitalSIP.Views
             if (success)
             {
                 _leadCreated = true;
+
+                // Refresh so the cache holds the lead that now exists. Without this
+                // the cached «none» outlives the create, and the next expand — which
+                // rebuilds this view and resets _leadCreated — would re-arm the
+                // create button for a caller who now has a lead.
+                _ = LoadLeadContextAsync(showLoading: false);
+
                 if (leadBtn != null)
                 {
                     leadBtn.Opacity = 0.5; // Visually indicate it's disabled permanently for this call
@@ -336,6 +383,16 @@ namespace OrbitalSIP.Views
         private async Task LoadLeadContextAsync(bool showLoading = true)
         {
             if (_leadContextLoading) return;
+
+            // Nothing to look up for a withheld number — and the endpoint would 400
+            // on it anyway. SelectState renders this as Hidden.
+            if (!LeadCallPanelPresenter.IsLookupablePhone(CallerNumber()))
+            {
+                AppLogger.Log("LeadPanel", "Skipping call-context lookup: caller number has no digits.");
+                ApplyLeadPanelState();
+                return;
+            }
+
             _leadContextLoading = true;
 
             if (showLoading)
@@ -353,12 +410,60 @@ namespace OrbitalSIP.Views
                 _leadContextLoading = false;
             }
 
+            CacheForThisCall();
             ApplyLeadPanelState();
+        }
+
+        private static string CurrentCallKey() =>
+            LeadCallPanelPresenter.BuildCallKey(
+                App.SipService?.ActiveCallerId,
+                App.SipService?.ActiveCallStartedAt);
+
+        /// <summary>
+        /// Restores context, conflict card and comment draft when this view is a
+        /// rebuild for the SAME call. A different call — including a call-back from
+        /// the same number — misses, because reusing a stale «no lead» would offer a
+        /// create for a caller who has since acquired a lead.
+        /// </summary>
+        private bool RestoreCachedCallState()
+        {
+            if (_leadCache == null || _leadCache.Key != CurrentCallKey()) return false;
+
+            _leadContext = _leadCache.Context;
+            _leadConflict = _leadCache.Conflict;
+
+            if (_leadConflict != null) RenderConflictLeadCard(_leadConflict);
+            ApplyLeadPanelState();
+
+            var box = this.FindControl<TextBox>("LeadCommentBox");
+            if (box != null) box.Text = _leadCache.CommentDraft;
+
+            return _leadContext != null || _leadConflict != null;
+        }
+
+        private void CacheForThisCall()
+        {
+            var key = CurrentCallKey();
+            if (_leadCache == null || _leadCache.Key != key)
+                _leadCache = new LeadCallCache { Key = key };
+
+            _leadCache.Context = _leadContext;
+            _leadCache.Conflict = _leadConflict;
+        }
+
+        private static void RememberCommentDraft(string? text)
+        {
+            var key = CurrentCallKey();
+            if (_leadCache == null || _leadCache.Key != key)
+                _leadCache = new LeadCallCache { Key = key };
+
+            _leadCache.CommentDraft = text ?? string.Empty;
         }
 
         private void ApplyLeadPanelState()
         {
-            var state = LeadCallPanelPresenter.SelectState(_leadContext);
+            var state = LeadCallPanelPresenter.SelectState(
+                CallerNumber(), _leadContext, _leadConflict != null);
             var context = _leadContext?.Context;
 
             var panel = this.FindControl<Border>("LeadPanel");
@@ -380,7 +485,10 @@ namespace OrbitalSIP.Views
                                   || state == LeadPanelState.Unavailable
                                   || LeadCallPanelPresenter.ShowsLeadCard(state);
 
-            if (LeadCallPanelPresenter.ShowsLeadCard(state) && context?.Lead != null)
+            // Only a full ActiveLead repaints the card. ConflictLead leaves whatever
+            // RenderConflictLeadCard already put there — the refresh had nothing
+            // better to offer.
+            if (state == LeadPanelState.ActiveLead && context?.Lead != null)
                 RenderLeadCard(context);
         }
 
@@ -393,7 +501,14 @@ namespace OrbitalSIP.Views
             if (headline != null) headline.Text = LeadCallPanelPresenter.LeadHeadline(lead);
 
             var subline = this.FindControl<TextBlock>("LeadSublineLabel");
-            if (subline != null) subline.Text = LeadCallPanelPresenter.LeadSubline(lead);
+            if (subline != null)
+            {
+                // Unknown status falls back to the raw backend value, exactly as the
+                // CRM's own statusLabel() does.
+                var statusKey = LeadCallPanelPresenter.LeadStatusKey(lead.Status);
+                var statusText = statusKey == null ? lead.Status : i18n.Get(statusKey);
+                subline.Text = LeadCallPanelPresenter.LeadSubline(statusText, lead.StageName);
+            }
 
             var ownerLabel = this.FindControl<TextBlock>("LeadOwnerLabel");
             if (ownerLabel != null)
@@ -431,12 +546,17 @@ namespace OrbitalSIP.Views
 
             var headline = this.FindControl<TextBlock>("LeadHeadlineLabel");
             if (headline != null)
-                headline.Text = conflict.ExistingLeadId.HasValue
-                    ? $"#{conflict.ExistingLeadId} · {conflict.ExistingLeadName}".Trim()
-                    : conflict.Message ?? string.Empty;
+                headline.Text = LeadCallPanelPresenter.ConflictHeadline(
+                    conflict.ExistingLeadId, conflict.ExistingLeadName, conflict.Message);
 
             var subline = this.FindControl<TextBlock>("LeadSublineLabel");
-            if (subline != null) subline.Text = conflict.ExistingLeadStatus ?? string.Empty;
+            if (subline != null)
+            {
+                var statusKey = LeadCallPanelPresenter.LeadStatusKey(conflict.ExistingLeadStatus);
+                subline.Text = statusKey == null
+                    ? conflict.ExistingLeadStatus ?? string.Empty
+                    : Services.I18nService.Instance.Get(statusKey);
+            }
 
             var ownerLabel = this.FindControl<TextBlock>("LeadOwnerLabel");
             if (ownerLabel != null) ownerLabel.Text = string.Empty;
@@ -476,9 +596,8 @@ namespace OrbitalSIP.Views
                 // this must not be re-derived from ManualStatus.
                 var key = canTransfer
                     ? null
-                    : LeadCallPanelPresenter.TransferBlockedKey(
-                        context.Actions.TransferBlockedReason
-                        ?? LeadCallPanelPresenter.TransferBlockedUnknownKey);
+                    : LeadCallPanelPresenter.TransferBlockedKeyOrDefault(
+                        context.Actions.TransferBlockedReason);
 
                 blockedLabel.IsVisible = key != null;
                 blockedLabel.Text = key == null ? string.Empty : i18n.Get(key);
@@ -540,6 +659,7 @@ namespace OrbitalSIP.Views
                 AppLogger.Log("LeadPanel", $"Add call comment to lead {lead.Id}: {ok}");
 
                 if (ok && box != null) box.Text = string.Empty;
+                if (ok) RememberCommentDraft(string.Empty);
                 _ = ShowCommentStatusAsync(ok ? "LeadPanelCommentSaved" : "LeadPanelCommentFailed");
             }
             finally

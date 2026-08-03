@@ -149,5 +149,16 @@
   "LeadTransferBlockedNotRegistered": "Mas'ul tarmoqda emas",
   "LeadTransferBlockedOnCall": "Mas'ul hozir qo'ng'iroqda",
   "LeadTransferBlockedPaused": "Mas'ul tanaffusda",
-  "LeadTransferBlockedUnknown": "O'tkazish mavjud emas"
+  "LeadTransferBlockedUnknown": "O'tkazish mavjud emas",
+  "LeadStatusNew": "Yangi",
+  "LeadStatusContacted": "Aloqa o'rnatildi",
+  "LeadStatusQualified": "Malakali",
+  "LeadStatusProposalSent": "TT yuborildi",
+  "LeadStatusNegotiating": "Muzokaralarda",
+  "LeadStatusConverted": "Konvertatsiya qilindi",
+  "LeadStatusRejected": "Rad etildi",
+  "LeadStatusLost": "Yo'qotilgan",
+  "LeadStatusOverdue": "Muddati o'tgan",
+  "LeadStatusStalled": "To'xtab qolgan",
+  "LeadStatusNoAnswer": "Javob yo'q"
 }

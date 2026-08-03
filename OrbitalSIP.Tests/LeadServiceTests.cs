@@ -179,6 +179,61 @@ namespace OrbitalSIP.Tests
             Assert.Null(stringId.Message);
         }
 
+        /// <summary>
+        /// A non-string where a string is expected. This is what the
+        /// JsonValueKind.String guard is FOR: JsonElement.GetString() throws
+        /// InvalidOperationException on a Number/Object/Array — verified, not
+        /// assumed — and this method catches only JsonException, so without the
+        /// guard the exception escapes to CreateLeadAsync's catch-all and the
+        /// conflict degrades into a generic failure with an error banner: exactly
+        /// the regression hand-walking the JSON exists to prevent.
+        ///
+        /// Note a JSON `null` does NOT exercise this — GetString() returns null for
+        /// ValueKind.Null quite happily. Only Number/Object/Array/Boolean do.
+        /// </summary>
+        [Theory]
+        [InlineData("42")]
+        [InlineData("{}")]
+        [InlineData("[\"Иванов\"]")]
+        [InlineData("true")]
+        public void AlreadyOpenConflict_NonStringFieldDoesNotThrowOrLoseTheConflict(string rawName)
+        {
+            var body = $$"""
+            {
+              "message": "У клиента уже есть открытый лид",
+              "error": "LEAD_ALREADY_OPEN",
+              "errors": { "existingLeadId": 4821, "existingLeadName": {{rawName}}, "status": {{rawName}} }
+            }
+            """;
+
+            var result = LeadService.ParseAlreadyOpenConflict(body);
+
+            Assert.NotNull(result);
+            Assert.True(result!.AlreadyOpen);
+            Assert.Equal(4821, result.ExistingLeadId);
+            Assert.Null(result.ExistingLeadName);
+            Assert.Null(result.ExistingLeadStatus);
+            // The usable part of the payload still survives.
+            Assert.Equal("У клиента уже есть открытый лид", result.Message);
+        }
+
+        /// <summary>Same guard on the top-level `message`, which the API types as
+        /// string|string[] — an array must read as «no message», not throw.</summary>
+        [Fact]
+        public void AlreadyOpenConflict_ArrayMessageDoesNotThrow()
+        {
+            var result = LeadService.ParseAlreadyOpenConflict("""
+            { "error": "LEAD_ALREADY_OPEN",
+              "message": ["ошибка один", "ошибка два"],
+              "errors": { "existingLeadId": 4821 } }
+            """);
+
+            Assert.NotNull(result);
+            Assert.True(result!.AlreadyOpen);
+            Assert.Equal(4821, result.ExistingLeadId);
+            Assert.Null(result.Message);
+        }
+
         /// <summary>`error` is matched exactly — a lookalike must not pass.</summary>
         [Fact]
         public void SimilarErrorCode_IsNotTreatedAsAlreadyOpen()

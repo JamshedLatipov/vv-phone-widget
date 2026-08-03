@@ -159,5 +159,16 @@
   "LeadTransferBlockedNotRegistered": "Ответственный не в сети",
   "LeadTransferBlockedOnCall": "Ответственный сейчас на звонке",
   "LeadTransferBlockedPaused": "Ответственный на паузе",
-  "LeadTransferBlockedUnknown": "Перевод недоступен"
+  "LeadTransferBlockedUnknown": "Перевод недоступен",
+  "LeadStatusNew": "Новый",
+  "LeadStatusContacted": "Контакт установлен",
+  "LeadStatusQualified": "Квалифицирован",
+  "LeadStatusProposalSent": "КП отправлено",
+  "LeadStatusNegotiating": "На переговорах",
+  "LeadStatusConverted": "Конвертирован",
+  "LeadStatusRejected": "Отклонён",
+  "LeadStatusLost": "Потерян",
+  "LeadStatusOverdue": "Просрочен",
+  "LeadStatusStalled": "Зависший",
+  "LeadStatusNoAnswer": "Нет ответа"
 }

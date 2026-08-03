@@ -75,6 +75,18 @@ namespace OrbitalSIP.Tests
         }
 
         [Fact]
+        public void LeadCard_AppearsOnlyForTheTwoCardStates()
+        {
+            Assert.True(LeadCallPanelPresenter.ShowsLeadCard(LeadPanelState.ActiveLead));
+            Assert.True(LeadCallPanelPresenter.ShowsLeadCard(LeadPanelState.ConflictLead));
+
+            Assert.False(LeadCallPanelPresenter.ShowsLeadCard(LeadPanelState.Loading));
+            Assert.False(LeadCallPanelPresenter.ShowsLeadCard(LeadPanelState.OfferCreate));
+            Assert.False(LeadCallPanelPresenter.ShowsLeadCard(LeadPanelState.Hidden));
+            Assert.False(LeadCallPanelPresenter.ShowsLeadCard(LeadPanelState.Unavailable));
+        }
+
+        [Fact]
         public void NoLeadWithPermission_OffersCreate()
         {
             var state = LeadCallPanelPresenter.SelectState(
@@ -127,6 +139,7 @@ namespace OrbitalSIP.Tests
 
             Assert.False(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.Loading));
             Assert.False(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.ActiveLead));
+            Assert.False(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.ConflictLead));
             Assert.False(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.Hidden));
             Assert.False(LeadCallPanelPresenter.ShowsCreateButton(LeadPanelState.Unavailable));
         }
@@ -221,6 +234,28 @@ namespace OrbitalSIP.Tests
             Assert.Null(LeadCallPanelPresenter.TransferBlockedKey(null));
         }
 
+        /// <summary>
+        /// The view's slot: it only reaches here when the transfer IS blocked, so a
+        /// server that named no reason must still yield a message. Distinct from
+        /// TransferBlockedKey(null), which means «not blocked».
+        /// </summary>
+        [Fact]
+        public void TransferBlockedKeyOrDefault_NeverReturnsNull()
+        {
+            Assert.Equal(
+                LeadCallPanelPresenter.TransferBlockedUnknownKey,
+                LeadCallPanelPresenter.TransferBlockedKeyOrDefault(null));
+
+            Assert.Equal(
+                LeadCallPanelPresenter.TransferBlockedUnknownKey,
+                LeadCallPanelPresenter.TransferBlockedKeyOrDefault("something_new"));
+
+            // A real reason still comes through unchanged.
+            Assert.Equal(
+                "LeadTransferBlockedOnCall",
+                LeadCallPanelPresenter.TransferBlockedKeyOrDefault(TransferBlockedReasons.OnCall));
+        }
+
         /// <summary>A reason added server-side later must still say something —
         /// a disabled button with no explanation is worse than a generic one.</summary>
         [Fact]
@@ -242,12 +277,224 @@ namespace OrbitalSIP.Tests
         [Fact]
         public void LeadSubline_AppendsStageOnlyWhenPresent()
         {
-            Assert.Equal("contacted · Квалификация",
-                LeadCallPanelPresenter.LeadSubline(SampleLead()));
-            Assert.Equal("contacted",
-                LeadCallPanelPresenter.LeadSubline(SampleLead(stageName: null)));
-            Assert.Equal("contacted",
-                LeadCallPanelPresenter.LeadSubline(SampleLead(stageName: "  ")));
+            Assert.Equal("Контакт установлен · Квалификация",
+                LeadCallPanelPresenter.LeadSubline("Контакт установлен", "Квалификация"));
+            Assert.Equal("Контакт установлен",
+                LeadCallPanelPresenter.LeadSubline("Контакт установлен", null));
+            Assert.Equal("Контакт установлен",
+                LeadCallPanelPresenter.LeadSubline("Контакт установлен", "  "));
+            Assert.Equal("Квалификация",
+                LeadCallPanelPresenter.LeadSubline(null, "Квалификация"));
+            Assert.Equal("", LeadCallPanelPresenter.LeadSubline(null, null));
+        }
+
+        [Fact]
+        public void LeadHeadline_OmitsTheSeparatorWhenTheNameIsMissing()
+        {
+            var unnamed = SampleLead();
+            unnamed.Name = "";
+
+            Assert.Equal("#4821", LeadCallPanelPresenter.LeadHeadline(unnamed));
+        }
+
+        // ── Lead status labels ───────────────────────────────────────────────
+
+        [Theory]
+        [InlineData("new", "LeadStatusNew")]
+        [InlineData("contacted", "LeadStatusContacted")]
+        [InlineData("qualified", "LeadStatusQualified")]
+        [InlineData("proposal_sent", "LeadStatusProposalSent")]
+        [InlineData("negotiating", "LeadStatusNegotiating")]
+        [InlineData("converted", "LeadStatusConverted")]
+        [InlineData("rejected", "LeadStatusRejected")]
+        [InlineData("lost", "LeadStatusLost")]
+        [InlineData("overdue", "LeadStatusOverdue")]
+        [InlineData("stalled", "LeadStatusStalled")]
+        [InlineData("no_answer", "LeadStatusNoAnswer")]
+        public void LeadStatusKey_MapsEveryBackendStatus(string status, string expectedKey)
+        {
+            Assert.Equal(expectedKey, LeadCallPanelPresenter.LeadStatusKey(status));
+        }
+
+        /// <summary>Unknown status → null, so the caller shows the raw value rather
+        /// than a blank, exactly as the CRM's statusLabel() falls back.</summary>
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("brand_new_status")]
+        [InlineData("NEW")]
+        public void LeadStatusKey_IsNullForAnythingElse(string? status)
+        {
+            Assert.Null(LeadCallPanelPresenter.LeadStatusKey(status));
+        }
+
+        // ── Conflict card ────────────────────────────────────────────────────
+
+        [Fact]
+        public void ConflictHeadline_JoinsIdAndName()
+        {
+            Assert.Equal("#4821 · Иванов Иван",
+                LeadCallPanelPresenter.ConflictHeadline(4821, "Иванов Иван", "сообщение"));
+        }
+
+        /// <summary>`existingLeadName` really is nullable on the backend
+        /// (`existing?.name ?? null`) — «#4821 ·» with a dangling separator is a bug.</summary>
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void ConflictHeadline_OmitsTheSeparatorWithoutAName(string? name)
+        {
+            Assert.Equal("#4821", LeadCallPanelPresenter.ConflictHeadline(4821, name, "сообщение"));
+        }
+
+        [Fact]
+        public void ConflictHeadline_FallsBackToTheMessageWithoutAnId()
+        {
+            Assert.Equal("У клиента уже есть открытый лид",
+                LeadCallPanelPresenter.ConflictHeadline(null, null, "У клиента уже есть открытый лид"));
+            Assert.Equal("", LeadCallPanelPresenter.ConflictHeadline(null, null, null));
+        }
+
+        // ── A conflict card outranks any later refresh ───────────────────────
+
+        /// <summary>
+        /// The 409 PROVED the lead exists. A refresh that fails must not replace the
+        /// card with «не удалось проверить», and a refresh saying `none` must not
+        /// re-offer the create the 409 just refused.
+        /// </summary>
+        [Fact]
+        public void ConflictCard_SurvivesAFailedRefresh()
+        {
+            var state = LeadCallPanelPresenter.SelectState(
+                "992900112233", LeadCallContextResult.Failed("HTTP 500"), conflictShown: true);
+
+            Assert.Equal(LeadPanelState.ConflictLead, state);
+            Assert.True(LeadCallPanelPresenter.ShowsLeadCard(state));
+            Assert.False(LeadCallPanelPresenter.ShowsCreateButton(state));
+        }
+
+        [Fact]
+        public void ConflictCard_SurvivesARefreshThatSaysNoLead()
+        {
+            var state = LeadCallPanelPresenter.SelectState(
+                "992900112233",
+                Loaded(LeadCallStates.None, canCreateLead: true),
+                conflictShown: true);
+
+            Assert.Equal(LeadPanelState.ConflictLead, state);
+            Assert.True(LeadCallPanelPresenter.ShowsLeadCard(state));
+            // The create button must NOT come back — this is the outcome that
+            // previously returned a permanently disabled button.
+            Assert.False(LeadCallPanelPresenter.ShowsCreateButton(state));
+        }
+
+        [Fact]
+        public void ConflictCard_SurvivesAnUnavailableRefreshAndAStillLoadingOne()
+        {
+            Assert.Equal(LeadPanelState.ConflictLead, LeadCallPanelPresenter.SelectState(
+                "992900112233", Loaded(LeadCallStates.Unavailable), conflictShown: true));
+
+            Assert.Equal(LeadPanelState.ConflictLead, LeadCallPanelPresenter.SelectState(
+                "992900112233", null, conflictShown: true));
+        }
+
+        /// <summary>The one thing a refresh MAY do: upgrade to the full card, which
+        /// is what brings the owner, transfer and comment box in.</summary>
+        [Fact]
+        public void ConflictCard_IsUpgradedByAFullRefresh()
+        {
+            var state = LeadCallPanelPresenter.SelectState(
+                "992900112233",
+                Loaded(LeadCallStates.Active, lead: SampleLead(), owner: Owner(), canTransfer: true),
+                conflictShown: true);
+
+            Assert.Equal(LeadPanelState.ActiveLead, state);
+        }
+
+        [Fact]
+        public void WithoutAConflict_TheRefreshDecidesNormally()
+        {
+            Assert.Equal(LeadPanelState.OfferCreate, LeadCallPanelPresenter.SelectState(
+                "992900112233", Loaded(LeadCallStates.None, canCreateLead: true), conflictShown: false));
+
+            Assert.Equal(LeadPanelState.Unavailable, LeadCallPanelPresenter.SelectState(
+                "992900112233", LeadCallContextResult.Failed("boom"), conflictShown: false));
+        }
+
+        // ── Withheld / anonymous caller number ───────────────────────────────
+
+        [Theory]
+        [InlineData("992900112233")]
+        [InlineData("100")]
+        [InlineData("+992 90 011-22-33")]
+        [InlineData("anonymous1")]
+        public void LookupablePhone_AcceptsAnythingWithADigit(string phone)
+        {
+            Assert.True(LeadCallPanelPresenter.IsLookupablePhone(phone));
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        [InlineData("anonymous")]
+        [InlineData("Неизвестный")]
+        public void LookupablePhone_RejectsWhatTheEndpointWould400(string? phone)
+        {
+            Assert.False(LeadCallPanelPresenter.IsLookupablePhone(phone));
+        }
+
+        /// <summary>A withheld number renders nothing — not an orange «не удалось
+        /// проверить» with a «Повторить» that can never succeed.</summary>
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("anonymous")]
+        public void WithheldNumber_RendersNothing(string? phone)
+        {
+            var state = LeadCallPanelPresenter.SelectState(phone, null, conflictShown: false);
+
+            Assert.Equal(LeadPanelState.Hidden, state);
+            Assert.False(LeadCallPanelPresenter.ShowsCreateButton(state));
+            Assert.False(LeadCallPanelPresenter.ShowsLeadCard(state));
+        }
+
+        // ── Per-call cache key ───────────────────────────────────────────────
+
+        /// <summary>
+        /// A call-back from the same number is a DIFFERENT call: reusing its cached
+        /// «no lead» would offer a create for a caller who has since acquired one.
+        /// </summary>
+        [Fact]
+        public void CallKey_DistinguishesTwoCallsFromTheSameNumber()
+        {
+            var first = LeadCallPanelPresenter.BuildCallKey(
+                "992900112233", new DateTime(2026, 8, 4, 10, 0, 0));
+            var second = LeadCallPanelPresenter.BuildCallKey(
+                "992900112233", new DateTime(2026, 8, 4, 10, 2, 0));
+
+            Assert.NotEqual(first, second);
+        }
+
+        [Fact]
+        public void CallKey_IsStableWithinOneCall()
+        {
+            var startedAt = new DateTime(2026, 8, 4, 10, 0, 0);
+
+            Assert.Equal(
+                LeadCallPanelPresenter.BuildCallKey("992900112233", startedAt),
+                LeadCallPanelPresenter.BuildCallKey("992900112233", startedAt));
+        }
+
+        [Fact]
+        public void CallKey_DistinguishesDifferentNumbers()
+        {
+            var startedAt = new DateTime(2026, 8, 4, 10, 0, 0);
+
+            Assert.NotEqual(
+                LeadCallPanelPresenter.BuildCallKey("992900112233", startedAt),
+                LeadCallPanelPresenter.BuildCallKey("992900445566", startedAt));
         }
 
         // ── URL launch guard ─────────────────────────────────────────────────
