@@ -64,19 +64,20 @@ namespace OrbitalSIP.Services
                 {
                     var errorBody = await response.Content.ReadAsStringAsync();
                     AppLogger.Log("LeadService", $"Create lead failed. Status: {response.StatusCode}. Body: {errorBody}");
-                    // Notified for the duplicate too: the error banner is the only
-                    // feedback the operator gets today, and the panel that will
-                    // render the existing lead instead does not exist yet. Whoever
-                    // builds it should drop this notify for the AlreadyOpen branch.
-                    HttpErrorNotifier.NotifyHttpError("LeadService", url, response.StatusCode, errorBody);
 
                     if (response.StatusCode == HttpStatusCode.Conflict)
                     {
                         var duplicate = ParseAlreadyOpenConflict(errorBody);
                         if (duplicate != null)
+                        {
+                            // No error banner: the panel renders the existing lead,
+                            // which is a better answer than a raw-JSON toast. Still
+                            // logged above.
                             return duplicate;
+                        }
                     }
 
+                    HttpErrorNotifier.NotifyHttpError("LeadService", url, response.StatusCode, errorBody);
                     return CreateLeadResult.Failed();
                 }
             }
@@ -235,7 +236,11 @@ namespace OrbitalSIP.Services
                 {
                     var errorBody = await response.Content.ReadAsStringAsync();
                     AppLogger.Log("LeadService", $"Call context failed. Status: {response.StatusCode}. Body: {errorBody}");
-                    HttpErrorNotifier.NotifyHttpError("LeadService", url, response.StatusCode, errorBody);
+                    // Deliberately NOT notified. This lookup fires automatically on
+                    // every answered call, so a standing failure — an operator whose
+                    // role lacks `lead-call:read`, say — would raise a banner on every
+                    // single call. The panel's «Не удалось проверить активный лид»
+                    // with a retry is the user-facing signal; the log is the rest.
                     return LeadCallContextResult.Failed($"HTTP {(int)response.StatusCode}");
                 }
             }
@@ -246,7 +251,8 @@ namespace OrbitalSIP.Services
                     details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
                 details += $" | StackTrace: {ex.StackTrace}";
                 AppLogger.Log("LeadService", details);
-                HttpErrorNotifier.NotifyException("LeadService", ex);
+                // Same reasoning as the non-2xx branch above: a dead network would
+                // otherwise banner once per call. The panel already says so.
                 return LeadCallContextResult.Failed(ex.Message);
             }
         }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Markup.Xaml;
@@ -22,6 +23,11 @@ namespace OrbitalSIP.Views
         private bool _surveyOpen;
         private bool _taskOpen;
 
+        /// <summary>Null until the first call-context lookup returns — which is
+        /// LeadPanelState.Loading, deliberately distinct from «no lead».</summary>
+        private Models.LeadCallContextResult? _leadContext;
+        private bool _leadContextLoading;
+
         public ActiveCallView()
             : this("Unknown", false)
         {
@@ -43,6 +49,7 @@ namespace OrbitalSIP.Views
             SetStatus(App.SipService.IsOnHold);
             UpdateTimeUI();
             StartTimer();
+            _ = LoadLeadContextAsync();
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
@@ -143,6 +150,22 @@ namespace OrbitalSIP.Views
             var taskBtn = this.FindControl<Button>("TaskBtn");
             if (taskBtn != null)
                 taskBtn.Click += async (_, __) => await ShowTaskDialog();
+
+            var leadRetryBtn = this.FindControl<Button>("LeadRetryBtn");
+            if (leadRetryBtn != null)
+                leadRetryBtn.Click += async (_, __) => await LoadLeadContextAsync();
+
+            var leadOpenBtn = this.FindControl<Button>("LeadOpenBtn");
+            if (leadOpenBtn != null)
+                leadOpenBtn.Click += (_, __) => OpenLeadInCrm();
+
+            var leadTransferOwnerBtn = this.FindControl<Button>("LeadTransferOwnerBtn");
+            if (leadTransferOwnerBtn != null)
+                leadTransferOwnerBtn.Click += (_, __) => TransferToLeadOwner();
+
+            var leadCommentAddBtn = this.FindControl<Button>("LeadCommentAddBtn");
+            if (leadCommentAddBtn != null)
+                leadCommentAddBtn.Click += async (_, __) => await AddLeadCommentAsync();
 
             var callInfoBtn = this.FindControl<Button>("CallInfoBtn");
             if (callInfoBtn != null)
@@ -251,8 +274,21 @@ namespace OrbitalSIP.Views
             if (leadBtn != null)
                 leadBtn.IsEnabled = false;
 
-            bool success = (await App.LeadService.CreateLeadAsync(request)).Success;
+            var result = await App.LeadService.CreateLeadAsync(request);
+            bool success = result.Success;
             AppLogger.Log("CreateLead", $"Request success: {success}");
+
+            if (result.AlreadyOpen)
+            {
+                // The caller already had a lead — the race this panel normally
+                // prevents (context said «none», someone created one in between).
+                // Render what the 409 already told us, then refresh in the
+                // background for the owner and the actions it cannot carry.
+                AppLogger.Log("CreateLead", $"Lead already open: id={result.ExistingLeadId?.ToString() ?? "?"} name='{result.ExistingLeadName}'");
+                RenderConflictLeadCard(result);
+                _ = LoadLeadContextAsync(showLoading: false);
+                return;
+            }
 
             if (success)
             {
@@ -281,6 +317,267 @@ namespace OrbitalSIP.Views
                 if (leadBtn != null)
                     leadBtn.IsEnabled = true;
             }
+        }
+
+        // ── Active-lead panel ────────────────────────────────────────────────
+        private string CallerNumber() =>
+            this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? string.Empty;
+
+        /// <summary>
+        /// Loads the caller's lead context and repaints the panel. Any failure ends
+        /// up as LeadPanelState.Unavailable — never as «no lead», which would put
+        /// the create button back in front of a caller who already has one.
+        ///
+        /// <paramref name="showLoading"/> is false for the background refresh after
+        /// a 409: the card is already on screen from the conflict payload, and
+        /// resetting to «Ищем активный лид…» would blank it for the duration of the
+        /// request — the exact wait that rendering from the 409 exists to avoid.
+        /// </summary>
+        private async Task LoadLeadContextAsync(bool showLoading = true)
+        {
+            if (_leadContextLoading) return;
+            _leadContextLoading = true;
+
+            if (showLoading)
+            {
+                _leadContext = null;
+                ApplyLeadPanelState();
+            }
+
+            try
+            {
+                _leadContext = await App.LeadService.GetCallContextAsync(CallerNumber());
+            }
+            finally
+            {
+                _leadContextLoading = false;
+            }
+
+            ApplyLeadPanelState();
+        }
+
+        private void ApplyLeadPanelState()
+        {
+            var state = LeadCallPanelPresenter.SelectState(_leadContext);
+            var context = _leadContext?.Context;
+
+            var panel = this.FindControl<Border>("LeadPanel");
+            var loading = this.FindControl<TextBlock>("LeadLoadingLabel");
+            var unavailable = this.FindControl<StackPanel>("LeadUnavailableBlock");
+            var card = this.FindControl<StackPanel>("LeadCardBlock");
+            var createBtn = this.FindControl<Button>("CreateLeadBtn");
+
+            if (createBtn != null && !_leadCreated)
+                createBtn.IsVisible = LeadCallPanelPresenter.ShowsCreateButton(state);
+
+            if (loading != null) loading.IsVisible = state == LeadPanelState.Loading;
+            if (unavailable != null) unavailable.IsVisible = state == LeadPanelState.Unavailable;
+            if (card != null) card.IsVisible = LeadCallPanelPresenter.ShowsLeadCard(state);
+
+            // Nothing to say in OfferCreate (the button speaks) or Hidden.
+            if (panel != null)
+                panel.IsVisible = state == LeadPanelState.Loading
+                                  || state == LeadPanelState.Unavailable
+                                  || LeadCallPanelPresenter.ShowsLeadCard(state);
+
+            if (LeadCallPanelPresenter.ShowsLeadCard(state) && context?.Lead != null)
+                RenderLeadCard(context);
+        }
+
+        private void RenderLeadCard(Models.LeadCallContext context)
+        {
+            var lead = context.Lead!;
+            var i18n = Services.I18nService.Instance;
+
+            var headline = this.FindControl<TextBlock>("LeadHeadlineLabel");
+            if (headline != null) headline.Text = LeadCallPanelPresenter.LeadHeadline(lead);
+
+            var subline = this.FindControl<TextBlock>("LeadSublineLabel");
+            if (subline != null) subline.Text = LeadCallPanelPresenter.LeadSubline(lead);
+
+            var ownerLabel = this.FindControl<TextBlock>("LeadOwnerLabel");
+            if (ownerLabel != null)
+            {
+                var ownerName = string.IsNullOrWhiteSpace(context.Owner?.FullName)
+                    ? i18n.Get("LeadPanelOwnerUnknown")
+                    : context.Owner!.FullName;
+                ownerLabel.Text = $"{i18n.Get("LeadPanelOwner")}: {ownerName}";
+            }
+
+            var openBtn = this.FindControl<Button>("LeadOpenBtn");
+            if (openBtn != null)
+                openBtn.IsVisible = context.Actions.CanOpenLead
+                                    && LeadCallPanelPresenter.IsLaunchableUrl(lead.Url);
+
+            RenderTransferRow(context);
+
+            var commentBlock = this.FindControl<StackPanel>("LeadCommentBlock");
+            if (commentBlock != null) commentBlock.IsVisible = context.Actions.CanComment;
+        }
+
+        /// <summary>
+        /// Paints the lead card from a 409 alone, so the operator sees the existing
+        /// lead immediately. Transfer/comment/open stay hidden: the conflict carries
+        /// the lead but not the owner's name, extension or this operator's rights —
+        /// LoadLeadContextAsync fills those in a moment later.
+        /// </summary>
+        private void RenderConflictLeadCard(Models.CreateLeadResult conflict)
+        {
+            SetVisible<Button>("CreateLeadBtn", false);
+            SetVisible<Border>("LeadPanel", true);
+            SetVisible<StackPanel>("LeadCardBlock", true);
+            SetVisible<TextBlock>("LeadLoadingLabel", false);
+            SetVisible<StackPanel>("LeadUnavailableBlock", false);
+
+            var headline = this.FindControl<TextBlock>("LeadHeadlineLabel");
+            if (headline != null)
+                headline.Text = conflict.ExistingLeadId.HasValue
+                    ? $"#{conflict.ExistingLeadId} · {conflict.ExistingLeadName}".Trim()
+                    : conflict.Message ?? string.Empty;
+
+            var subline = this.FindControl<TextBlock>("LeadSublineLabel");
+            if (subline != null) subline.Text = conflict.ExistingLeadStatus ?? string.Empty;
+
+            var ownerLabel = this.FindControl<TextBlock>("LeadOwnerLabel");
+            if (ownerLabel != null) ownerLabel.Text = string.Empty;
+
+            SetVisible<Button>("LeadOpenBtn", false);
+            SetVisible<Button>("LeadTransferOwnerBtn", false);
+            SetVisible<TextBlock>("LeadTransferBlockedLabel", false);
+            SetVisible<StackPanel>("LeadCommentBlock", false);
+        }
+
+        private void SetVisible<T>(string name, bool visible) where T : Control
+        {
+            var control = this.FindControl<T>(name);
+            if (control != null) control.IsVisible = visible;
+        }
+
+        private void RenderTransferRow(Models.LeadCallContext context)
+        {
+            var i18n = Services.I18nService.Instance;
+            var canTransfer = LeadCallPanelPresenter.CanTransferToOwner(context);
+
+            var transferBtn = this.FindControl<Button>("LeadTransferOwnerBtn");
+            if (transferBtn != null)
+            {
+                // Shown whenever there is an owner to name, disabled when blocked —
+                // the reason below is what makes the disabled state informative.
+                transferBtn.IsVisible = context.Owner != null;
+                transferBtn.IsEnabled = canTransfer;
+                transferBtn.Opacity = canTransfer ? 1.0 : 0.5;
+                transferBtn.Content = $"{i18n.Get("LeadPanelTransferTo")} {context.Owner?.FullName}".Trim();
+            }
+
+            var blockedLabel = this.FindControl<TextBlock>("LeadTransferBlockedLabel");
+            if (blockedLabel != null)
+            {
+                // Straight from the server's reason — see TransferBlockedKey on why
+                // this must not be re-derived from ManualStatus.
+                var key = canTransfer
+                    ? null
+                    : LeadCallPanelPresenter.TransferBlockedKey(
+                        context.Actions.TransferBlockedReason
+                        ?? LeadCallPanelPresenter.TransferBlockedUnknownKey);
+
+                blockedLabel.IsVisible = key != null;
+                blockedLabel.Text = key == null ? string.Empty : i18n.Get(key);
+            }
+        }
+
+        private void OpenLeadInCrm()
+        {
+            var url = _leadContext?.Context?.Lead?.Url;
+
+            // Re-validated here even though the backend builds and checks it: this
+            // string is handed to the OS shell.
+            if (!LeadCallPanelPresenter.IsLaunchableUrl(url))
+            {
+                AppLogger.Log("LeadPanel", $"Refused to open non-http(s) lead url: '{url}'");
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo(url!) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("LeadPanel", $"Failed to open lead url: {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        private void TransferToLeadOwner()
+        {
+            var context = _leadContext?.Context;
+            if (!LeadCallPanelPresenter.CanTransferToOwner(context)) return;
+
+            // The dialable extension, never a SIP endpoint id.
+            var extension = context!.Owner!.ExtensionNumber!.Trim();
+            AppLogger.Log("LeadPanel", $"Transferring call to lead owner extension {extension}");
+            OnTransferRequested?.Invoke(this, extension);
+        }
+
+        private async Task AddLeadCommentAsync()
+        {
+            var context = _leadContext?.Context;
+            var lead = context?.Lead;
+            if (lead == null || context?.Actions.CanComment != true) return;
+
+            var box = this.FindControl<TextBox>("LeadCommentBox");
+            var comment = box?.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(comment)) return;
+
+            var addBtn = this.FindControl<Button>("LeadCommentAddBtn");
+            if (addBtn != null) addBtn.IsEnabled = false;
+
+            try
+            {
+                var payload = new Models.AddCallCommentRequest { Comment = comment };
+                await AttachCallLinkAsync(payload, CallerNumber());
+
+                var ok = await App.LeadService.AddCallCommentAsync(lead.Id, payload);
+                AppLogger.Log("LeadPanel", $"Add call comment to lead {lead.Id}: {ok}");
+
+                if (ok && box != null) box.Text = string.Empty;
+                _ = ShowCommentStatusAsync(ok ? "LeadPanelCommentSaved" : "LeadPanelCommentFailed");
+            }
+            finally
+            {
+                if (addBtn != null) addBtn.IsEnabled = true;
+            }
+        }
+
+        /// <summary>
+        /// Links the comment to this call the same way ShowTaskDialog links a task.
+        /// A callLogId that the backend cannot resolve is rejected outright (400),
+        /// so only an id actually returned by SaveCallLogAsync is ever sent; the raw
+        /// uniqueId is the fallback because an unresolvable one still saves the
+        /// comment, just without call linkage.
+        /// </summary>
+        private static async Task AttachCallLinkAsync(Models.AddCallCommentRequest payload, string? number)
+        {
+            if (string.IsNullOrWhiteSpace(number)) return;
+
+            var uniqueId = await App.ScriptService.GetChannelUniqueIdAsync(number!);
+            if (string.IsNullOrWhiteSpace(uniqueId)) return;
+
+            var callLogId = await App.ScriptService.SaveCallLogAsync(uniqueId!);
+            if (!string.IsNullOrWhiteSpace(callLogId))
+                payload.CallLogId = callLogId;
+            else
+                payload.CallUniqueId = uniqueId;
+        }
+
+        private async Task ShowCommentStatusAsync(string key)
+        {
+            var label = this.FindControl<TextBlock>("LeadCommentStatusLabel");
+            if (label == null) return;
+
+            label.Text = Services.I18nService.Instance.Get(key);
+            label.IsVisible = true;
+            await Task.Delay(2500);
+            label.IsVisible = false;
         }
 
         private async Task ShowSurveyDialog()

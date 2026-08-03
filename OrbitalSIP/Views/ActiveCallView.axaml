@@ -146,8 +146,99 @@
             </StackPanel>
           </Border>
 
+          <!-- Active-lead panel. Visibility of every block below is driven from
+               LeadCallPanelPresenter.SelectState — never from lead == null. -->
+          <Border Name="LeadPanel" IsVisible="False"
+                  Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1"
+                  CornerRadius="14" Padding="14,12">
+            <StackPanel Spacing="8">
+
+              <TextBlock Name="LeadLoadingLabel" IsVisible="False"
+                         Text="{i18n:I18n LeadPanelSearching}"
+                         FontSize="11" Foreground="#7B92AA" TextWrapping="Wrap" />
+
+              <StackPanel Name="LeadUnavailableBlock" IsVisible="False" Spacing="8">
+                <TextBlock Text="{i18n:I18n LeadPanelUnavailable}"
+                           FontSize="11" Foreground="#F59E0B" TextWrapping="Wrap" />
+                <Button Name="LeadRetryBtn"
+                        Height="30" CornerRadius="10"
+                        Background="#1E4270" BorderThickness="0"
+                        Foreground="#60A5FA" FontSize="11" FontWeight="Bold"
+                        Padding="14,0"
+                        HorizontalAlignment="Left"
+                        Content="{i18n:I18n LeadPanelRetry}" />
+              </StackPanel>
+
+              <StackPanel Name="LeadCardBlock" IsVisible="False" Spacing="8">
+                <TextBlock Name="LeadHeadlineLabel" Text=""
+                           FontSize="13" FontWeight="Bold" Foreground="#F8FAFC"
+                           TextWrapping="Wrap" />
+                <TextBlock Name="LeadSublineLabel" Text=""
+                           FontSize="11" Foreground="#7B92AA" TextWrapping="Wrap" />
+                <TextBlock Name="LeadOwnerLabel" Text=""
+                           FontSize="11" Foreground="#8FA6BE" TextWrapping="Wrap" />
+
+                <Button Name="LeadOpenBtn" IsVisible="False"
+                        Height="30" CornerRadius="10"
+                        Background="#152132" BorderThickness="0"
+                        Foreground="#60A5FA" FontSize="11" FontWeight="Bold"
+                        Padding="14,0"
+                        HorizontalAlignment="Left"
+                        Content="{i18n:I18n LeadPanelOpen}" />
+
+                <Button Name="LeadTransferOwnerBtn" IsVisible="False"
+                        Height="34" CornerRadius="10"
+                        Background="#1E4270" BorderThickness="0"
+                        Foreground="#60A5FA" FontSize="11" FontWeight="Bold"
+                        Padding="14,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Content="" />
+                <TextBlock Name="LeadTransferBlockedLabel" IsVisible="False" Text=""
+                           FontSize="10" Foreground="#7B92AA" TextWrapping="Wrap" />
+
+                <StackPanel Name="LeadCommentBlock" IsVisible="False" Spacing="6">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Name="LeadCommentBox"
+                             Margin="0,0,8,0"
+                             Background="#152132"
+                             BorderBrush="#1D3050"
+                             BorderThickness="1"
+                             CornerRadius="10"
+                             Padding="10,6"
+                             FontSize="12"
+                             Foreground="#F8FAFC"
+                             CaretBrush="#60A5FA"
+                             AcceptsReturn="True"
+                             MaxLength="4000"
+                             TextWrapping="Wrap"
+                             Watermark="{i18n:I18n LeadPanelComment}" />
+                    <Button Name="LeadCommentAddBtn"
+                            Grid.Column="1"
+                            Width="74" Height="34"
+                            CornerRadius="10"
+                            Background="#1E4270"
+                            BorderThickness="0"
+                            Foreground="#60A5FA"
+                            FontSize="11"
+                            FontWeight="Bold"
+                            Content="{i18n:I18n LeadPanelCommentAdd}"
+                            VerticalAlignment="Top"
+                            HorizontalContentAlignment="Center" />
+                  </Grid>
+                  <TextBlock Name="LeadCommentStatusLabel" IsVisible="False" Text=""
+                             FontSize="10" Foreground="#7B92AA" TextWrapping="Wrap" />
+                </StackPanel>
+              </StackPanel>
+
+            </StackPanel>
+          </Border>
+
           <Grid ColumnDefinitions="*,*,*,*,*" Margin="0,10,0,0" Height="68">
+            <!-- Hidden until the call-context lookup says a create is actually
+                 safe AND permitted (LeadPanelState.OfferCreate). -->
             <Button Grid.Column="0" Name="CreateLeadBtn"
+                    IsVisible="False"
                     Margin="0,0,2,0"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"

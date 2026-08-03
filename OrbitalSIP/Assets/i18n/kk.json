@@ -132,5 +132,22 @@
   "DueNone": "Мерзімсіз",
   "DueIn30m": "30 минуттан кейін",
   "DueIn1h": "1 сағаттан кейін",
-  "DueTomorrow": "Ертең, 09:00"
+  "DueTomorrow": "Ертең, 09:00",
+  "LeadPanelSearching": "Белсенді лид ізделуде…",
+  "LeadPanelUnavailable": "Белсенді лидті тексеру мүмкін болмады",
+  "LeadPanelRetry": "Қайталау",
+  "LeadPanelOwner": "Жауапты",
+  "LeadPanelOwnerUnknown": "тағайындалмаған",
+  "LeadPanelOpen": "Лидті ашу",
+  "LeadPanelTransferTo": "Аудару:",
+  "LeadPanelComment": "Қоңырауға пікір",
+  "LeadPanelCommentAdd": "Қосу",
+  "LeadPanelCommentSaved": "Пікір қосылды",
+  "LeadPanelCommentFailed": "Пікір қосу мүмкін болмады",
+  "LeadTransferBlockedNoOwner": "Лидте жауапты жоқ",
+  "LeadTransferBlockedNoExtension": "Жауаптыда ішкі нөмір жоқ",
+  "LeadTransferBlockedNotRegistered": "Жауапты желіде емес",
+  "LeadTransferBlockedOnCall": "Жауапты қазір қоңырауда",
+  "LeadTransferBlockedPaused": "Жауапты үзілісте",
+  "LeadTransferBlockedUnknown": "Аудару қолжетімсіз"
 }

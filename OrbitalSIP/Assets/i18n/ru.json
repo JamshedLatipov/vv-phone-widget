@@ -142,5 +142,22 @@
   "DueNone": "Без срока",
   "DueIn30m": "Через 30 мин",
   "DueIn1h": "Через 1 час",
-  "DueTomorrow": "Завтра, 09:00"
+  "DueTomorrow": "Завтра, 09:00",
+  "LeadPanelSearching": "Ищем активный лид…",
+  "LeadPanelUnavailable": "Не удалось проверить активный лид",
+  "LeadPanelRetry": "Повторить",
+  "LeadPanelOwner": "Ответственный",
+  "LeadPanelOwnerUnknown": "не назначен",
+  "LeadPanelOpen": "Открыть лид",
+  "LeadPanelTransferTo": "Перевести на",
+  "LeadPanelComment": "Комментарий к звонку",
+  "LeadPanelCommentAdd": "Добавить",
+  "LeadPanelCommentSaved": "Комментарий добавлен",
+  "LeadPanelCommentFailed": "Не удалось добавить комментарий",
+  "LeadTransferBlockedNoOwner": "У лида нет ответственного",
+  "LeadTransferBlockedNoExtension": "У ответственного нет внутреннего номера",
+  "LeadTransferBlockedNotRegistered": "Ответственный не в сети",
+  "LeadTransferBlockedOnCall": "Ответственный сейчас на звонке",
+  "LeadTransferBlockedPaused": "Ответственный на паузе",
+  "LeadTransferBlockedUnknown": "Перевод недоступен"
 }

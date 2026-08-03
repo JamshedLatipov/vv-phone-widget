@@ -130,5 +130,22 @@
   "DueNone": "Бе мӯҳлат",
   "DueIn30m": "Пас аз 30 дақиқа",
   "DueIn1h": "Пас аз 1 соат",
-  "DueTomorrow": "Фардо, 09:00"
+  "DueTomorrow": "Фардо, 09:00",
+  "LeadPanelSearching": "Ҷустуҷӯи пешсафи фаъол…",
+  "LeadPanelUnavailable": "Санҷиши пешсафи фаъол муяссар нашуд",
+  "LeadPanelRetry": "Такрор",
+  "LeadPanelOwner": "Масъул",
+  "LeadPanelOwnerUnknown": "таъин нашудааст",
+  "LeadPanelOpen": "Кушодани пешсаф",
+  "LeadPanelTransferTo": "Гузаронидан ба",
+  "LeadPanelComment": "Шарҳ ба занг",
+  "LeadPanelCommentAdd": "Илова кардан",
+  "LeadPanelCommentSaved": "Шарҳ илова шуд",
+  "LeadPanelCommentFailed": "Илова кардани шарҳ муяссар нашуд",
+  "LeadTransferBlockedNoOwner": "Пешсаф масъул надорад",
+  "LeadTransferBlockedNoExtension": "Масъул рақами дохилӣ надорад",
+  "LeadTransferBlockedNotRegistered": "Масъул дар шабака нест",
+  "LeadTransferBlockedOnCall": "Масъул ҳоло дар занг аст",
+  "LeadTransferBlockedPaused": "Масъул дар танаффус аст",
+  "LeadTransferBlockedUnknown": "Гузаронидан дастрас нест"
 }
