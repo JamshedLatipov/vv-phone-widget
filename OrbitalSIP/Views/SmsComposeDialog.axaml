@@ -1,0 +1,125 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:i18n="clr-namespace:OrbitalSIP.Services"
+        x:Class="OrbitalSIP.Views.SmsComposeDialog"
+        Title="SMS"
+        Width="420" Height="560"
+        MinWidth="380" MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        Background="#0F172A"
+        Topmost="True"
+        SystemDecorations="None"
+        CornerRadius="16">
+  <Border BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16">
+    <Grid RowDefinitions="Auto,*,Auto">
+      <Border Name="HeaderBar" Background="#152132" CornerRadius="16,16,0,0" Padding="14">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{i18n:I18n SmsDialogTitle}"
+                     Foreground="#E2E8F0" FontWeight="Bold" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Name="CloseBtn" Content="×" Width="28" Height="28"
+                  Background="Transparent" Foreground="#94A3B8" BorderThickness="0" Padding="0"
+                  HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Cursor="Hand" />
+        </Grid>
+      </Border>
+
+      <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16" Spacing="12">
+          <Border Background="#111C2E" BorderBrush="#334155" BorderThickness="1"
+                  CornerRadius="10" Padding="12,10">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+              <TextBlock Text="{i18n:I18n SmsRecipient}" FontSize="10" FontWeight="Bold"
+                         LetterSpacing="1.1" Foreground="#7B92AA" />
+              <TextBlock Grid.Column="1" Text="🔒" FontSize="12" Foreground="#94A3B8" />
+              <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Name="RecipientValue"
+                         Margin="0,4,0,0" Foreground="#E2E8F0" FontSize="15" FontWeight="SemiBold" />
+            </Grid>
+          </Border>
+
+          <TextBlock Text="{i18n:I18n SmsRecipientLocked}" FontSize="11"
+                     Foreground="#64748B" TextWrapping="Wrap" Margin="2,-7,2,0" />
+
+          <StackPanel Spacing="5">
+            <TextBlock Text="{i18n:I18n SmsMode}" FontSize="11" Foreground="#6E859D" />
+            <Grid ColumnDefinitions="*,*">
+              <Button Name="TemplateModeBtn" Grid.Column="0"
+                      Content="{i18n:I18n SmsTemplateMode}" CornerRadius="8,0,0,8"
+                      BorderBrush="#3B82F6" BorderThickness="1" Padding="10,7" Cursor="Hand" />
+              <Button Name="FreeTextModeBtn" Grid.Column="1"
+                      Content="{i18n:I18n SmsFreeTextMode}" CornerRadius="0,8,8,0"
+                      BorderBrush="#334155" BorderThickness="1" Padding="10,7" Cursor="Hand" />
+            </Grid>
+          </StackPanel>
+
+          <StackPanel Name="TemplateArea" Spacing="5">
+            <TextBlock Text="{i18n:I18n SmsTemplate}" FontSize="11" Foreground="#6E859D" />
+            <ComboBox Name="TemplateBox" HorizontalAlignment="Stretch"
+                      PlaceholderText="{i18n:I18n SmsTemplatePlaceholder}"
+                      Background="#1E293B" BorderBrush="#334155"
+                      Foreground="#E2E8F0" CornerRadius="8" />
+            <TextBlock Name="TemplateStatusLabel" IsVisible="False" FontSize="11"
+                       Foreground="#94A3B8" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <StackPanel Spacing="5">
+            <TextBlock Text="{i18n:I18n SmsMessage}" FontSize="11" Foreground="#6E859D" />
+            <TextBox Name="ContentBox" Height="116" AcceptsReturn="True" TextWrapping="Wrap"
+                     VerticalContentAlignment="Top" Watermark="{i18n:I18n SmsMessagePlaceholder}"
+                     Background="#1E293B" BorderBrush="#334155"
+                     Foreground="#E2E8F0" CornerRadius="8" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Name="ValidationLabel" Foreground="#F87171" FontSize="11"
+                         TextWrapping="Wrap" IsVisible="False" />
+              <TextBlock Grid.Column="1" Name="CountLabel" Foreground="#64748B" FontSize="11" />
+            </Grid>
+          </StackPanel>
+
+          <TextBlock Name="ErrorLabel" IsVisible="False" Foreground="#F87171"
+                     FontSize="12" TextWrapping="Wrap" />
+          <Border Name="SuccessBanner" IsVisible="False" Background="#052E2B"
+                  BorderBrush="#0F766E" BorderThickness="1" CornerRadius="8" Padding="10,8">
+            <TextBlock Text="{i18n:I18n SmsQueuedSuccess}" Foreground="#5EEAD4"
+                       FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap" />
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <Border Grid.Row="2" Background="#152132" CornerRadius="0,0,16,16" Padding="14,10">
+        <Panel>
+          <Grid Name="ComposeFooter" ColumnDefinitions="Auto,*,Auto">
+            <Button Name="CancelBtn" Grid.Column="0" Content="{i18n:I18n Cancel}"
+                    Background="Transparent" BorderThickness="1" BorderBrush="#334155"
+                    Foreground="#94A3B8" CornerRadius="8" Padding="12,7" Cursor="Hand" />
+            <Button Name="SendBtn" Grid.Column="2" Content="{i18n:I18n SmsSend}"
+                    Background="#3B82F6" Foreground="White" BorderThickness="0"
+                    CornerRadius="8" Padding="15,7" FontWeight="Bold" Cursor="Hand" />
+          </Grid>
+
+          <StackPanel Name="ConfirmationFooter" IsVisible="False" Spacing="9">
+            <StackPanel Spacing="3">
+              <TextBlock Text="{i18n:I18n SmsConfirmTitle}" Foreground="#E2E8F0"
+                         FontSize="13" FontWeight="Bold" />
+              <TextBlock Text="{i18n:I18n SmsConfirmHint}" Foreground="#94A3B8"
+                         FontSize="11" TextWrapping="Wrap" />
+              <TextBlock Name="ConfirmRecipientValue" Foreground="#CBD5E1"
+                         FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" />
+              <TextBlock Name="ConfirmContentValue" Foreground="#CBD5E1"
+                         FontSize="11" MaxHeight="56" TextTrimming="CharacterEllipsis"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <Button Name="BackBtn" Grid.Column="0" Content="{i18n:I18n SmsBack}"
+                      Background="Transparent" BorderThickness="1" BorderBrush="#334155"
+                      Foreground="#94A3B8" CornerRadius="8" Padding="11,7" Cursor="Hand" />
+              <Button Name="ConfirmBtn" Grid.Column="2" Content="{i18n:I18n SmsConfirmSend}"
+                      Background="#3B82F6" Foreground="White" BorderThickness="0"
+                      CornerRadius="8" Padding="13,7" FontWeight="Bold" Cursor="Hand" />
+            </Grid>
+            <TextBlock Name="ProgressLabel" IsVisible="False" Text="{i18n:I18n SmsSending}"
+                       Foreground="#93C5FD" FontSize="11" HorizontalAlignment="Right" />
+          </StackPanel>
+        </Panel>
+      </Border>
+    </Grid>
+  </Border>
+</Window>
