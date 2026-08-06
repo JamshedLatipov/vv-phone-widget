@@ -24,11 +24,7 @@ namespace OrbitalSIP.Services
 
         public StatusService()
         {
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-            };
-            _httpClient = new HttpClient(handler);
+            _httpClient = BackendHttp.Client;
 
             _autoOnlineTimer = new DispatcherTimer
             {
@@ -211,7 +207,6 @@ namespace OrbitalSIP.Services
         public void Dispose()
         {
             _autoOnlineTimer?.Stop();
-            _httpClient.Dispose();
         }
     }
 }

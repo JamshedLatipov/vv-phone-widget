@@ -15,16 +15,7 @@ namespace OrbitalSIP.Views
     public partial class OperatorStatsControl : UserControl
     {
         private DispatcherTimer? _timer;
-        private static readonly HttpClient _httpClient;
-
-        static OperatorStatsControl()
-        {
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-            };
-            _httpClient = new HttpClient(handler);
-        }
+        private static readonly HttpClient _httpClient = Services.BackendHttp.Client;
         private bool _isExpanded;
 
         public OperatorStatsControl()

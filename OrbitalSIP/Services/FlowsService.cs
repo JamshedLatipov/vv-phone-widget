@@ -21,11 +21,9 @@ namespace OrbitalSIP.Services
 
         public FlowsService()
         {
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-            };
-            _httpClient = new HttpClient(handler) { Timeout = RequestTimeout };
+            // Own client for the shorter timeout, but over the shared handler, so this does
+            // not open a second set of sockets to the same host.
+            _httpClient = BackendHttp.CreateClient(RequestTimeout);
         }
 
         /// <summary>Test-only seam confirming the client actually carries RequestTimeout.</summary>
