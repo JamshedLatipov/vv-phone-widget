@@ -35,6 +35,50 @@
       <Setter Property="Background" Value="#1E293B" />
       <Setter Property="BorderBrush" Value="#3B82F6" />
     </Style>
+
+    <Style Selector="AutoCompleteBox">
+      <Setter Property="Background" Value="#1E293B" />
+      <Setter Property="BorderBrush" Value="#334155" />
+      <Setter Property="Foreground" Value="#E2E8F0" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <Style Selector="AutoCompleteBox /template/ TextBox#PART_TextBox">
+      <Setter Property="Background" Value="#1E293B" />
+      <Setter Property="BorderBrush" Value="#334155" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#E2E8F0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="10,7" />
+    </Style>
+
+    <Style Selector="AutoCompleteBox:pointerover /template/ TextBox#PART_TextBox">
+      <Setter Property="BorderBrush" Value="#3B82F6" />
+    </Style>
+
+    <Style Selector="AutoCompleteBox:focus-within /template/ TextBox#PART_TextBox">
+      <Setter Property="BorderBrush" Value="#3B82F6" />
+    </Style>
+
+    <Style Selector="AutoCompleteBox /template/ Popup#PART_Popup ListBox">
+      <Setter Property="Background" Value="#152132" />
+      <Setter Property="BorderBrush" Value="#334155" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <Style Selector="AutoCompleteBox ListBoxItem">
+      <Setter Property="Padding" Value="10,7" />
+      <Setter Property="Foreground" Value="#E2E8F0" />
+    </Style>
+
+    <Style Selector="AutoCompleteBox ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1D3055" />
+    </Style>
+
+    <Style Selector="AutoCompleteBox ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1D4ED8" />
+    </Style>
   </Application.Styles>
 
   <TrayIcon.Icons>
