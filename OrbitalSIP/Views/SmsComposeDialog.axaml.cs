@@ -45,12 +45,15 @@ public partial class SmsComposeDialog : Window
     // Template-picker commit tracking. Avalonia's AutoCompleteBox forwards arrow-key
     // navigation through the same SelectionChanged event as a mouse pick or Enter
     // commit, and closes its dropdown (with a refocus of its own internal search box)
-    // on Escape exactly the same way it does on a commit. These three fields let us
-    // tell an actual commit apart from browsing/cancelling — see ConfigureTemplateBox,
-    // OnTemplateBoxPreviewKeyDown, OnTemplateDropDownClosed and OnTemplateBoxGotFocus.
+    // on Escape exactly the same way it does on a commit — and, separately, raises
+    // DropDownClosed twice per close regardless of which of those it was. These four
+    // fields let us tell an actual commit apart from browsing/cancelling/losing focus,
+    // exactly once per close — see OnTemplateBoxPreviewKeyDown, OnTemplateDropDownClosed
+    // and OnTemplateBoxGotFocus.
     private MessageTemplateDto? _pendingTemplateSelection;
     private bool _suppressTemplateAutoOpen;
     private bool _templateDropDownClosedViaEscape;
+    private bool _templateDropDownCloseHandledForThisOpen;
 
     private TextBlock _recipientValue = null!;
     private AutoCompleteBox _templateBox = null!;
@@ -146,6 +149,10 @@ public partial class SmsComposeDialog : Window
         // here; ApplyPendingTemplateSelection decides whether it actually lands.
         _templateBox.SelectionChanged += (_, _) =>
             _pendingTemplateSelection = _templateBox.SelectedItem as MessageTemplateDto;
+        // DropDownOpened fires once per open (including re-populates while already
+        // open, which never reach OnTemplateDropDownClosed in between) — use it to
+        // reset the one-shot guard for the close that will eventually follow.
+        _templateBox.DropDownOpened += (_, _) => _templateDropDownCloseHandledForThisOpen = false;
         _templateBox.DropDownClosed += (_, _) => OnTemplateDropDownClosed();
         // Escape closes the dropdown through the same internal path a commit uses
         // (both end with Avalonia refocusing its own search TextBox), so
@@ -241,6 +248,19 @@ public partial class SmsComposeDialog : Window
     /// </summary>
     private void OnTemplateDropDownClosed()
     {
+        // AutoCompleteBox.CloseDropDown() (Avalonia 11.0.0) raises DropDownClosed
+        // twice per close: once re-entrantly through DropDownPopup.IsOpen = false ->
+        // Popup.Close() -> the Popup's own Closed event (synchronous, no dispatcher
+        // involved) -> DropDownPopup_Closed, and once more from CloseDropDown()'s own
+        // unconditional call right after. Both fire because _popupHasOpened is set on
+        // the first open and never reset — this is not a one-off startup quirk, every
+        // close (Escape, commit, blur, empty-filter) double-fires this way. Gate on a
+        // flag that DropDownOpened resets, so only the first firing per open/close
+        // cycle is treated as real; the second is a structural no-op.
+        if (_templateDropDownCloseHandledForThisOpen)
+            return;
+        _templateDropDownCloseHandledForThisOpen = true;
+
         var closedViaEscape = _templateDropDownClosedViaEscape;
         _templateDropDownClosedViaEscape = false;
 
@@ -255,12 +275,24 @@ public partial class SmsComposeDialog : Window
         // A commit (mouse pick or Enter) closes the dropdown and then, synchronously,
         // refocuses the internal search TextBox (Avalonia's own
         // OnAdapterSelectionComplete). Arm a one-shot flag for the GotFocus that
-        // follows. Losing focus entirely, or an empty-filter auto-close, also raise
-        // DropDownClosed but do not refocus the search box — nothing will consume
-        // this flag in those cases, so disarm it on the next UI-thread turn rather
-        // than leave it to misfire on some unrelated later focus.
+        // follows — OnTemplateBoxGotFocus consumes it there and applies the pending
+        // selection. Losing focus entirely, and an empty-filter auto-close (the
+        // operator keeps typing until nothing matches, without ever unfocusing the
+        // box), also raise DropDownClosed but never call that Focus() — so nothing
+        // will consume the flag in those cases. The continuation below is what
+        // actually detects that: if the flag is still armed on the very next
+        // UI-thread turn, no refocus arrived, this was not a commit, and whatever was
+        // staged must be dropped rather than left to apply itself later against text
+        // the operator has since edited.
         _suppressTemplateAutoOpen = true;
-        Dispatcher.UIThread.Post(() => _suppressTemplateAutoOpen = false);
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_suppressTemplateAutoOpen)
+                return; // Already consumed by a genuine commit's GotFocus.
+
+            _suppressTemplateAutoOpen = false;
+            _pendingTemplateSelection = null;
+        });
     }
 
     /// <summary>
