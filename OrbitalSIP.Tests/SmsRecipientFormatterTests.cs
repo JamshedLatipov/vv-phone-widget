@@ -36,6 +36,12 @@ public class SmsRecipientFormatterTests
     }
 
     [Fact]
+    public void Format_LeavesPlusPrefixedNineDigitValueUntouched()
+    {
+        Assert.Equal("+123456789", SmsRecipientFormatter.Format("+123456789"));
+    }
+
+    [Fact]
     public void Format_LeavesNonDigitValueUntouched()
     {
         Assert.Equal("anonymous", SmsRecipientFormatter.Format("anonymous"));

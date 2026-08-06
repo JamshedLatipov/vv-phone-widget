@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 
 namespace OrbitalSIP.Models;
@@ -21,7 +22,7 @@ public static class SmsRecipientFormatter
         if (digits.Length == 0 || !digits.All(char.IsAsciiDigit))
             return value;
 
-        if (digits.Length == 12 && digits.StartsWith("992"))
+        if (digits.Length == 12 && digits.StartsWith("992", StringComparison.Ordinal))
             return $"+992 {digits[3..5]} {digits[5..8]} {digits[8..10]} {digits[10..12]}";
 
         if (digits.Length == 9 && !value.StartsWith('+'))
