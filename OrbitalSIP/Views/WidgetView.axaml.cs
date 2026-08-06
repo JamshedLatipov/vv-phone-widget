@@ -13,6 +13,26 @@ namespace OrbitalSIP.Views
 {
     public partial class WidgetView : UserControl
     {
+        /// <summary>
+        /// Pulse cadence. This is the app's resting state — the widget sits on screen all day, the
+        /// window is composited with transparency, so every tick here is an alpha blend against the
+        /// desktop whether or not anything is happening. The ring breathes on a ~2.9 s sine, which
+        /// 20 samples a second render indistinguishably from the 60 this used to run at.
+        /// </summary>
+        private static readonly TimeSpan PulseInterval = TimeSpan.FromMilliseconds(50);
+
+        /// <summary>Below these the change would not survive rounding to a pixel or an 8-bit alpha.</summary>
+        private const double OpacityEpsilon   = 1.0 / 255.0;
+        private const double ThicknessEpsilon = 0.05;
+
+        /// <summary>
+        /// How the ring sits when registration is healthy and the queue is not paused: solid and
+        /// thin. Nothing animates in that state, which is where the app spends the shift, so the
+        /// pulse now reads as "look at me" rather than as decoration that happens to always run.
+        /// </summary>
+        private const double RestingOpacity   = 1.0;
+        private const double RestingThickness = 4.0;
+
         private DispatcherTimer? _pulseTimer;
         private Stopwatch?       _stopwatch;
         private Ellipse?         _strokeRing;
@@ -38,10 +58,11 @@ namespace OrbitalSIP.Views
             if (_pulseTimer == null)
             {
                 _pulseTimer = new DispatcherTimer(
-                    TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, OnPulseTick);
+                    PulseInterval, DispatcherPriority.Render, OnPulseTick);
             }
-            
-            _pulseTimer.Start();
+
+            // Left stopped on purpose — the UpdateStatus call at the end of this method decides
+            // whether the current registration state is worth animating for.
 
             var sip = App.SipService;
             var statusSvc = App.StatusService;
@@ -95,13 +116,46 @@ namespace OrbitalSIP.Views
             }
         }
 
+        /// <summary>
+        /// Runs the pulse only while something is actually wrong. Registered and unpaused is the
+        /// resting state, and there the timer does not run at all.
+        /// </summary>
+        private void SetPulseEnabled(bool enabled)
+        {
+            if (_pulseTimer == null || _strokeRing == null) return;
+
+            if (enabled)
+            {
+                if (!_pulseTimer.IsEnabled)
+                {
+                    // Restart so the pulse always begins at the same point of the sine rather than
+                    // wherever the clock happened to be.
+                    _stopwatch?.Restart();
+                    _pulseTimer.Start();
+                }
+                return;
+            }
+
+            _pulseTimer.Stop();
+            _strokeRing.Opacity         = RestingOpacity;
+            _strokeRing.StrokeThickness = RestingThickness;
+        }
+
         private void OnPulseTick(object? sender, EventArgs e)
         {
             if (_stopwatch == null || _strokeRing == null) return;
 
             var pulse = (Math.Sin(_stopwatch.Elapsed.TotalSeconds * 2.2) + 1.0) / 2.0;
-            _strokeRing.Opacity        = 0.35 + pulse * 0.65;
-            _strokeRing.StrokeThickness = 4.0 + pulse * 4.0;
+            var opacity   = 0.35 + pulse * 0.65;
+            var thickness = 4.0 + pulse * 4.0;
+
+            // Near the top and bottom of the sine the value barely moves, and assigning it anyway
+            // costs a visual invalidation and a repaint of a transparent window for nothing.
+            if (Math.Abs(_strokeRing.Opacity - opacity) >= OpacityEpsilon)
+                _strokeRing.Opacity = opacity;
+
+            if (Math.Abs(_strokeRing.StrokeThickness - thickness) >= ThicknessEpsilon)
+                _strokeRing.StrokeThickness = thickness;
         }
 
         private void UpdateStatus(RegistrationState state)
@@ -116,6 +170,8 @@ namespace OrbitalSIP.Views
             var queueState = App.StatusService.CurrentState;
             bool isQueuePaused = queueState != null && queueState.Paused;
             bool isSupervisorPaused = queueState != null && queueState.IsSupervisorPaused;
+
+            SetPulseEnabled(Services.WidgetPulse.ShouldPulse(state, queueState));
 
             switch (state)
             {

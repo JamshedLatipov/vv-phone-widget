@@ -12,9 +12,18 @@ namespace OrbitalSIP.Services
     public class StatusService : IDisposable
     {
         private readonly HttpClient _httpClient;
-        private DispatcherTimer? _autoOnlineTimer;
+
+        /// <summary>Periodic re-fetch, so a supervisor pause or a status change made elsewhere shows up without a socket.</summary>
+        private DispatcherTimer? _pollTimer;
+
+        /// <summary>
+        /// Break countdown. Runs only while a break is actually ticking down — the two used to share
+        /// one 1 s timer, which meant a wake-up every second for the whole shift to check a field
+        /// that is null almost all of that time.
+        /// </summary>
+        private DispatcherTimer? _breakTimer;
+
         private DateTime? _breakEndTime;
-        private int _pollTickCounter;
         private bool _isFetching;
 
         public event Action<StatusState>? StateChanged;
@@ -30,41 +39,41 @@ namespace OrbitalSIP.Services
             };
             _httpClient = new HttpClient(handler);
 
-            _autoOnlineTimer = new DispatcherTimer
+            _pollTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(20)
+            };
+            _pollTimer.Tick += OnPollTick;
+
+            _breakTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromSeconds(1)
             };
-            _autoOnlineTimer.Tick += OnTimerTick;
+            _breakTimer.Tick += OnBreakTick;
         }
 
         public void StartPolling()
         {
             _ = FetchStateAsync();
-            // 1s timer drives both the break auto-online countdown and a ~20s
-            // periodic re-fetch (so live supervisor-pause + cross-UI status
-            // changes are reflected without a dedicated socket).
-            _autoOnlineTimer?.Start();
+            _pollTimer?.Start();
         }
 
-        private async void OnTimerTick(object? sender, EventArgs e)
+        private async void OnPollTick(object? sender, EventArgs e) => await FetchStateAsync();
+
+        private async void OnBreakTick(object? sender, EventArgs e)
         {
-            // Break auto-online countdown.
-            if (_breakEndTime.HasValue)
+            if (!_breakEndTime.HasValue)
             {
-                if (DateTime.Now >= _breakEndTime.Value)
-                {
-                    AppLogger.Log("StatusService", "Timer expired. Setting status back to online.");
-                    _breakEndTime = null;
-                    await SetStateAsync(null, null);
-                }
+                _breakTimer?.Stop();
+                return;
             }
 
-            // Periodic re-fetch every ~20 ticks (~20s).
-            _pollTickCounter++;
-            if (_pollTickCounter >= 20)
+            if (DateTime.Now >= _breakEndTime.Value)
             {
-                _pollTickCounter = 0;
-                await FetchStateAsync();
+                AppLogger.Log("StatusService", "Timer expired. Setting status back to online.");
+                _breakEndTime = null;
+                _breakTimer?.Stop();
+                await SetStateAsync(null, null);
             }
         }
 
@@ -177,12 +186,13 @@ namespace OrbitalSIP.Services
                     if (durationMinutes.HasValue && durationMinutes.Value > 0)
                     {
                         _breakEndTime = DateTime.Now.AddMinutes(durationMinutes.Value);
-                        _autoOnlineTimer?.Start();
+                        _breakTimer?.Start();
                         AppLogger.Log("StatusService", $"Started auto-online timer for {durationMinutes.Value} minutes.");
                     }
                     else
                     {
                         _breakEndTime = null;
+                        _breakTimer?.Stop();
                         AppLogger.Log("StatusService", "Auto-online timer cleared.");
                     }
 
@@ -210,7 +220,8 @@ namespace OrbitalSIP.Services
 
         public void Dispose()
         {
-            _autoOnlineTimer?.Stop();
+            _pollTimer?.Stop();
+            _breakTimer?.Stop();
             _httpClient.Dispose();
         }
     }

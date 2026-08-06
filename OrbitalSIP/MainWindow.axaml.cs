@@ -27,12 +27,24 @@ namespace OrbitalSIP
         private int  _anchorX, _anchorY;
         private bool _isExpanded;
 
+        /// <summary>
+        /// Frame interval of the resize animation. Every frame moves and resizes a transparent
+        /// top-most window, which is the expensive part; at the old 8 ms it asked for 35 of those
+        /// in 280 ms, well past what a 60 Hz screen can show and past what a slow machine can keep
+        /// up with — the dropped frames were the stutter.
+        /// </summary>
+        private static readonly TimeSpan AnimFrameInterval = TimeSpan.FromMilliseconds(16);
+
         private DispatcherTimer? _animTimer;
         private Stopwatch? _animStopwatch;
         private double _animProgress;
         private double _fromW, _fromH, _toW, _toH;
         private object? _pendingContent;
         private Action? _onAnimComplete;
+
+        /// <summary>Resolved once per animation; OnAnimTick used to look both up by name every frame.</summary>
+        private ContentControl? _animHost;
+        private ContentControl? _animOverlay;
         private readonly DispatcherTimer _httpErrorHideTimer;
 
         public MainWindow()
@@ -604,7 +616,10 @@ namespace OrbitalSIP
             if (overlay != null) { overlay.Content = nextContent; overlay.Opacity = 0; overlay.IsVisible = true; }
             if (host != null) host.Opacity = 1;
 
-            _animTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(8), DispatcherPriority.Render, OnAnimTick);
+            _animOverlay = overlay;
+            _animHost = host;
+
+            _animTimer = new DispatcherTimer(AnimFrameInterval, DispatcherPriority.Render, OnAnimTick);
             _animTimer.Start();
         }
 
@@ -619,8 +634,8 @@ namespace OrbitalSIP
             var w = _fromW + (_toW - _fromW) * t;
             var h = _fromH + (_toH - _fromH) * t;
 
-            var host = this.FindControl<ContentControl>("Host");
-            var overlay = this.FindControl<ContentControl>("OverlayHost");
+            var host = _animHost;
+            var overlay = _animOverlay;
             if (host != null && overlay?.Content != null)
             {
                 var fadeProgress = Math.Clamp((_animProgress - 0.08) / 0.62, 0.0, 1.0);
