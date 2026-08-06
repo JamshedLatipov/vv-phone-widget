@@ -18,11 +18,7 @@ namespace OrbitalSIP.Services
 
         public CallInfoService()
         {
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-            };
-            _httpClient = new HttpClient(handler);
+            _httpClient = BackendHttp.Client;
         }
 
         public async Task<CallInfoResponse?> GetCallInfoAsync(string phoneNumber)
@@ -92,9 +88,9 @@ namespace OrbitalSIP.Services
             }
         }
 
+        /// <summary>The client is shared, so there is nothing here to release.</summary>
         public void Dispose()
         {
-            _httpClient.Dispose();
         }
     }
 }

@@ -16,7 +16,7 @@ namespace OrbitalSIP.Views
     public partial class RecentsView : UserControl
     {
         private DispatcherTimer? _cdrTimer;
-        private static readonly HttpClient _httpClient;
+        private static readonly HttpClient _httpClient = Services.BackendHttp.Client;
         private SmsComposeDialog? _historySmsDialog;
         private bool _historySmsLaunchInProgress;
         private bool _isDetached;
@@ -27,15 +27,6 @@ namespace OrbitalSIP.Views
         public event EventHandler? OnDialerRequested;
         public event EventHandler<string>? OutgoingCallRequested;
         public event EventHandler? OnExitAppRequested;
-
-        static RecentsView()
-        {
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-            };
-            _httpClient = new HttpClient(handler);
-        }
 
         public RecentsView()
         {

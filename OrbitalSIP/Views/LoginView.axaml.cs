@@ -13,14 +13,7 @@ namespace OrbitalSIP.Views
 {
     public partial class LoginView : UserControl
     {
-        private static readonly HttpClient _httpClient;
-
-        static LoginView()
-        {
-            var handler = new HttpClientHandler();
-            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
-            _httpClient = new HttpClient(handler);
-        }
+        private static readonly HttpClient _httpClient = Services.BackendHttp.Client;
 
         public LoginView()
         {

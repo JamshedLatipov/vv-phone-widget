@@ -16,12 +16,8 @@ namespace OrbitalSIP.Services
 
         public ScriptService()
         {
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-            };
-            _httpClient = new HttpClient(handler);
-            _ownsHttpClient = true;
+            _httpClient = BackendHttp.Client;
+            _ownsHttpClient = false;
         }
 
         public ScriptService(HttpClient httpClient, Func<SipSettings> settingsProvider, bool ownsHttpClient = false)

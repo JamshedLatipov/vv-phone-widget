@@ -31,11 +31,7 @@ namespace OrbitalSIP.Services
 
         public TaskService()
         {
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-            };
-            _httpClient = new HttpClient(handler);
+            _httpClient = BackendHttp.Client;
         }
 
         /// <summary>Creates a task via POST /api/tasks. Returns true on 2xx.</summary>
@@ -122,9 +118,9 @@ namespace OrbitalSIP.Services
             }
         }
 
+        /// <summary>The client is shared, so there is nothing here to release.</summary>
         public void Dispose()
         {
-            _httpClient.Dispose();
         }
     }
 }

@@ -31,11 +31,7 @@ namespace OrbitalSIP.Services
 
         public LeadService()
         {
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-            };
-            _httpClient = new HttpClient(handler);
+            _httpClient = BackendHttp.Client;
         }
 
         public async Task<CreateLeadResult> CreateLeadAsync(CreateLeadRequest lead)
@@ -296,9 +292,9 @@ namespace OrbitalSIP.Services
             }
         }
 
+        /// <summary>The client is shared, so there is nothing here to release.</summary>
         public void Dispose()
         {
-            _httpClient.Dispose();
         }
     }
 }
