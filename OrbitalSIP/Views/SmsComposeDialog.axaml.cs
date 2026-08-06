@@ -267,28 +267,48 @@ public partial class SmsComposeDialog : Window
         if (closedViaEscape)
         {
             // Cancel. Whatever SelectedItem Avalonia's own cancel handling leaves
-            // behind (it can restore an exact text match) must never be applied.
+            // behind (OnAdapterSelectionCanceled's exact-match recompute can restore
+            // one) must never be applied. Deliberately no "return" here — Escape
+            // still needs the arm-and-continuation below, see why underneath.
             _pendingTemplateSelection = null;
-            return;
         }
 
-        // A commit (mouse pick or Enter) closes the dropdown and then, synchronously,
-        // refocuses the internal search TextBox (Avalonia's own
-        // OnAdapterSelectionComplete). Arm a one-shot flag for the GotFocus that
-        // follows — OnTemplateBoxGotFocus consumes it there and applies the pending
-        // selection. Losing focus entirely, and an empty-filter auto-close (the
+        // AutoCompleteBox's SelectionAdapter setter wires OnAdapterSelectionComplete
+        // to the adapter's Cancel event as well as its Commit event (in addition to
+        // _adapter.Commit += OnAdapterSelectionComplete, there is a separate
+        // _adapter.Cancel += OnAdapterSelectionComplete). That means Escape closes
+        // the dropdown through the exact same SetCurrentValue(IsDropDownOpenProperty,
+        // false) -> ... -> TextBox!.Focus() -> GotFocus sequence a real commit uses.
+        // If this arm-and-continuation were skipped for Escape (e.g. an early
+        // "return" in the branch above), that GotFocus would fall straight through
+        // to OnTemplateBoxGotFocus's reopen branch and the dropdown would spring
+        // back open on the very keystroke that just closed it. Arming the same flag
+        // here instead makes OnTemplateBoxGotFocus consume that GotFocus as a no-op
+        // apply — _pendingTemplateSelection is already null from the branch above —
+        // so the dropdown simply stays closed, which is all Escape should do.
+        //
+        // For a genuine commit (mouse pick or Enter), the flag is what
+        // OnTemplateBoxGotFocus consumes to apply the pending selection instead of
+        // reopening. Losing focus entirely, and an empty-filter auto-close (the
         // operator keeps typing until nothing matches, without ever unfocusing the
         // box), also raise DropDownClosed but never call that Focus() — so nothing
         // will consume the flag in those cases. The continuation below is what
         // actually detects that: if the flag is still armed on the very next
-        // UI-thread turn, no refocus arrived, this was not a commit, and whatever was
-        // staged must be dropped rather than left to apply itself later against text
-        // the operator has since edited.
+        // UI-thread turn, no refocus arrived, so whatever is still staged must be
+        // dropped rather than left to apply itself later against text the operator
+        // has since edited. In practice this only ever has real work to do for the
+        // focus-loss case — PopulateComplete's empty-filter path already nulls
+        // SelectedItem itself (UpdateTextCompletion's SetCurrentValue call sits
+        // outside its own "if the view has items" guard, so it unconditionally nulls
+        // SelectedItem when the view is empty), which our SelectionChanged handler
+        // turns into a null _pendingTemplateSelection synchronously, before this
+        // continuation ever runs. Losing focus touches neither SelectedItem nor this
+        // dropdown's own focus, so it is the one path only this continuation catches.
         _suppressTemplateAutoOpen = true;
         Dispatcher.UIThread.Post(() =>
         {
             if (!_suppressTemplateAutoOpen)
-                return; // Already consumed by a genuine commit's GotFocus.
+                return; // Already consumed by the GotFocus after Commit/Cancel.
 
             _suppressTemplateAutoOpen = false;
             _pendingTemplateSelection = null;
