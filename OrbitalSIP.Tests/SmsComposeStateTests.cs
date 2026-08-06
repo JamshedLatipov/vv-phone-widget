@@ -12,6 +12,16 @@ public class SmsComposeStateTests
         "Напоминание",
         "Перезвоните, пожалуйста");
 
+    private static readonly MessageTemplateDto OfficeTemplate = new(
+        Guid.Parse("33333333-3333-3333-3333-333333333333"),
+        "Адрес офиса",
+        "Мы находимся по адресу…");
+
+    private static readonly MessageTemplateDto DuplicateWordingTemplate = new(
+        Guid.Parse("44444444-4444-4444-4444-444444444444"),
+        "Напоминание (копия)",
+        "Перезвоните, пожалуйста");
+
     [Fact]
     public void Constructor_LocksSourceAndDisplayRecipient()
     {
@@ -93,6 +103,53 @@ public class SmsComposeStateTests
         Assert.Null(request!.TemplateId);
     }
 
+    [Fact]
+    public void SelectTemplate_SwitchingTemplates_RegeneratesRequestIdAndRebinds()
+    {
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+        Assert.True(state.TryBeginSend(out var first));
+        state.FinishSendFailure();
+
+        state.SelectTemplate(OfficeTemplate);
+
+        Assert.Same(OfficeTemplate, state.SelectedTemplate);
+        Assert.Equal("Мы находимся по адресу…", state.Content);
+        Assert.True(state.TryBeginSend(out var second));
+        Assert.NotEqual(first!.RequestId, second!.RequestId);
+        Assert.Equal(OfficeTemplate.Id, second.TemplateId);
+    }
+
+    [Fact]
+    public void SelectTemplate_DifferentTemplateWithIdenticalText_RegeneratesRequestId()
+    {
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+        Assert.True(state.TryBeginSend(out var first));
+        state.FinishSendFailure();
+
+        state.SelectTemplate(DuplicateWordingTemplate);
+
+        Assert.True(state.TryBeginSend(out var second));
+        Assert.NotEqual(first!.RequestId, second!.RequestId);
+        Assert.Equal(DuplicateWordingTemplate.Id, second!.TemplateId);
+    }
+
+    [Fact]
+    public void EditContent_RetypingTemplateTextDoesNotRestoreBinding()
+    {
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+        state.EditContent("Другой текст");
+
+        state.EditContent("Перезвоните, пожалуйста");
+
+        Assert.Equal("Перезвоните, пожалуйста", state.Content);
+        Assert.False(state.IsTemplateBound);
+        Assert.True(state.TryBeginSend(out var request));
+        Assert.Null(request!.TemplateId);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -156,6 +213,36 @@ public class SmsComposeStateTests
         Assert.True(state.TryBeginSend(out var retry));
 
         Assert.Equal(first!.RequestId, retry!.RequestId);
+    }
+
+    [Fact]
+    public void FinishSendFailure_KeepsTemplateIdOnRetry()
+    {
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+        Assert.True(state.TryBeginSend(out var first));
+
+        state.FinishSendFailure();
+        Assert.True(state.TryBeginSend(out var retry));
+
+        Assert.Equal(first!.RequestId, retry!.RequestId);
+        Assert.Equal(ReminderTemplate.Id, retry.TemplateId);
+    }
+
+    [Fact]
+    public void CancelCurrentSend_KeepsTemplateBindingForRetry()
+    {
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+        using var session = new SmsComposeSendSession(state);
+        Assert.True(session.TryBeginSend(out var attempt));
+
+        Assert.True(session.CancelCurrentSend());
+
+        Assert.True(state.IsTemplateBound);
+        Assert.True(session.TryBeginSend(out var retry));
+        Assert.Equal(attempt!.Request.RequestId, retry!.Request.RequestId);
+        Assert.Equal(ReminderTemplate.Id, retry.Request.TemplateId);
     }
 
     [Fact]
