@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -40,6 +41,16 @@ public partial class SmsComposeDialog : Window
     private bool _contentWasEdited;
     private bool _suppressContentChanged;
     private bool _lastSendFailed;
+
+    // Template-picker commit tracking. Avalonia's AutoCompleteBox forwards arrow-key
+    // navigation through the same SelectionChanged event as a mouse pick or Enter
+    // commit, and closes its dropdown (with a refocus of its own internal search box)
+    // on Escape exactly the same way it does on a commit. These three fields let us
+    // tell an actual commit apart from browsing/cancelling — see ConfigureTemplateBox,
+    // OnTemplateBoxPreviewKeyDown, OnTemplateDropDownClosed and OnTemplateBoxGotFocus.
+    private MessageTemplateDto? _pendingTemplateSelection;
+    private bool _suppressTemplateAutoOpen;
+    private bool _templateDropDownClosedViaEscape;
 
     private TextBlock _recipientValue = null!;
     private AutoCompleteBox _templateBox = null!;
@@ -120,8 +131,8 @@ public partial class SmsComposeDialog : Window
             if (string.IsNullOrWhiteSpace(search))
                 return true;
 
-            return template.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-                   (template.Content?.Contains(search, StringComparison.CurrentCultureIgnoreCase) ?? false);
+            return template.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                   (template.Content?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false);
         };
     }
 
@@ -130,14 +141,22 @@ public partial class SmsComposeDialog : Window
         this.FindControl<Button>("CloseBtn")!.Click += (_, _) => CloseDialog();
         _cancelButton.Click += (_, _) => CancelOrClose();
         _clearTemplateButton.Click += (_, _) => ClearTemplate();
-        _templateBox.SelectionChanged += (_, _) => SelectTemplate();
+        // SelectionChanged fires on every ListBox.SelectedIndex mutation, including
+        // plain arrow-key browsing — it is not a commit signal. Stage the candidate
+        // here; ApplyPendingTemplateSelection decides whether it actually lands.
+        _templateBox.SelectionChanged += (_, _) =>
+            _pendingTemplateSelection = _templateBox.SelectedItem as MessageTemplateDto;
+        _templateBox.DropDownClosed += (_, _) => OnTemplateDropDownClosed();
+        // Escape closes the dropdown through the same internal path a commit uses
+        // (both end with Avalonia refocusing its own search TextBox), so
+        // DropDownClosed alone can't tell them apart. Catch Escape in the tunnel
+        // phase, before AutoCompleteBox's own OnKeyDown consumes it.
+        _templateBox.AddHandler(InputElement.KeyDownEvent, OnTemplateBoxPreviewKeyDown, RoutingStrategies.Tunnel);
         // An empty prefix must still show the whole list, otherwise the control
-        // reads as a dead text box to anyone used to the old combo box.
-        _templateBox.GotFocus += (_, _) =>
-        {
-            if (_templateBox.IsEnabled)
-                _templateBox.IsDropDownOpen = true;
-        };
+        // reads as a dead text box to anyone used to the old combo box. The one
+        // exception is the GotFocus Avalonia raises on itself right after a commit —
+        // see OnTemplateBoxGotFocus.
+        _templateBox.GotFocus += (_, _) => OnTemplateBoxGotFocus();
         _contentBox.TextChanged += (_, _) => EditContent();
         _sendButton.Click += async (_, _) => await SendAsync();
 
@@ -202,11 +221,74 @@ public partial class SmsComposeDialog : Window
         }
     }
 
-    private void SelectTemplate()
+    /// <summary>
+    /// Tunnel-phase KeyDown on the template box. Runs before AutoCompleteBox's own
+    /// (bubble-phase) OnKeyDown, so it can flag a dropdown-closing Escape before the
+    /// framework's internal Commit/Cancel handling — which we cannot see directly —
+    /// has a chance to run.
+    /// </summary>
+    private void OnTemplateBoxPreviewKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && _templateBox.IsDropDownOpen)
+            _templateDropDownClosedViaEscape = true;
+    }
+
+    /// <summary>
+    /// Fires whenever the template dropdown closes: a mouse pick, Enter, Escape, the
+    /// operator focusing something else, or the filtered list emptying out. Only the
+    /// first two are a commit; this method tells them apart from the rest and arms
+    /// OnTemplateBoxGotFocus for the refocus that follows a genuine commit.
+    /// </summary>
+    private void OnTemplateDropDownClosed()
+    {
+        var closedViaEscape = _templateDropDownClosedViaEscape;
+        _templateDropDownClosedViaEscape = false;
+
+        if (closedViaEscape)
+        {
+            // Cancel. Whatever SelectedItem Avalonia's own cancel handling leaves
+            // behind (it can restore an exact text match) must never be applied.
+            _pendingTemplateSelection = null;
+            return;
+        }
+
+        // A commit (mouse pick or Enter) closes the dropdown and then, synchronously,
+        // refocuses the internal search TextBox (Avalonia's own
+        // OnAdapterSelectionComplete). Arm a one-shot flag for the GotFocus that
+        // follows. Losing focus entirely, or an empty-filter auto-close, also raise
+        // DropDownClosed but do not refocus the search box — nothing will consume
+        // this flag in those cases, so disarm it on the next UI-thread turn rather
+        // than leave it to misfire on some unrelated later focus.
+        _suppressTemplateAutoOpen = true;
+        Dispatcher.UIThread.Post(() => _suppressTemplateAutoOpen = false);
+    }
+
+    /// <summary>
+    /// Normally reopens the dropdown so an empty prefix still shows the whole list.
+    /// The one exception is the GotFocus Avalonia raises on its own search TextBox
+    /// right after a commit closes the dropdown — reopening there is bug 1 from the
+    /// review (mouse pick ends with the dropdown back open); applying the pending
+    /// template here instead is what actually completes the commit.
+    /// </summary>
+    private void OnTemplateBoxGotFocus()
+    {
+        if (_suppressTemplateAutoOpen)
+        {
+            _suppressTemplateAutoOpen = false;
+            ApplyPendingTemplateSelection();
+            return;
+        }
+
+        if (_templateBox.IsEnabled)
+            _templateBox.IsDropDownOpen = true;
+    }
+
+    private void ApplyPendingTemplateSelection()
+    {
+        var template = _pendingTemplateSelection;
+        _pendingTemplateSelection = null;
         if (_state.IsInFlight || _state.IsQueued ||
-            _templateBox.SelectedItem is not MessageTemplateDto template ||
-            string.IsNullOrWhiteSpace(template.Content))
+            template is null || string.IsNullOrWhiteSpace(template.Content))
             return;
 
         _state.SelectTemplate(template);
@@ -214,7 +296,11 @@ public partial class SmsComposeDialog : Window
         ClearTransientMessages();
         _contentWasEdited = false;
         Render();
-        _contentBox.Focus();
+        // Avalonia's OnAdapterSelectionComplete calls TextBox!.Focus() on its own
+        // search box right after raising the GotFocus we're handling here, which
+        // would otherwise immediately steal focus back from the message box. Posting
+        // lets that framework call finish first, so ours is the one that sticks.
+        Dispatcher.UIThread.Post(() => _contentBox.Focus());
     }
 
     private void ClearTemplate()
@@ -223,6 +309,7 @@ public partial class SmsComposeDialog : Window
             return;
 
         _state.ClearTemplate();
+        _pendingTemplateSelection = null;
         _templateBox.SelectedItem = null;
         _templateBox.Text = string.Empty;
         ClearTransientMessages();
