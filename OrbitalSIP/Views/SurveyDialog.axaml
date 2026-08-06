@@ -147,6 +147,9 @@
                     Background="Transparent" BorderThickness="1" BorderBrush="#334155"
                     Foreground="#EF4444" CornerRadius="8" Padding="10,6"
                     FontSize="12" />
+            <TextBlock Grid.Column="1" Name="WizardBusyLabel" IsVisible="False"
+                       Text="Отправка..." FontSize="11" Foreground="#6E859D"
+                       VerticalAlignment="Center" HorizontalAlignment="Center" />
             <Button Grid.Column="2" Name="BackBtn"
                     Content="Назад"
                     Background="#1E293B" BorderThickness="0"

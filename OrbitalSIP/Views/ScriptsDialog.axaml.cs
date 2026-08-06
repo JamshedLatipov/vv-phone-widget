@@ -16,6 +16,14 @@ namespace OrbitalSIP.Views
 {
     public partial class ScriptsDialog : Window
     {
+        /// <summary>
+        /// Carries the picked script out of the window. This used to be the result of
+        /// ShowDialog&lt;ScriptSelection?&gt;, but a modal dialog disables its owner — the
+        /// operator could not hang up or answer the next call while it was up — so the
+        /// window is now an ordinary owned one and hands its result over by event.
+        /// </summary>
+        public event EventHandler<ScriptSelection>? ScriptSelected;
+
         private TreeView _treeView;
         private List<CallScript> _scripts = new List<CallScript>();
         private CallScript? _selected;
@@ -28,10 +36,10 @@ namespace OrbitalSIP.Views
             _treeView = this.FindControl<TreeView>("ScriptsTreeView")!;
 
             var closeBtn = this.FindControl<Button>("CloseBtn");
-            if (closeBtn != null) closeBtn.Click += (_, __) => Close(null);
+            if (closeBtn != null) closeBtn.Click += (_, __) => Close();
 
             var cancelBtn = this.FindControl<Button>("CancelBtn");
-            if (cancelBtn != null) cancelBtn.Click += (_, __) => Close(null);
+            if (cancelBtn != null) cancelBtn.Click += (_, __) => Close();
 
             var selectBtn = this.FindControl<Button>("SelectBtn");
             if (selectBtn != null) selectBtn.Click += (_, __) => Confirm();
@@ -55,12 +63,24 @@ namespace OrbitalSIP.Views
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
+        /// <summary>
+        /// CenterOwner positions this window off the softphone widget, which operators
+        /// park against a screen edge. With SystemDecorations="None" the header bar is
+        /// the only drag handle, so a header pushed off-screen leaves the window
+        /// unreachable — pull it back inside the working area.
+        /// </summary>
+        protected override void OnOpened(EventArgs e)
+        {
+            base.OnOpened(e);
+            this.KeepOnScreen();
+        }
+
         private void OnDialogKeyDown(object? sender, KeyEventArgs e)
         {
             if (e.Key == Key.Escape)
             {
                 e.Handled = true;
-                Close(null);
+                Close();
             }
         }
 
@@ -422,16 +442,20 @@ namespace OrbitalSIP.Views
         {
             if (_selected == null)
             {
-                Close(null);
+                Close();
                 return;
             }
 
             var commentBox = this.FindControl<TextBox>("CommentBox");
-            Close(new ScriptSelection
+
+            // Hand the selection over before closing: the Closed handler is what releases
+            // the launcher's slot, so raising afterwards would race a re-open.
+            ScriptSelected?.Invoke(this, new ScriptSelection
             {
                 Script = _selected,
                 Note = commentBox?.Text?.Trim() ?? ""
             });
+            Close();
         }
     }
 }

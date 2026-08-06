@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using OrbitalSIP.Models;
 
@@ -10,6 +11,12 @@ namespace OrbitalSIP.Services
 {
     public class FlowsService : IDisposable
     {
+        // Default HttpClient.Timeout is 100s. The survey window sits over the
+        // active call for its whole duration, so a slow backend used to read to
+        // the operator as a frozen softphone — keep it short enough to surface
+        // as an error instead.
+        public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(20);
+
         private readonly HttpClient _httpClient;
 
         public FlowsService()
@@ -18,8 +25,18 @@ namespace OrbitalSIP.Services
             {
                 ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
             };
-            _httpClient = new HttpClient(handler);
+            _httpClient = new HttpClient(handler) { Timeout = RequestTimeout };
         }
+
+        /// <summary>Test-only seam confirming the client actually carries RequestTimeout.</summary>
+        public TimeSpan HttpClientTimeoutForTests => _httpClient.Timeout;
+
+        /// <summary>
+        /// True when the caller pulled the plug — the survey window closed — rather
+        /// than the request timing out. Nothing to log or bannerise in that case.
+        /// </summary>
+        private static bool IsCallerCancellation(Exception ex, CancellationToken ct) =>
+            ex is OperationCanceledException && ct.IsCancellationRequested;
 
         private (string backendUrl, string accessToken)? GetSettings()
         {
@@ -38,7 +55,7 @@ namespace OrbitalSIP.Services
             return req;
         }
 
-        public async Task<List<FlowDefinition>> ListFlowsAsync()
+        public async Task<List<FlowDefinition>> ListFlowsAsync(CancellationToken ct = default)
         {
             try
             {
@@ -47,20 +64,21 @@ namespace OrbitalSIP.Services
 
                 var url = $"{cfg.Value.backendUrl}/api/flows";
                 using var request = AuthRequest(HttpMethod.Get, url);
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, ct);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
+                    var content = await response.Content.ReadAsStringAsync(ct);
                     return JsonSerializer.Deserialize<List<FlowDefinition>>(content) ?? new List<FlowDefinition>();
                 }
 
-                var errorBody = await response.Content.ReadAsStringAsync();
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
                 AppLogger.Log("FlowsService", $"ListFlows failed. Status: {response.StatusCode}. Body: {errorBody}");
                 HttpErrorNotifier.NotifyHttpError("FlowsService", url, response.StatusCode, errorBody);
             }
             catch (Exception ex)
             {
+                if (IsCallerCancellation(ex, ct)) return new List<FlowDefinition>();
                 AppLogger.Log("FlowsService", $"ListFlows error: {ex.GetType().Name}: {ex.Message}");
                 HttpErrorNotifier.NotifyException("FlowsService", ex);
             }
@@ -72,7 +90,7 @@ namespace OrbitalSIP.Services
         /// (the other party's phone). Used to auto-open the bound questionnaire when a
         /// campaign call is answered. Returns an empty list when nothing is bound.
         /// </summary>
-        public async Task<List<FlowDefinition>> SuggestForNumberAsync(string number)
+        public async Task<List<FlowDefinition>> SuggestForNumberAsync(string number, CancellationToken ct = default)
         {
             try
             {
@@ -81,25 +99,26 @@ namespace OrbitalSIP.Services
 
                 var url = $"{cfg.Value.backendUrl}/api/flows/suggest-for-number?number={Uri.EscapeDataString(number)}";
                 using var request = AuthRequest(HttpMethod.Get, url);
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, ct);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
+                    var content = await response.Content.ReadAsStringAsync(ct);
                     return JsonSerializer.Deserialize<List<FlowDefinition>>(content) ?? new List<FlowDefinition>();
                 }
 
-                var errorBody = await response.Content.ReadAsStringAsync();
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
                 AppLogger.Log("FlowsService", $"SuggestForNumber failed. Status: {response.StatusCode}. Body: {errorBody}");
             }
             catch (Exception ex)
             {
+                if (IsCallerCancellation(ex, ct)) return new List<FlowDefinition>();
                 AppLogger.Log("FlowsService", $"SuggestForNumber error: {ex.GetType().Name}: {ex.Message}");
             }
             return new List<FlowDefinition>();
         }
 
-        public async Task<List<FlowRun>> ListRunsAsync(string subjectId)
+        public async Task<List<FlowRun>> ListRunsAsync(string subjectId, CancellationToken ct = default)
         {
             try
             {
@@ -108,25 +127,26 @@ namespace OrbitalSIP.Services
 
                 var url = $"{cfg.Value.backendUrl}/api/flow-runs?subjectType=call&subjectId={Uri.EscapeDataString(subjectId)}";
                 using var request = AuthRequest(HttpMethod.Get, url);
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, ct);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
+                    var content = await response.Content.ReadAsStringAsync(ct);
                     return JsonSerializer.Deserialize<List<FlowRun>>(content) ?? new List<FlowRun>();
                 }
 
-                var errorBody = await response.Content.ReadAsStringAsync();
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
                 AppLogger.Log("FlowsService", $"ListRuns failed. Status: {response.StatusCode}. Body: {errorBody}");
             }
             catch (Exception ex)
             {
+                if (IsCallerCancellation(ex, ct)) return new List<FlowRun>();
                 AppLogger.Log("FlowsService", $"ListRuns error: {ex.GetType().Name}: {ex.Message}");
             }
             return new List<FlowRun>();
         }
 
-        public async Task<StartRunResponse?> StartRunAsync(string flowId, string subjectId, string? contactId = null, string? phone = null)
+        public async Task<StartRunResponse?> StartRunAsync(string flowId, string subjectId, string? contactId = null, string? phone = null, CancellationToken ct = default)
         {
             try
             {
@@ -142,19 +162,20 @@ namespace OrbitalSIP.Services
                 var body = new { subjectType = "call", subjectId, contactId, phone };
                 request.Content = JsonContent.Create(body);
 
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, ct);
                 if (response.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
+                    var content = await response.Content.ReadAsStringAsync(ct);
                     return JsonSerializer.Deserialize<StartRunResponse>(content);
                 }
 
-                var errorBody = await response.Content.ReadAsStringAsync();
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
                 AppLogger.Log("FlowsService", $"StartRun failed. Status: {response.StatusCode}. Body: {errorBody}");
                 HttpErrorNotifier.NotifyHttpError("FlowsService", url, response.StatusCode, errorBody);
             }
             catch (Exception ex)
             {
+                if (IsCallerCancellation(ex, ct)) return null;
                 AppLogger.Log("FlowsService", $"StartRun error: {ex.GetType().Name}: {ex.Message}");
                 HttpErrorNotifier.NotifyException("FlowsService", ex);
             }
@@ -162,7 +183,7 @@ namespace OrbitalSIP.Services
         }
 
         /// <returns>null means 409 — caller should reload state via GetRunStateAsync</returns>
-        public async Task<AnswerResponse?> AnswerAsync(string runId, string nodeKey, string? value, string? comment = null)
+        public async Task<AnswerResponse?> AnswerAsync(string runId, string nodeKey, string? value, string? comment = null, CancellationToken ct = default)
         {
             try
             {
@@ -175,7 +196,7 @@ namespace OrbitalSIP.Services
                 var body = new { nodeKey, value, comment };
                 request.Content = JsonContent.Create(body);
 
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, ct);
 
                 if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
                 {
@@ -185,23 +206,24 @@ namespace OrbitalSIP.Services
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
+                    var content = await response.Content.ReadAsStringAsync(ct);
                     return JsonSerializer.Deserialize<AnswerResponse>(content);
                 }
 
-                var errorBody = await response.Content.ReadAsStringAsync();
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
                 AppLogger.Log("FlowsService", $"Answer failed. Status: {response.StatusCode}. Body: {errorBody}");
                 HttpErrorNotifier.NotifyHttpError("FlowsService", url, response.StatusCode, errorBody);
             }
             catch (Exception ex)
             {
+                if (IsCallerCancellation(ex, ct)) return null;
                 AppLogger.Log("FlowsService", $"Answer error: {ex.GetType().Name}: {ex.Message}");
                 HttpErrorNotifier.NotifyException("FlowsService", ex);
             }
             return null;
         }
 
-        public async Task<string?> BackAsync(string runId)
+        public async Task<string?> BackAsync(string runId, CancellationToken ct = default)
         {
             try
             {
@@ -212,8 +234,8 @@ namespace OrbitalSIP.Services
                 using var request = AuthRequest(HttpMethod.Post, url);
                 request.Content = JsonContent.Create(new { });
 
-                var response = await _httpClient.SendAsync(request);
-                var body = await response.Content.ReadAsStringAsync();
+                var response = await _httpClient.SendAsync(request, ct);
+                var body = await response.Content.ReadAsStringAsync(ct);
                 if (response.IsSuccessStatusCode)
                 {
                     using var doc = JsonDocument.Parse(body);
@@ -227,12 +249,13 @@ namespace OrbitalSIP.Services
             }
             catch (Exception ex)
             {
+                if (IsCallerCancellation(ex, ct)) return null;
                 AppLogger.Log("FlowsService", $"Back error: {ex.GetType().Name}: {ex.Message}");
             }
             return null;
         }
 
-        public async Task<bool> AbandonAsync(string runId, string? reason = null)
+        public async Task<bool> AbandonAsync(string runId, string? reason = null, CancellationToken ct = default)
         {
             try
             {
@@ -243,21 +266,22 @@ namespace OrbitalSIP.Services
                 using var request = AuthRequest(HttpMethod.Post, url);
                 request.Content = JsonContent.Create(new { reason });
 
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, ct);
                 if (response.IsSuccessStatusCode)
                     return true;
 
-                var errorBody = await response.Content.ReadAsStringAsync();
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
                 AppLogger.Log("FlowsService", $"Abandon failed. Status: {response.StatusCode}. Body: {errorBody}");
             }
             catch (Exception ex)
             {
+                if (IsCallerCancellation(ex, ct)) return false;
                 AppLogger.Log("FlowsService", $"Abandon error: {ex.GetType().Name}: {ex.Message}");
             }
             return false;
         }
 
-        public async Task<RunStateResponse?> GetRunStateAsync(string runId)
+        public async Task<RunStateResponse?> GetRunStateAsync(string runId, CancellationToken ct = default)
         {
             try
             {
@@ -267,24 +291,25 @@ namespace OrbitalSIP.Services
                 var url = $"{cfg.Value.backendUrl}/api/flow-runs/{Uri.EscapeDataString(runId)}";
                 using var request = AuthRequest(HttpMethod.Get, url);
 
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, ct);
                 if (response.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
+                    var content = await response.Content.ReadAsStringAsync(ct);
                     return JsonSerializer.Deserialize<RunStateResponse>(content);
                 }
 
-                var errorBody = await response.Content.ReadAsStringAsync();
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
                 AppLogger.Log("FlowsService", $"GetRunState failed. Status: {response.StatusCode}. Body: {errorBody}");
             }
             catch (Exception ex)
             {
+                if (IsCallerCancellation(ex, ct)) return null;
                 AppLogger.Log("FlowsService", $"GetRunState error: {ex.GetType().Name}: {ex.Message}");
             }
             return null;
         }
 
-        public async Task<string?> GetChannelUniqueIdAsync(string phoneNumber)
+        public async Task<string?> GetChannelUniqueIdAsync(string phoneNumber, CancellationToken ct = default)
         {
             try
             {
@@ -294,20 +319,21 @@ namespace OrbitalSIP.Services
                 var url = $"{cfg.Value.backendUrl}/api/cdr/channel-uniqueid?callerNumber={Uri.EscapeDataString(phoneNumber)}";
                 using var request = AuthRequest(HttpMethod.Get, url);
 
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, ct);
                 if (response.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
+                    var content = await response.Content.ReadAsStringAsync(ct);
                     using var doc = JsonDocument.Parse(content);
                     if (doc.RootElement.TryGetProperty("uniqueid", out var el))
                         return el.GetString();
                 }
 
-                var errorBody = await response.Content.ReadAsStringAsync();
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
                 AppLogger.Log("FlowsService", $"GetChannelUniqueId failed. Status: {response.StatusCode}. Body: {errorBody}");
             }
             catch (Exception ex)
             {
+                if (IsCallerCancellation(ex, ct)) return null;
                 AppLogger.Log("FlowsService", $"GetChannelUniqueId error: {ex.GetType().Name}: {ex.Message}");
             }
             return null;

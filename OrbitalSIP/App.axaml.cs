@@ -22,6 +22,15 @@ namespace OrbitalSIP
         public static readonly FlowsService FlowsService = new FlowsService();
         public static readonly SmsService SmsService = new SmsService();
         public static readonly GlobalHotkeyService GlobalHotkeys = new GlobalHotkeyService();
+        /// <summary>Keeps the two survey entry points — the active-call button and the
+        /// campaign auto-open — from stacking two windows over the same call.</summary>
+        public static readonly Models.SingleWindowGuard SurveySessions = new Models.SingleWindowGuard();
+        /// <summary>One task window at a time; the button no longer blocks itself by
+        /// being modal.</summary>
+        public static readonly Models.SingleWindowGuard TaskWindows = new Models.SingleWindowGuard();
+        /// <summary>One script list at a time — it opens from the active call and from
+        /// the call history, and neither knows about the other.</summary>
+        public static readonly Models.SingleWindowGuard ScriptWindows = new Models.SingleWindowGuard();
         public static readonly UpdateService        Updater       = new UpdateService();
 
         public override void Initialize()

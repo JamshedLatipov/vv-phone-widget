@@ -500,8 +500,7 @@ namespace OrbitalSIP
                 var flow = flows.FirstOrDefault(f => f.IsActive && f.ActiveVersionId != null);
                 if (flow?.Id == null) return;
 
-                var dialog = new Views.SurveyDialog(callerNumber, flow.Id);
-                await dialog.ShowDialog(this);
+                Views.SurveyWindowLauncher.Open(this, callerNumber, flow.Id);
             }
             catch (Exception ex)
             {

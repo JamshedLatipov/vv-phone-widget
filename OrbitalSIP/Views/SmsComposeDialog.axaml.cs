@@ -129,6 +129,12 @@ public partial class SmsComposeDialog : Window
 
     private async void OnOpened(object? sender, EventArgs e)
     {
+        // CenterOwner positions this window off the softphone widget, which operators
+        // park against a screen edge. With SystemDecorations="None" the header bar is
+        // the only drag handle, so a header pushed off-screen leaves the window
+        // unreachable — pull it back inside the working area before anything else.
+        this.KeepOnScreen();
+
         if (_loadTemplates)
             await LoadTemplatesAsync();
 

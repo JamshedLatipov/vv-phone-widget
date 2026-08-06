@@ -21,8 +21,6 @@ namespace OrbitalSIP.Views
         private bool _muted;
         private bool _onHold;
         private bool _leadCreated;
-        private bool _surveyOpen;
-        private bool _taskOpen;
         private readonly string _callIdentity;
         private readonly Models.ActiveCallSmsLaunchGuard _smsComposeLaunchGuard = new();
         private Action<CallState>? _smsCallStateChangedHandler;
@@ -202,11 +200,11 @@ namespace OrbitalSIP.Views
 
             var scriptBtn = this.FindControl<Button>("ScriptBtn");
             if (scriptBtn != null)
-                scriptBtn.Click += async (_, __) => await ShowScriptsDialog();
+                scriptBtn.Click += (_, __) => ShowScriptsDialog();
 
             var surveyBtn = this.FindControl<Button>("SurveyBtn");
             if (surveyBtn != null)
-                surveyBtn.Click += async (_, __) => await ShowSurveyDialog();
+                surveyBtn.Click += (_, __) => ShowSurveyDialog();
 
             var leadBtn = this.FindControl<Button>("CreateLeadBtn");
             if (leadBtn != null)
@@ -214,7 +212,7 @@ namespace OrbitalSIP.Views
 
             var taskBtn = this.FindControl<Button>("TaskBtn");
             if (taskBtn != null)
-                taskBtn.Click += async (_, __) => await ShowTaskDialog();
+                taskBtn.Click += (_, __) => ShowTaskDialog();
 
             var leadRetryBtn = this.FindControl<Button>("LeadRetryBtn");
             if (leadRetryBtn != null)
@@ -803,65 +801,93 @@ namespace OrbitalSIP.Views
             label.IsVisible = false;
         }
 
-        private async Task ShowSurveyDialog()
+        private void ShowSurveyDialog()
         {
-            if (_surveyOpen) return;
             var topLevel = TopLevel.GetTopLevel(this) as Window;
             if (topLevel == null) return;
 
             var callerNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? "";
-            var dialog = new SurveyDialog(callerNumber);
-            _surveyOpen = true;
+            SurveyWindowLauncher.Open(topLevel, callerNumber);
+        }
+
+        private void ShowTaskDialog()
+        {
+            var topLevel = TopLevel.GetTopLevel(this) as Window;
+            if (topLevel == null) return;
+
+            var callerNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? "";
+
+            // Resolve the call anchor NOW, while the call is still up. The window is no
+            // longer modal, so the operator can hang up before saving — and
+            // /api/cdr/channel-uniqueid only ever resolves the ACTIVE call, so a lookup
+            // deferred to Save would come back empty and silently drop the link.
+            var callLogId = ResolveCallLogIdAsync(callerNumber);
+
+            TaskWindowLauncher.Open(topLevel, callerNumber, request => _ = SubmitTaskAsync(request, callLogId));
+        }
+
+        /// <summary>
+        /// Resolves the CallLog row id that links a task to this call — the field the CRM
+        /// reads to show the call on a task. POST /api/cdr/log upserts by uniqueId, so
+        /// running this when the window opens (rather than on save) only ever creates the
+        /// row the call would get anyway.
+        ///
+        /// Every step reports itself: the whole chain used to fail into a null callLogId,
+        /// which is dropped from the payload, so an unlinked task looked like a clean 201.
+        /// </summary>
+        private static async Task<string?> ResolveCallLogIdAsync(string callerNumber)
+        {
             try
             {
-                await dialog.ShowDialog(topLevel);
+                if (string.IsNullOrWhiteSpace(callerNumber))
+                {
+                    AppLogger.Log("CreateTask", "No call anchor: the call view carries no caller number.");
+                    return null;
+                }
+
+                var uniqueId = await App.ScriptService.GetChannelUniqueIdAsync(callerNumber);
+                if (string.IsNullOrWhiteSpace(uniqueId))
+                {
+                    AppLogger.Log("CreateTask", $"No call anchor: no active channel for '{callerNumber}'.");
+                    return null;
+                }
+
+                var callLogId = await App.ScriptService.SaveCallLogAsync(uniqueId);
+                if (string.IsNullOrWhiteSpace(callLogId))
+                {
+                    AppLogger.Log("CreateTask", $"No call anchor: no CallLog row for uniqueId '{uniqueId}'.");
+                    return null;
+                }
+
+                AppLogger.Log("CreateTask", $"Call anchor resolved: callLogId '{callLogId}'.");
+                return callLogId;
             }
-            finally
+            catch (Exception ex)
             {
-                _surveyOpen = false;
+                AppLogger.Log("CreateTask", $"Call anchor lookup threw: {ex.GetType().Name}: {ex.Message}");
+                return null;
             }
         }
 
-        private async Task ShowTaskDialog()
+        /// <summary>
+        /// Everything the old ShowTaskDialog did after its await. The task window is no
+        /// longer modal, so this runs off its TaskConfirmed event instead.
+        /// </summary>
+        private async Task SubmitTaskAsync(Models.CreateTaskRequest request, Task<string?> callLogIdLookup)
         {
-            if (_taskOpen) return;
-            var topLevel = TopLevel.GetTopLevel(this) as Window;
-            if (topLevel == null) return;
-
-            var callerNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? "";
-
-            _taskOpen = true;
-            Models.CreateTaskRequest? request;
-            try
-            {
-                var dialog = new TaskDialog(callerNumber);
-                request = await dialog.ShowDialog<Models.CreateTaskRequest?>(topLevel);
-            }
-            finally
-            {
-                _taskOpen = false;
-            }
-
-            if (request == null) return;
-
             // Assign to the current operator (numeric user id from the JWT), when available.
             var sub = App.SipService?.CurrentSettings?.DecodedToken?.Sub;
             if (int.TryParse(sub, out var userId))
                 request.AssignedToId = userId;
+            else
+                // Unassigned tasks used to leave no trace at all: assignedToId is dropped
+                // from the payload when null, so the POST looked perfectly healthy.
+                AppLogger.Log("CreateTask",
+                    $"No assignee — JWT sub is not a user id (sub: {(sub == null ? "<absent>" : $"'{sub}'")}).");
 
-            // Link the task to this call via its CallLog row id — the field the CRM reads
-            // to show the linked call. Resolve the call's Asterisk uniqueId, then ensure a
-            // CallLog row exists and grab its id (POST /api/cdr/log upserts by uniqueId).
-            if (!string.IsNullOrWhiteSpace(callerNumber))
-            {
-                var uniqueId = await App.ScriptService.GetChannelUniqueIdAsync(callerNumber);
-                if (!string.IsNullOrWhiteSpace(uniqueId))
-                {
-                    var callLogId = await App.ScriptService.SaveCallLogAsync(uniqueId);
-                    if (!string.IsNullOrWhiteSpace(callLogId))
-                        request.CallLogId = callLogId;
-                }
-            }
+            var callLogId = await callLogIdLookup;
+            if (!string.IsNullOrWhiteSpace(callLogId))
+                request.CallLogId = callLogId;
 
             var taskBtn = this.FindControl<Button>("TaskBtn");
             if (taskBtn != null) taskBtn.IsEnabled = false;
@@ -888,8 +914,7 @@ namespace OrbitalSIP.Views
 
             if (smsBtn != null) smsBtn.IsEnabled = false;
             SetSmsComposeError(null);
-            SmsComposeDialog? dialog = null;
-            EventHandler? closedHandler = null;
+            var shown = false;
 
             try
             {
@@ -905,15 +930,16 @@ namespace OrbitalSIP.Views
                     return;
                 }
 
-                dialog = new SmsComposeDialog(context.Source, context.LockedDisplayNumber);
+                var dialog = new SmsComposeDialog(context.Source, context.LockedDisplayNumber);
                 _activeSmsDialog = dialog;
-                closedHandler = (_, _) =>
+                dialog.Closed += (_, _) =>
                 {
                     if (ReferenceEquals(_activeSmsDialog, dialog))
                         _activeSmsDialog = null;
+                    ReleaseSmsComposeLaunch(snapshot, smsBtn);
                 };
-                dialog.Closed += closedHandler;
-                await dialog.ShowDialog(topLevel);
+                dialog.Show(topLevel);
+                shown = true;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -931,14 +957,19 @@ namespace OrbitalSIP.Views
             }
             finally
             {
-                if (dialog != null && closedHandler != null)
-                    dialog.Closed -= closedHandler;
-                if (ReferenceEquals(_activeSmsDialog, dialog))
-                    _activeSmsDialog = null;
-                _smsComposeLaunchGuard.Complete(snapshot);
-                if (smsBtn != null && IsSourceCallCurrent())
-                    smsBtn.IsEnabled = true;
+                // Show returns as soon as the window is up, so the launch outlives this
+                // method now. Only a launch that never put a window on screen ends here;
+                // otherwise the Closed handler owns the teardown.
+                if (!shown) ReleaseSmsComposeLaunch(snapshot, smsBtn);
             }
+        }
+
+        /// <summary>Frees the launch slot and gives the SMS button back, if this call still owns it.</summary>
+        private void ReleaseSmsComposeLaunch(Models.ActiveCallSmsLaunchSnapshot snapshot, Button? smsBtn)
+        {
+            _smsComposeLaunchGuard.Complete(snapshot);
+            if (smsBtn != null && IsSourceCallCurrent())
+                smsBtn.IsEnabled = true;
         }
 
         private bool IsSourceCallCurrent()
@@ -984,22 +1015,23 @@ namespace OrbitalSIP.Views
             }
         }
 
-        private async Task ShowScriptsDialog()
+        private void ShowScriptsDialog()
         {
             var topLevel = TopLevel.GetTopLevel(this) as Window;
             if (topLevel == null) return;
 
-            var dialog = new ScriptsDialog();
-            var result = await dialog.ShowDialog<Models.ScriptSelection?>(topLevel);
+            // The number is read here rather than in the continuation: by the time the
+            // operator picks a script the label may already belong to the next call.
+            var number = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? "";
 
-            if (result != null)
-            {
-                var callerLabel = this.FindControl<TextBlock>("CallerNumberLabel");
-                var number = callerLabel?.Text?.Trim() ?? "";
-                var uniqueId = await App.ScriptService.GetChannelUniqueIdAsync(number);
-                if (uniqueId != null)
-                    await App.ScriptService.RegisterAndMarkAsync(uniqueId, result);
-            }
+            ScriptsWindowLauncher.Open(topLevel, selection => _ = RegisterScriptAsync(number, selection));
+        }
+
+        private static async Task RegisterScriptAsync(string number, Models.ScriptSelection selection)
+        {
+            var uniqueId = await App.ScriptService.GetChannelUniqueIdAsync(number);
+            if (uniqueId != null)
+                await App.ScriptService.RegisterAndMarkAsync(uniqueId, selection);
         }
 
         private void ToggleHold()

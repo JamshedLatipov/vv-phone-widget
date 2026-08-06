@@ -11,11 +11,20 @@ namespace OrbitalSIP.Views
 {
     /// <summary>
     /// Collects task fields (title, description, priority, due, type) for a task
-    /// created off an active call. Returns a <see cref="CreateTaskRequest"/> on save
-    /// (without the call anchor / assignee — the caller fills those in), or null on cancel.
+    /// created off an active call. Raises <see cref="TaskConfirmed"/> on save
+    /// (without the call anchor / assignee — the caller fills those in), and nothing
+    /// at all on cancel.
     /// </summary>
     public partial class TaskDialog : Window
     {
+        /// <summary>
+        /// Carries the filled-in request out of the window. This used to be the result
+        /// of ShowDialog&lt;CreateTaskRequest?&gt;, but a modal dialog disables its owner —
+        /// the operator could not hang up or answer the next call while it was up — so
+        /// the window is now an ordinary owned one and hands its result over by event.
+        /// </summary>
+        public event EventHandler<CreateTaskRequest>? TaskConfirmed;
+
         private TextBox _titleBox = null!;
         private TextBox _descriptionBox = null!;
         private ComboBox _priorityBox = null!;
@@ -37,10 +46,10 @@ namespace OrbitalSIP.Views
             _errorLabel = this.FindControl<TextBlock>("ErrorLabel")!;
 
             var closeBtn = this.FindControl<Button>("CloseBtn");
-            if (closeBtn != null) closeBtn.Click += (_, __) => Close(null);
+            if (closeBtn != null) closeBtn.Click += (_, __) => Close();
 
             var cancelBtn = this.FindControl<Button>("CancelBtn");
-            if (cancelBtn != null) cancelBtn.Click += (_, __) => Close(null);
+            if (cancelBtn != null) cancelBtn.Click += (_, __) => Close();
 
             var saveBtn = this.FindControl<Button>("SaveBtn");
             if (saveBtn != null) saveBtn.Click += (_, __) => Confirm();
@@ -66,12 +75,24 @@ namespace OrbitalSIP.Views
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
+        /// <summary>
+        /// CenterOwner positions this window off the softphone widget, which operators
+        /// park against a screen edge. With SystemDecorations="None" the header bar is
+        /// the only drag handle, so a header pushed off-screen leaves the window
+        /// unreachable — pull it back inside the working area.
+        /// </summary>
+        protected override void OnOpened(EventArgs e)
+        {
+            base.OnOpened(e);
+            this.KeepOnScreen();
+        }
+
         private void OnDialogKeyDown(object? sender, KeyEventArgs e)
         {
             if (e.Key == Key.Escape)
             {
                 e.Handled = true;
-                Close(null);
+                Close();
             }
         }
 
@@ -147,7 +168,10 @@ namespace OrbitalSIP.Views
                 TaskTypeId = SelectedTag(_typeBox) as int?,
             };
 
-            Close(request);
+            // Hand the request over before closing: the Closed handler is what releases
+            // the launcher's slot, so raising afterwards would race a re-open.
+            TaskConfirmed?.Invoke(this, request);
+            Close();
         }
 
         private static object? SelectedTag(ComboBox box)

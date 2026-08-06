@@ -158,31 +158,32 @@ namespace OrbitalSIP.Views
             }
         }
 
-        private async void OnCdrScriptClicked(object? sender, RoutedEventArgs e)
+        private void OnCdrScriptClicked(object? sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.Tag is CdrItemViewModel vm)
             {
                 var topLevel = Avalonia.Controls.TopLevel.GetTopLevel(this) as Avalonia.Controls.Window;
                 if (topLevel == null) return;
 
-                var dialog = new ScriptsDialog();
-                var result = await dialog.ShowDialog<ScriptSelection?>(topLevel);
-
-                if (result != null && !string.IsNullOrEmpty(vm.Entry.UniqueId))
-                {
-                    if (await App.ScriptService.RegisterAndMarkAsync(vm.Entry.UniqueId, result))
-                        _ = LoadCallHistoryAsync();
-                }
+                ScriptsWindowLauncher.Open(topLevel, selection => _ = RegisterScriptAsync(vm, selection));
             }
         }
 
-        private async void OnCdrSmsClicked(object? sender, RoutedEventArgs e)
+        private async Task RegisterScriptAsync(CdrItemViewModel vm, ScriptSelection selection)
         {
-            if (sender is Button { Tag: CdrItemViewModel vm } smsButton)
-                await ShowHistorySmsComposeDialogAsync(vm, smsButton);
+            if (string.IsNullOrEmpty(vm.Entry.UniqueId)) return;
+
+            if (await App.ScriptService.RegisterAndMarkAsync(vm.Entry.UniqueId, selection))
+                _ = LoadCallHistoryAsync();
         }
 
-        private async Task ShowHistorySmsComposeDialogAsync(CdrItemViewModel vm, Button smsButton)
+        private void OnCdrSmsClicked(object? sender, RoutedEventArgs e)
+        {
+            if (sender is Button { Tag: CdrItemViewModel vm } smsButton)
+                ShowHistorySmsComposeDialog(vm, smsButton);
+        }
+
+        private void ShowHistorySmsComposeDialog(CdrItemViewModel vm, Button smsButton)
         {
             if (_isDetached || _historySmsLaunchInProgress || _historySmsDialog is not null)
                 return;
@@ -200,20 +201,21 @@ namespace OrbitalSIP.Views
             _historySmsLaunchInProgress = true;
             smsButton.IsEnabled = false;
             SetSmsComposeError(null);
-            SmsComposeDialog? dialog = null;
-            EventHandler? closedHandler = null;
+            var shown = false;
 
             try
             {
-                dialog = new SmsComposeDialog(context.Source, context.LockedDisplayNumber);
+                var dialog = new SmsComposeDialog(context.Source, context.LockedDisplayNumber);
                 _historySmsDialog = dialog;
-                closedHandler = (_, _) =>
+                dialog.Closed += (_, _) =>
                 {
                     if (ReferenceEquals(_historySmsDialog, dialog))
                         _historySmsDialog = null;
+                    if (!_isDetached)
+                        smsButton.IsEnabled = true;
                 };
-                dialog.Closed += closedHandler;
-                await dialog.ShowDialog(owner);
+                dialog.Show(owner);
+                shown = true;
             }
             catch (Exception ex)
             {
@@ -225,13 +227,16 @@ namespace OrbitalSIP.Views
             }
             finally
             {
-                if (dialog is not null && closedHandler is not null)
-                    dialog.Closed -= closedHandler;
-                if (ReferenceEquals(_historySmsDialog, dialog))
-                    _historySmsDialog = null;
+                // Show returns as soon as the window is up, so this flag only ever covered
+                // getting it there; from here on _historySmsDialog is what refuses a second
+                // window, and its Closed handler gives the button back.
                 _historySmsLaunchInProgress = false;
-                if (!_isDetached)
-                    smsButton.IsEnabled = true;
+                if (!shown)
+                {
+                    _historySmsDialog = null;
+                    if (!_isDetached)
+                        smsButton.IsEnabled = true;
+                }
             }
         }
 

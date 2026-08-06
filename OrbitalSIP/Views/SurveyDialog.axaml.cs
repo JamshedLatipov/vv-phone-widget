@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
@@ -34,8 +36,19 @@ namespace OrbitalSIP.Views
         // abandon
         private string? _selectedAbandonReason;
 
-        // handler leak guard
+        // handler leak guard — the box the handler is attached to, so we detach
+        // from that one rather than from whichever box the next node happens to use
         private EventHandler<TextChangedEventArgs>? _textChangedHandler;
+        private TextBox? _textChangedSource;
+
+        // Closing the window cancels whatever request is in flight. Without this a
+        // slow backend kept the operator's answer travelling long after they gave
+        // up on the window, and its continuation wrote into dead controls.
+        //
+        // Deliberately not disposed: SendAsync registers on the token, so disposing
+        // while a request is still unwinding throws ObjectDisposedException. Cancel()
+        // already releases the registrations.
+        private readonly CancellationTokenSource _closed = new();
 
         private static readonly string[] AbandonReasons =
         {
@@ -57,43 +70,88 @@ namespace OrbitalSIP.Views
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
+        /// <summary>
+        /// CenterOwner positions this window off the softphone widget, which operators
+        /// park against a screen edge. With SystemDecorations="None" the header bar is
+        /// the only drag handle, so a header pushed off-screen leaves the window
+        /// unreachable — pull it back inside the working area.
+        /// </summary>
+        protected override void OnOpened(EventArgs e)
+        {
+            base.OnOpened(e);
+            this.KeepOnScreen();
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _closed.Cancel();
+            DetachRequiredInputWatcher();
+            base.OnClosed(e);
+        }
+
         // ── Init: resolve uniqueid then load list ────────────────────────────
 
         private async Task InitAsync()
         {
-            var uniqueId = await _svc.GetChannelUniqueIdAsync(_callerNumber);
-            _subjectId = uniqueId ?? _callerNumber;
-
-            if (uniqueId == null)
+            // The uniqueid lookup is a backend round-trip like any other, so it gets
+            // the same spinner. It used to run bare: the window opened blank and
+            // stayed blank for as long as the backend took.
+            SetBusy(true);
+            try
             {
-                ShowHint("Не удалось определить звонок — используется номер как идентификатор");
-            }
+                var uniqueId = await _svc.GetChannelUniqueIdAsync(_callerNumber, _closed.Token);
+                if (_closed.IsCancellationRequested) return;
 
-            // Campaign call with a bound questionnaire → resume an in-progress run
-            // for this call if one exists, otherwise start the bound flow directly.
-            if (!string.IsNullOrEmpty(_autoFlowId))
-            {
-                if (_subjectId != null)
+                _subjectId = uniqueId ?? _callerNumber;
+
+                if (uniqueId == null)
                 {
-                    var runs = await _svc.ListRunsAsync(_subjectId);
-                    var existing = runs.FirstOrDefault(
-                        r => r.Status == "in_progress" && r.FlowId == _autoFlowId);
-                    if (existing?.Id != null)
-                    {
-                        await ResumeRunAsync(existing.Id);
-                        return;
-                    }
+                    ShowHint("Не удалось определить звонок — используется номер как идентификатор");
                 }
-                await StartFlowAsync(_autoFlowId);
-                return;
-            }
 
-            await LoadListAsync();
+                // Campaign call with a bound questionnaire → resume an in-progress run
+                // for this call if one exists, otherwise start the bound flow directly.
+                if (!string.IsNullOrEmpty(_autoFlowId))
+                {
+                    if (_subjectId != null)
+                    {
+                        var runs = await _svc.ListRunsAsync(_subjectId, _closed.Token);
+                        if (_closed.IsCancellationRequested) return;
+
+                        var existing = runs.FirstOrDefault(
+                            r => r.Status == "in_progress" && r.FlowId == _autoFlowId);
+                        if (existing?.Id != null)
+                        {
+                            await ResumeRunAsync(existing.Id);
+                            return;
+                        }
+                    }
+                    await StartFlowAsync(_autoFlowId);
+                    return;
+                }
+
+                await LoadListAsync();
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        /// <summary>Queues UI work, dropping it if the window closed in the meantime.</summary>
+        private void UiPost(Action action)
+        {
+            if (_closed.IsCancellationRequested) return;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_closed.IsCancellationRequested) return;
+                action();
+            });
         }
 
         private void ShowHint(string msg)
         {
-            Dispatcher.UIThread.Post(() =>
+            UiPost(() =>
             {
                 var lbl = this.FindControl<TextBlock>("ErrorLabel");
                 if (lbl == null) return;
@@ -106,7 +164,7 @@ namespace OrbitalSIP.Views
 
         private async Task LoadListAsync()
         {
-            Dispatcher.UIThread.Post(() =>
+            UiPost(() =>
             {
                 Show("LoadingLabel", true);
                 Show("EmptyLabel", false);
@@ -118,11 +176,12 @@ namespace OrbitalSIP.Views
             List<FlowDefinition> flows = new();
 
             if (_subjectId != null)
-                runs = await _svc.ListRunsAsync(_subjectId);
+                runs = await _svc.ListRunsAsync(_subjectId, _closed.Token);
 
-            flows = await _svc.ListFlowsAsync();
+            flows = await _svc.ListFlowsAsync(_closed.Token);
+            if (_closed.IsCancellationRequested) return;
 
-            Dispatcher.UIThread.Post(() =>
+            UiPost(() =>
             {
                 Show("LoadingLabel", false);
 
@@ -196,8 +255,9 @@ namespace OrbitalSIP.Views
         private async Task StartFlowAsync(string flowId)
         {
             SetBusy(true);
-            var resp = await _svc.StartRunAsync(flowId, _subjectId!, phone: _callerNumber);
+            var resp = await _svc.StartRunAsync(flowId, _subjectId!, phone: _callerNumber, ct: _closed.Token);
             SetBusy(false);
+            if (_closed.IsCancellationRequested) return;
 
             if (resp?.Run == null || resp.Graph == null)
             {
@@ -211,8 +271,9 @@ namespace OrbitalSIP.Views
         private async Task ResumeRunAsync(string runId)
         {
             SetBusy(true);
-            var state = await _svc.GetRunStateAsync(runId);
+            var state = await _svc.GetRunStateAsync(runId, _closed.Token);
             SetBusy(false);
+            if (_closed.IsCancellationRequested) return;
 
             if (state?.Run == null || state.Graph == null)
             {
@@ -233,7 +294,7 @@ namespace OrbitalSIP.Views
             _runContext = context;
             _stepCounter = step;
 
-            Dispatcher.UIThread.Post(() =>
+            UiPost(() =>
             {
                 Show("ListPhase", false);
                 Show("WizardPhase", true);
@@ -251,6 +312,7 @@ namespace OrbitalSIP.Views
         private void RenderNode(string? nodeKey)
         {
             _currentNodeKey = nodeKey;
+            DetachRequiredInputWatcher();
 
             if (nodeKey == null || !_graph.TryGetValue(nodeKey, out var node))
             {
@@ -381,25 +443,33 @@ namespace OrbitalSIP.Views
 
             var answerType = node.AnswerType ?? "none";
             if (answerType == "text")
-            {
-                var box = this.FindControl<TextBox>("TextAnswerBox");
-                if (box != null)
-                {
-                    if (_textChangedHandler != null) box.TextChanged -= _textChangedHandler;
-                    _textChangedHandler = (_, __) => { if (nextBtn != null) nextBtn.IsEnabled = !string.IsNullOrWhiteSpace(box.Text); };
-                    box.TextChanged += _textChangedHandler;
-                }
-            }
+                AttachRequiredInputWatcher(this.FindControl<TextBox>("TextAnswerBox"), nextBtn);
             else if (answerType == "number")
-            {
-                var box = this.FindControl<TextBox>("NumberAnswerBox");
-                if (box != null)
-                {
-                    if (_textChangedHandler != null) box.TextChanged -= _textChangedHandler;
-                    _textChangedHandler = (_, __) => { if (nextBtn != null) nextBtn.IsEnabled = !string.IsNullOrWhiteSpace(box.Text); };
-                    box.TextChanged += _textChangedHandler;
-                }
-            }
+                AttachRequiredInputWatcher(this.FindControl<TextBox>("NumberAnswerBox"), nextBtn);
+        }
+
+        private void AttachRequiredInputWatcher(TextBox? box, Button nextBtn)
+        {
+            DetachRequiredInputWatcher();
+            if (box == null) return;
+
+            _textChangedSource = box;
+            _textChangedHandler = (_, __) => nextBtn.IsEnabled = !string.IsNullOrWhiteSpace(box.Text);
+            box.TextChanged += _textChangedHandler;
+        }
+
+        /// <summary>
+        /// Detaches from the box the handler was actually attached to. Detaching from
+        /// whichever box the *current* node uses left the previous node's handler live,
+        /// so a long questionnaire piled them up on the text boxes.
+        /// </summary>
+        private void DetachRequiredInputWatcher()
+        {
+            if (_textChangedSource != null && _textChangedHandler != null)
+                _textChangedSource.TextChanged -= _textChangedHandler;
+
+            _textChangedSource = null;
+            _textChangedHandler = null;
         }
 
         private async Task SubmitAnswerAsync(string? value, string? comment)
@@ -408,18 +478,20 @@ namespace OrbitalSIP.Views
 
             SetWizardBusy(true);
 
-            var resp = await _svc.AnswerAsync(_runId, _currentNodeKey, value, comment);
+            var resp = await _svc.AnswerAsync(_runId, _currentNodeKey, value, comment, _closed.Token);
+            if (_closed.IsCancellationRequested) return;
 
             if (resp == null)
             {
                 // 409 or error — reload state
-                var state = await _svc.GetRunStateAsync(_runId);
+                var state = await _svc.GetRunStateAsync(_runId, _closed.Token);
                 SetWizardBusy(false);
+                if (_closed.IsCancellationRequested) return;
                 if (state == null) return;
                 _runContext = state.Run?.Context;
                 var answeredCount = state.Answers?.Count(a => a.SupersededAt == null) ?? 0;
                 _stepCounter = answeredCount + 1;
-                Dispatcher.UIThread.Post(() => RenderNode(state.CurrentNodeKey));
+                UiPost(() => RenderNode(state.CurrentNodeKey));
                 return;
             }
 
@@ -428,7 +500,7 @@ namespace OrbitalSIP.Views
             // Show verification banner before moving
             if (!string.IsNullOrEmpty(resp.VerificationResult))
             {
-                Dispatcher.UIThread.Post(() =>
+                UiPost(() =>
                 {
                     var banner = this.FindControl<Border>("VerificationBanner");
                     var text = this.FindControl<TextBlock>("VerificationText");
@@ -451,12 +523,12 @@ namespace OrbitalSIP.Views
 
             if (resp.Completed)
             {
-                Dispatcher.UIThread.Post(() => ShowCompleted(resp.Verdict));
+                UiPost(() => ShowCompleted(resp.Verdict));
                 return;
             }
 
             _stepCounter++;
-            Dispatcher.UIThread.Post(() => RenderNode(resp.NextNodeKey));
+            UiPost(() => RenderNode(resp.NextNodeKey));
         }
 
         private void ShowCompleted(JsonElement? verdict)
@@ -612,7 +684,8 @@ namespace OrbitalSIP.Views
         private async Task ConfirmAbandonAsync()
         {
             if (_runId == null) { Close(); return; }
-            var ok = await _svc.AbandonAsync(_runId, _selectedAbandonReason);
+            var ok = await _svc.AbandonAsync(_runId, _selectedAbandonReason, _closed.Token);
+            if (_closed.IsCancellationRequested) return;
             if (!ok)
             {
                 ShowHint("Не удалось прервать — попробуйте ещё раз");
@@ -643,13 +716,14 @@ namespace OrbitalSIP.Views
             if (_runId == null) return;
 
             SetWizardBusy(true);
-            var nodeKey = await _svc.BackAsync(_runId);
+            var nodeKey = await _svc.BackAsync(_runId, _closed.Token);
             SetWizardBusy(false);
+            if (_closed.IsCancellationRequested) return;
 
             if (nodeKey != null)
             {
                 if (_stepCounter > 1) _stepCounter--;
-                Dispatcher.UIThread.Post(() => RenderNode(nodeKey));
+                UiPost(() => RenderNode(nodeKey));
             }
         }
 
@@ -657,7 +731,7 @@ namespace OrbitalSIP.Views
 
         private void SetBusy(bool busy)
         {
-            Dispatcher.UIThread.Post(() =>
+            UiPost(() =>
             {
                 Show("LoadingLabel", busy);
                 Enable("InProgressSection", !busy);
@@ -667,11 +741,15 @@ namespace OrbitalSIP.Views
 
         private void SetWizardBusy(bool busy)
         {
-            Dispatcher.UIThread.Post(() =>
+            UiPost(() =>
             {
                 Enable("NextBtn", !busy);
                 Enable("BackBtn", !busy);
                 Enable("AbandonBtn", !busy);
+                // The option buttons submit on click, so they need the same lock —
+                // otherwise an impatient second click races the first answer into a 409.
+                Enable("ButtonsArea", !busy);
+                Show("WizardBusyLabel", busy);
             });
         }
 
