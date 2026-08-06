@@ -1,12 +1,17 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using Avalonia.Threading;
+using Material.Icons;
+using Material.Icons.Avalonia;
 using OrbitalSIP.Models;
 using OrbitalSIP.Services;
 
@@ -14,39 +19,43 @@ namespace OrbitalSIP.Views;
 
 public partial class SmsComposeDialog : Window
 {
-    private static readonly IBrush SelectedModeBrush = Brush.Parse("#1D4ED8");
-    private static readonly IBrush UnselectedModeBrush = Brush.Parse("#1E293B");
+    private static readonly TimeSpan SuccessCloseDelay = TimeSpan.FromMilliseconds(1500);
     private static readonly IBrush NormalCountBrush = Brush.Parse("#64748B");
     private static readonly IBrush InvalidCountBrush = Brush.Parse("#F87171");
+    private static readonly IBrush NeutralBorderBrush = Brush.Parse("#334155");
+    private static readonly IBrush NeutralForegroundBrush = Brush.Parse("#94A3B8");
+    private static readonly IBrush CancelSendBorderBrush = Brush.Parse("#7F1D1D");
+    private static readonly IBrush CancelSendForegroundBrush = Brush.Parse("#FCA5A5");
+    private static readonly IBrush SendEnabledBrush = Brush.Parse("#3B82F6");
+    private static readonly IBrush SendDisabledBrush = Brush.Parse("#1E3A6B");
+    private static readonly IBrush SendEnabledForegroundBrush = Brush.Parse("#FFFFFF");
+    private static readonly IBrush SendDisabledForegroundBrush = Brush.Parse("#7796C4");
 
     private readonly SmsComposeState _state;
     private readonly SmsComposeSendSession _sendSession;
     private readonly SmsService _smsService;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly bool _loadTemplates;
+    private DispatcherTimer? _successCloseTimer;
     private bool _contentWasEdited;
+    private bool _suppressContentChanged;
+    private bool _lastSendFailed;
 
     private TextBlock _recipientValue = null!;
-    private Button _templateModeButton = null!;
-    private Button _freeTextModeButton = null!;
-    private StackPanel _templateArea = null!;
-    private ComboBox _templateBox = null!;
+    private AutoCompleteBox _templateBox = null!;
+    private Button _clearTemplateButton = null!;
     private TextBlock _templateStatusLabel = null!;
     private TextBox _contentBox = null!;
     private TextBlock _validationLabel = null!;
     private TextBlock _countLabel = null!;
+    private Border _errorBanner = null!;
     private TextBlock _errorLabel = null!;
     private Border _successBanner = null!;
     private Grid _composeFooter = null!;
-    private StackPanel _confirmationFooter = null!;
     private Button _sendButton = null!;
+    private MaterialIcon _sendIcon = null!;
+    private TextBlock _sendLabel = null!;
     private Button _cancelButton = null!;
-    private Button _backButton = null!;
-    private Button _cancelSendButton = null!;
-    private Button _confirmButton = null!;
-    private TextBlock _confirmRecipientValue = null!;
-    private TextBlock _confirmContentValue = null!;
-    private TextBlock _progressLabel = null!;
 
     public SmsComposeDialog()
         : this(new SmsCallSource("active", "design-time"), "—", App.SmsService, loadTemplates: false)
@@ -71,8 +80,9 @@ public partial class SmsComposeDialog : Window
 
         InitializeComponent();
         FindControls();
+        ConfigureTemplateBox();
         WireEvents();
-        _recipientValue.Text = _state.Recipient;
+        _recipientValue.Text = SmsRecipientFormatter.Format(_state.Recipient);
         Render();
     }
 
@@ -81,46 +91,62 @@ public partial class SmsComposeDialog : Window
     private void FindControls()
     {
         _recipientValue = this.FindControl<TextBlock>("RecipientValue")!;
-        _templateModeButton = this.FindControl<Button>("TemplateModeBtn")!;
-        _freeTextModeButton = this.FindControl<Button>("FreeTextModeBtn")!;
-        _templateArea = this.FindControl<StackPanel>("TemplateArea")!;
-        _templateBox = this.FindControl<ComboBox>("TemplateBox")!;
+        _templateBox = this.FindControl<AutoCompleteBox>("TemplateBox")!;
+        _clearTemplateButton = this.FindControl<Button>("ClearTemplateBtn")!;
         _templateStatusLabel = this.FindControl<TextBlock>("TemplateStatusLabel")!;
         _contentBox = this.FindControl<TextBox>("ContentBox")!;
         _validationLabel = this.FindControl<TextBlock>("ValidationLabel")!;
         _countLabel = this.FindControl<TextBlock>("CountLabel")!;
+        _errorBanner = this.FindControl<Border>("ErrorBanner")!;
         _errorLabel = this.FindControl<TextBlock>("ErrorLabel")!;
         _successBanner = this.FindControl<Border>("SuccessBanner")!;
         _composeFooter = this.FindControl<Grid>("ComposeFooter")!;
-        _confirmationFooter = this.FindControl<StackPanel>("ConfirmationFooter")!;
         _sendButton = this.FindControl<Button>("SendBtn")!;
+        _sendIcon = this.FindControl<MaterialIcon>("SendIcon")!;
+        _sendLabel = this.FindControl<TextBlock>("SendLabel")!;
         _cancelButton = this.FindControl<Button>("CancelBtn")!;
-        _backButton = this.FindControl<Button>("BackBtn")!;
-        _cancelSendButton = this.FindControl<Button>("CancelSendBtn")!;
-        _confirmButton = this.FindControl<Button>("ConfirmBtn")!;
-        _confirmRecipientValue = this.FindControl<TextBlock>("ConfirmRecipientValue")!;
-        _confirmContentValue = this.FindControl<TextBlock>("ConfirmContentValue")!;
-        _progressLabel = this.FindControl<TextBlock>("ProgressLabel")!;
+    }
+
+    private void ConfigureTemplateBox()
+    {
+        // Name is what lands in the text box after a pick; the filter below is what
+        // decides visibility, and it deliberately looks at the body too.
+        _templateBox.ValueMemberBinding = new Binding("Name");
+        _templateBox.FilterMode = AutoCompleteFilterMode.Custom;
+        _templateBox.ItemFilter = (search, item) =>
+        {
+            if (item is not MessageTemplateDto template)
+                return false;
+            if (string.IsNullOrWhiteSpace(search))
+                return true;
+
+            return template.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+                   (template.Content?.Contains(search, StringComparison.CurrentCultureIgnoreCase) ?? false);
+        };
     }
 
     private void WireEvents()
     {
         this.FindControl<Button>("CloseBtn")!.Click += (_, _) => CloseDialog();
         _cancelButton.Click += (_, _) => CancelOrClose();
-        _templateModeButton.Click += (_, _) => SwitchMode(SmsComposeMode.Template);
-        _freeTextModeButton.Click += (_, _) => SwitchMode(SmsComposeMode.FreeText);
+        _clearTemplateButton.Click += (_, _) => ClearTemplate();
         _templateBox.SelectionChanged += (_, _) => SelectTemplate();
+        // An empty prefix must still show the whole list, otherwise the control
+        // reads as a dead text box to anyone used to the old combo box.
+        _templateBox.GotFocus += (_, _) =>
+        {
+            if (_templateBox.IsEnabled)
+                _templateBox.IsDropDownOpen = true;
+        };
         _contentBox.TextChanged += (_, _) => EditContent();
-        _sendButton.Click += (_, _) => ShowConfirmation();
-        _backButton.Click += (_, _) => HideConfirmation();
-        _cancelSendButton.Click += (_, _) => CancelActiveSend();
-        _confirmButton.Click += async (_, _) => await SendConfirmedAsync();
+        _sendButton.Click += async (_, _) => await SendAsync();
 
         this.EnableDrag(this.FindControl<Border>("HeaderBar"));
         KeyDown += OnDialogKeyDown;
         Opened += OnOpened;
         Closed += (_, _) =>
         {
+            StopSuccessClose();
             _sendSession.Dispose();
             _lifetimeCancellation.Cancel();
             _lifetimeCancellation.Dispose();
@@ -138,10 +164,7 @@ public partial class SmsComposeDialog : Window
         if (_loadTemplates)
             await LoadTemplatesAsync();
 
-        if (_state.Mode == SmsComposeMode.Template && _templateBox.IsEnabled)
-            _templateBox.Focus();
-        else
-            _contentBox.Focus();
+        _contentBox.Focus();
     }
 
     private async Task LoadTemplatesAsync()
@@ -152,16 +175,14 @@ public partial class SmsComposeDialog : Window
         try
         {
             var templates = await _smsService.GetTemplatesAsync(_lifetimeCancellation.Token);
-            foreach (var template in templates)
-            {
-                _templateBox.Items.Add(new ComboBoxItem
-                {
-                    Content = template.Name,
-                    Tag = template,
-                });
-            }
+            // A template with no body cannot be composed from; hiding it beats
+            // offering a pick that throws in SelectTemplate.
+            var usable = templates
+                .Where(template => !string.IsNullOrWhiteSpace(template.Content))
+                .ToList();
+            _templateBox.ItemsSource = usable;
 
-            if (templates.Count == 0)
+            if (usable.Count == 0)
                 SetTemplateStatus("SmsTemplatesEmpty");
             else
                 HideTemplateStatus();
@@ -177,34 +198,33 @@ public partial class SmsComposeDialog : Window
         finally
         {
             if (!_lifetimeCancellation.IsCancellationRequested)
-                _templateBox.IsEnabled = !_state.IsInFlight && !_state.IsQueued;
+                Render();
         }
-    }
-
-    private void SwitchMode(SmsComposeMode mode)
-    {
-        if (_state.IsInFlight || _state.IsQueued)
-            return;
-
-        _state.SwitchMode(mode);
-        ClearTransientMessages();
-        Render();
-        if (mode == SmsComposeMode.Template)
-            _templateBox.Focus();
-        else
-            _contentBox.Focus();
     }
 
     private void SelectTemplate()
     {
         if (_state.IsInFlight || _state.IsQueued ||
-            _templateBox.SelectedItem is not ComboBoxItem { Tag: MessageTemplateDto template })
+            _templateBox.SelectedItem is not MessageTemplateDto template ||
+            string.IsNullOrWhiteSpace(template.Content))
             return;
 
         _state.SelectTemplate(template);
-        _contentBox.Text = _state.Content;
-        _contentBox.CaretIndex = _state.Content.Length;
+        SetContentBoxText(_state.Content);
+        ClearTransientMessages();
         _contentWasEdited = false;
+        Render();
+        _contentBox.Focus();
+    }
+
+    private void ClearTemplate()
+    {
+        if (_state.IsInFlight || _state.IsQueued)
+            return;
+
+        _state.ClearTemplate();
+        _templateBox.SelectedItem = null;
+        _templateBox.Text = string.Empty;
         ClearTransientMessages();
         Render();
         _contentBox.Focus();
@@ -212,7 +232,7 @@ public partial class SmsComposeDialog : Window
 
     private void EditContent()
     {
-        if (_state.IsInFlight || _state.IsQueued)
+        if (_suppressContentChanged || _state.IsInFlight || _state.IsQueued)
             return;
 
         _state.EditContent(_contentBox.Text);
@@ -221,29 +241,30 @@ public partial class SmsComposeDialog : Window
         Render();
     }
 
-    private void ShowConfirmation()
+    /// <summary>Writes text the operator did not type, without counting it as an edit.</summary>
+    private void SetContentBoxText(string text)
     {
-        if (!_state.RequestConfirmation())
+        _suppressContentChanged = true;
+        try
+        {
+            _contentBox.Text = text;
+            _contentBox.CaretIndex = text.Length;
+        }
+        finally
+        {
+            _suppressContentChanged = false;
+        }
+    }
+
+    private async Task SendAsync()
+    {
+        if (!_state.CanSend)
         {
             _contentWasEdited = true;
             Render();
             return;
         }
 
-        ClearTransientMessages();
-        Render();
-        _confirmButton.Focus();
-    }
-
-    private void HideConfirmation()
-    {
-        _state.CancelConfirmation();
-        Render();
-        _contentBox.Focus();
-    }
-
-    private async Task SendConfirmedAsync()
-    {
         if (!_sendSession.TryBeginSend(out var attempt) || attempt is null)
             return;
 
@@ -252,12 +273,13 @@ public partial class SmsComposeDialog : Window
             attempt.CancellationToken,
             _lifetimeCancellation.Token);
         Render();
-        _cancelSendButton.Focus();
+        _cancelButton.Focus();
 
         try
         {
             await _smsService.SendFromCallAsync(attempt.Request, cancellation.Token);
-            _sendSession.CompleteSuccess(attempt);
+            if (_sendSession.CompleteSuccess(attempt) && !_lifetimeCancellation.IsCancellationRequested)
+                StartSuccessClose();
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
@@ -292,6 +314,24 @@ public partial class SmsComposeDialog : Window
         }
     }
 
+    private void StartSuccessClose()
+    {
+        StopSuccessClose();
+        _successCloseTimer = new DispatcherTimer { Interval = SuccessCloseDelay };
+        _successCloseTimer.Tick += (_, _) =>
+        {
+            StopSuccessClose();
+            Close(true);
+        };
+        _successCloseTimer.Start();
+    }
+
+    private void StopSuccessClose()
+    {
+        _successCloseTimer?.Stop();
+        _successCloseTimer = null;
+    }
+
     private void CancelOrClose()
     {
         if (_sendSession.CanCancelSend)
@@ -322,7 +362,7 @@ public partial class SmsComposeDialog : Window
         var key = _sendSession.StatusMessageKey ?? SmsComposeSendSession.CancelledMessageKey;
         ShowError(I18nService.Instance.Get(key));
         Render();
-        _confirmButton.Focus();
+        _sendButton.Focus();
     }
 
     private void OnDialogKeyDown(object? sender, KeyEventArgs e)
@@ -337,39 +377,48 @@ public partial class SmsComposeDialog : Window
         if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             e.Handled = true;
-            if (_state.IsConfirmationVisible)
-                _ = SendConfirmedAsync();
-            else
-                ShowConfirmation();
+            _ = SendAsync();
         }
     }
 
     private void Render()
     {
         var editable = !_state.IsInFlight && !_state.IsQueued;
-        var templateMode = _state.Mode == SmsComposeMode.Template;
+        var canCancelSend = _sendSession.CanCancelSend;
 
-        _templateModeButton.Background = templateMode ? SelectedModeBrush : UnselectedModeBrush;
-        _freeTextModeButton.Background = templateMode ? UnselectedModeBrush : SelectedModeBrush;
-        _templateArea.IsVisible = templateMode;
-        _templateModeButton.IsEnabled = editable;
-        _freeTextModeButton.IsEnabled = editable;
         _templateBox.IsEnabled = editable && _loadTemplates;
+        _clearTemplateButton.IsVisible = _state.SelectedTemplate is not null;
+        _clearTemplateButton.IsEnabled = editable;
         _contentBox.IsEnabled = editable;
-        _sendButton.IsEnabled = _state.CanSend;
 
-        _composeFooter.IsVisible = !_state.IsConfirmationVisible && !_state.IsQueued;
-        _confirmationFooter.IsVisible = _state.IsConfirmationVisible && !_state.IsQueued;
-        _backButton.IsVisible = !_state.IsInFlight;
-        _backButton.IsEnabled = !_state.IsInFlight;
-        _cancelSendButton.IsVisible = _sendSession.CanCancelSend;
-        _cancelSendButton.IsEnabled = _sendSession.CanCancelSend;
-        _confirmButton.IsEnabled = !_state.IsInFlight;
-        _progressLabel.IsVisible = _state.IsInFlight;
-
-        _confirmRecipientValue.Text = _state.Recipient;
-        _confirmContentValue.Text = _state.Content;
+        _composeFooter.IsVisible = !_state.IsQueued;
         _successBanner.IsVisible = _state.IsQueued;
+
+        _cancelButton.Content = I18nService.Instance.Get(canCancelSend ? "SmsCancelSend" : "Cancel");
+        _cancelButton.BorderBrush = canCancelSend ? CancelSendBorderBrush : NeutralBorderBrush;
+        _cancelButton.Foreground = canCancelSend ? CancelSendForegroundBrush : NeutralForegroundBrush;
+
+        _sendButton.IsEnabled = _state.CanSend;
+        _sendButton.Background = _state.CanSend ? SendEnabledBrush : SendDisabledBrush;
+        var sendForeground = _state.CanSend ? SendEnabledForegroundBrush : SendDisabledForegroundBrush;
+        _sendLabel.Foreground = sendForeground;
+        _sendIcon.Foreground = sendForeground;
+
+        if (_state.IsInFlight)
+        {
+            _sendLabel.Text = I18nService.Instance.Get("SmsSendingShort");
+            _sendIcon.Kind = MaterialIconKind.ClockOutline;
+        }
+        else if (_lastSendFailed)
+        {
+            _sendLabel.Text = I18nService.Instance.Get("SmsRetry");
+            _sendIcon.Kind = MaterialIconKind.Refresh;
+        }
+        else
+        {
+            _sendLabel.Text = I18nService.Instance.Get("SmsSend");
+            _sendIcon.Kind = MaterialIconKind.Send;
+        }
 
         _countLabel.Text = string.Format(
             CultureInfo.CurrentCulture,
@@ -389,7 +438,6 @@ public partial class SmsComposeDialog : Window
         {
             SmsComposeValidation.ContentRequired => "SmsContentRequired",
             SmsComposeValidation.ContentTooLong => "SmsContentTooLong",
-            SmsComposeValidation.TemplateRequired => "SmsTemplateRequired",
             _ => null,
         };
 
@@ -401,14 +449,16 @@ public partial class SmsComposeDialog : Window
 
     private void ClearTransientMessages()
     {
-        _errorLabel.IsVisible = false;
+        _lastSendFailed = false;
+        _errorBanner.IsVisible = false;
         _errorLabel.Text = string.Empty;
     }
 
     private void ShowError(string message)
     {
+        _lastSendFailed = true;
         _errorLabel.Text = message;
-        _errorLabel.IsVisible = true;
+        _errorBanner.IsVisible = true;
     }
 
     private void SetTemplateStatus(string key, bool isError = false)
