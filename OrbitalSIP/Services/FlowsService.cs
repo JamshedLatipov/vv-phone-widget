@@ -126,7 +126,7 @@ namespace OrbitalSIP.Services
             return new List<FlowRun>();
         }
 
-        public async Task<StartRunResponse?> StartRunAsync(string flowId, string subjectId, string? contactId = null)
+        public async Task<StartRunResponse?> StartRunAsync(string flowId, string subjectId, string? contactId = null, string? phone = null)
         {
             try
             {
@@ -136,7 +136,10 @@ namespace OrbitalSIP.Services
                 var url = $"{cfg.Value.backendUrl}/api/flows/{Uri.EscapeDataString(flowId)}/runs";
                 using var request = AuthRequest(HttpMethod.Post, url);
 
-                var body = new { subjectType = "call", subjectId, contactId };
+                // phone lets the backend resolve a contact (and populate {{contact.*}}
+                // template vars) when contactId is unknown - true for campaign calls,
+                // where we only ever have the dialed number, not a CRM contactId.
+                var body = new { subjectType = "call", subjectId, contactId, phone };
                 request.Content = JsonContent.Create(body);
 
                 var response = await _httpClient.SendAsync(request);

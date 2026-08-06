@@ -196,7 +196,7 @@ namespace OrbitalSIP.Views
         private async Task StartFlowAsync(string flowId)
         {
             SetBusy(true);
-            var resp = await _svc.StartRunAsync(flowId, _subjectId!);
+            var resp = await _svc.StartRunAsync(flowId, _subjectId!, phone: _callerNumber);
             SetBusy(false);
 
             if (resp?.Run == null || resp.Graph == null)
