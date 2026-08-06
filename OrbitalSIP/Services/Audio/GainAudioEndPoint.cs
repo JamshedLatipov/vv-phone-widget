@@ -20,7 +20,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -84,6 +83,33 @@ namespace OrbitalSIP.Services.Audio
         public volatile float SourceGain = 1f;
         /// <summary>Incoming (speaker) gain factor. 1.0 = unity.</summary>
         public volatile float SinkGain = 1f;
+
+        /// <summary>
+        /// Reusable scratch for the capture path. Both directions run 50 times a second,
+        /// so allocating per packet is what starves the audio threads on a slow machine —
+        /// these buffers are sized once and then reused for the life of the call.
+        /// Only ever touched on the NAudio capture callback thread.
+        /// </summary>
+        private short[] _captureSamples = Array.Empty<short>();
+
+        /// <summary>Reusable scratch for the render path, guarded because RTP delivery is not contractually single-threaded.</summary>
+        private byte[] _renderBytes = Array.Empty<byte>();
+        private readonly object _renderLock = new object();
+
+        /// <summary>Backlog to settle at after a trim — roughly four 20 ms packets of jitter cushion.</summary>
+        private static readonly TimeSpan PlaybackTargetLatency = TimeSpan.FromMilliseconds(80);
+
+        /// <summary>Backlog at which the oldest audio starts being dropped.</summary>
+        private static readonly TimeSpan PlaybackTriggerLatency = TimeSpan.FromMilliseconds(200);
+
+        /// <summary>Hard ceiling for the render buffer, in case trimming ever stops running.</summary>
+        private static readonly TimeSpan PlaybackBufferCeiling = TimeSpan.FromSeconds(1);
+
+        /// <summary>Sink for discarded backlog. Fixed size; the trim loops over it.</summary>
+        private readonly byte[] _discardScratch = new byte[4096];
+
+        /// <summary>Rendered packet count, used only to sample the backlog into the log.</summary>
+        private int _renderPacketCount;
 
         /// <summary>
         /// Not used by this audio source.
@@ -252,6 +278,10 @@ namespace OrbitalSIP.Services.Audio
                 _waveOutEvent = new WaveOutEvent();
                 _waveOutEvent.DeviceNumber = audioOutDeviceIndex;
                 _waveProvider = new BufferedWaveProvider(_waveSinkFormat);
+                // NAudio defaults this to 5 seconds. That is the worst case the operator
+                // can end up hearing, since the backlog never drains on its own — active
+                // trimming keeps it near the target and this is only the backstop.
+                _waveProvider.BufferDuration = PlaybackBufferCeiling;
                 _waveProvider.DiscardOnBufferOverflow = true;
                 _waveOutEvent.Init(_waveProvider);
             }
@@ -306,13 +336,19 @@ namespace OrbitalSIP.Services.Audio
         {
             // Note NAudio.Wave.WaveBuffer.ShortBuffer does not take into account little endian.
             // https://github.com/naudio/NAudio/blob/master/NAudio/Wave/WaveOutputs/WaveBuffer.cs
-            // WaveBuffer wavBuffer = new WaveBuffer(args.Buffer.Take(args.BytesRecorded).ToArray());
-            // byte[] encodedSample = _audioEncoder.EncodeAudio(wavBuffer.ShortBuffer, _audioFormatManager.SelectedFormat);
+            // PcmBuffer does the same little-endian reinterpret, but without copying the
+            // capture buffer twice on every 20 ms tick.
 
-            byte[] buffer = args.Buffer.Take(args.BytesRecorded).ToArray();
-            short[] pcm = buffer.Where((x, i) => i % 2 == 0).Select((y, i) => BitConverter.ToInt16(buffer, i * 2)).ToArray();
-            AudioGain.Apply(pcm, SourceGain);
-            byte[] encodedSample = _audioEncoder.EncodeAudio(pcm, _audioFormatManager.SelectedFormat);
+            int sampleCount = PcmBuffer.SampleCount(args.BytesRecorded);
+            if (sampleCount == 0) return;
+
+            // The encoder reads the whole array, so the scratch has to match the recorded
+            // length exactly. NAudio's buffer size is fixed, so this resizes once per call.
+            PcmBuffer.EnsureExact(ref _captureSamples, sampleCount);
+            PcmBuffer.ToSamples(args.Buffer.AsSpan(0, args.BytesRecorded), _captureSamples);
+
+            AudioGain.Apply(_captureSamples, SourceGain);
+            byte[] encodedSample = _audioEncoder.EncodeAudio(_captureSamples, _audioFormatManager.SelectedFormat);
             OnAudioSourceEncodedSample?.Invoke((uint)encodedSample.Length, encodedSample);
         }
 
@@ -322,20 +358,70 @@ namespace OrbitalSIP.Services.Audio
         /// <param name="pcmSample">Raw PCM sample from remote party.</param>
         public void GotAudioSample(byte[] pcmSample)
         {
-            if (_waveProvider != null)
+            var provider = _waveProvider;
+            if (provider == null) return;
+
+            lock (_renderLock)
             {
-                _waveProvider.AddSamples(pcmSample, 0, pcmSample.Length);
+                provider.AddSamples(pcmSample, 0, pcmSample.Length);
+                TrimPlaybackBacklog(provider);
             }
+        }
+
+        /// <summary>
+        /// Drops the oldest buffered audio once the playback backlog grows past the trigger.
+        ///
+        /// Nothing else bounds it: WaveOut consumes in real time and RTP arrives in real time,
+        /// so a stall at call start, a GC pause, or a sample-clock difference between the two
+        /// ends all turn into latency that lasts the rest of the call. Caller holds _renderLock.
+        /// </summary>
+        private void TrimPlaybackBacklog(BufferedWaveProvider provider)
+        {
+            // Sampled into the log so a single call shows whether the backlog grows steadily
+            // (clock drift) or jumps once and plateaus (a stall around playback start).
+            if (++_renderPacketCount % 250 == 0)
+                AppLogger.Log("Audio",
+                    $"Playback backlog {provider.BufferedDuration.TotalMilliseconds:F0} ms " +
+                    $"after {_renderPacketCount} packets");
+
+            int excess = JitterTrim.ExcessBytes(
+                provider.BufferedBytes, provider.WaveFormat, PlaybackTargetLatency, PlaybackTriggerLatency);
+            if (excess <= 0) return;
+
+            var before = provider.BufferedDuration;
+
+            int remaining = excess;
+            while (remaining > 0)
+            {
+                int read = provider.Read(_discardScratch, 0, Math.Min(remaining, _discardScratch.Length));
+                if (read <= 0) break;
+                remaining -= read;
+            }
+
+            AppLogger.Log("Audio",
+                $"Playback backlog trimmed {before.TotalMilliseconds:F0} ms -> " +
+                $"{provider.BufferedDuration.TotalMilliseconds:F0} ms ({excess - remaining} bytes dropped)");
         }
 
         public void GotAudioRtp(IPEndPoint remoteEndPoint, uint ssrc, uint seqnum, uint timestamp, int payloadID, bool marker, byte[] payload)
         {
-            if (_waveProvider != null && _audioEncoder != null)
+            // Snapshot the provider — InitPlaybackDevice can swap it from another thread.
+            var provider = _waveProvider;
+            if (provider == null || _audioEncoder == null) return;
+
+            var pcmSample = _audioEncoder.DecodeAudio(payload, _audioFormatManager.SelectedFormat);
+            AudioGain.Apply(pcmSample, SinkGain);
+
+            // BufferedWaveProvider copies into its own ring buffer, so the scratch is
+            // free for reuse the moment AddSamples returns.
+            lock (_renderLock)
             {
-                var pcmSample = _audioEncoder.DecodeAudio(payload, _audioFormatManager.SelectedFormat);
-                AudioGain.Apply(pcmSample, SinkGain);
-                byte[] pcmBytes = pcmSample.SelectMany(x => BitConverter.GetBytes(x)).ToArray();
-                _waveProvider?.AddSamples(pcmBytes, 0, pcmBytes.Length);
+                int byteCount = pcmSample.Length * 2;
+                PcmBuffer.EnsureAtLeast(ref _renderBytes, byteCount);
+                PcmBuffer.ToBytes(pcmSample, _renderBytes);
+                provider.AddSamples(_renderBytes, 0, byteCount);
+
+                TrimPlaybackBacklog(provider);
             }
         }
 

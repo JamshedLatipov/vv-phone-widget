@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using System.Net;
 using System.IO;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using SIPSorcery.SIP;
@@ -20,8 +19,9 @@ namespace OrbitalSIP.Services
     public class SipService : IDisposable
     {
         private readonly object _lock = new();
-        private readonly object _logLock = new();
-        private readonly string _logFilePath;
+
+        /// <summary>SIP activity log. Written from SIPSorcery's callback threads, so it goes through the background writer rather than blocking them on the disk.</summary>
+        private readonly Logging.AsyncLogWriter _log;
 
         private SIPTransport?                _transport;
         private SIPRegistrationUserAgent?    _reg;
@@ -54,8 +54,7 @@ namespace OrbitalSIP.Services
                 "OrbitalSIP",
                 "logs");
 
-            Directory.CreateDirectory(logDir);
-            _logFilePath = Path.Combine(logDir, "sip.log");
+            _log = new Logging.AsyncLogWriter(Path.Combine(logDir, "sip.log"));
             Log("SipService initialised.");
         }
 
@@ -551,11 +550,11 @@ namespace OrbitalSIP.Services
                 int inIdx  = _settings.AudioInDeviceIndex;
 
                 string outName = outIdx < 0 ? "System Default"
-                    : (outIdx < NAudio.Wave.WaveOut.DeviceCount
-                        ? NAudio.Wave.WaveOut.GetCapabilities(outIdx).ProductName : $"[{outIdx}]");
+                    : (outIdx < WaveOutDevices.Count
+                        ? WaveOutDevices.ProductName(outIdx) : $"[{outIdx}]");
                 string inName  = inIdx < 0 ? "System Default"
-                    : (inIdx < NAudio.Wave.WaveIn.DeviceCount
-                        ? NAudio.Wave.WaveIn.GetCapabilities(inIdx).ProductName : $"[{inIdx}]");
+                    : (inIdx < NAudio.Wave.WaveInEvent.DeviceCount
+                        ? NAudio.Wave.WaveInEvent.GetCapabilities(inIdx).ProductName : $"[{inIdx}]");
 
                 Debug.WriteLine($"[SipService] Audio OUT: {outName}  IN: {inName}");
                 Log($"Audio devices. OUT={outName}; IN={inName}");
@@ -690,17 +689,13 @@ namespace OrbitalSIP.Services
                 _transport.SIPTransportRequestReceived -= OnSIPRequest;
             _transport?.Shutdown();
             _transport?.Dispose();
+            _log.Dispose();   // drains the queue, so the shutdown lines reach the file
         }
 
         private void Log(string message)
         {
-            var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}";
             Debug.WriteLine($"[SipService] {message}");
-
-            lock (_logLock)
-            {
-                File.AppendAllText(_logFilePath, line + Environment.NewLine, Encoding.UTF8);
-            }
+            _log.Write($"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
         }
 
         private bool IsLocalServerConfigured()

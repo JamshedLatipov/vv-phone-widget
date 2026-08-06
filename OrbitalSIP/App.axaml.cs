@@ -64,6 +64,7 @@ namespace OrbitalSIP
                     CallInfoService.Dispose();
                     FlowsService.Dispose();
                     SmsService.Dispose();
+                    AppLogger.Shutdown();   // last, so everything above still gets logged
                 };
             }
 

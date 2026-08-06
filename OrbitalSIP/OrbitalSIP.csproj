@@ -9,6 +9,14 @@
     <AssemblyName>OrbitalSIP</AssemblyName>
   </PropertyGroup>
 
+  <!-- Precompile to native code so a slow CPU is not JIT-ing Avalonia, SIPSorcery and
+       the framework on every cold start. Costs ~90 MB of on-disk size and ~1 min of
+       build time. Guarded on the RID because ReadyToRun is an error without one, and
+       plain `dotnet build` / `dotnet test` do not set it. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <PublishReadyToRun>true</PublishReadyToRun>
+  </PropertyGroup>
+
   <!-- Sound files: place ring.mp3 / ring-calling.mp3 / busy.mp3 /
        call_end.mp3 / call_fail.mp3 in public/sounds and they will be
        copied to sounds/ next to the executable automatically. -->
@@ -22,6 +30,16 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
+
+  <!-- Excluding NAudio.WinForms' assets drops the assembly but not the framework
+       reference its nuspec declares, and that reference alone is what pulls the whole
+       Windows Desktop runtime pack (WPF + WinForms) into the publish. This project's
+       only transitive framework reference is that one — Microsoft.NETCore.App and the
+       Windows SDK projection are both implicit — so switching them off is precise here.
+       Verify with: dotnet msbuild -t:ResolvePackageAssets -getItem:FrameworkReference -->
+  <PropertyGroup>
+    <DisableTransitiveFrameworkReferences>true</DisableTransitiveFrameworkReferences>
+  </PropertyGroup>
 
   <!-- Ensure sounds are copied to publish output (Content alone can be skipped for self-contained single-file) -->
   <Target Name="CopySoundsAfterPublish" AfterTargets="Publish">
@@ -39,6 +57,14 @@
     <PackageReference Include="Sentry" Version="5.7.0" />
     <PackageReference Include="SIPSorcery" Version="8.0.0" />
     <PackageReference Include="SIPSorceryMedia.Windows" Version="8.0.7" />
+
+    <!-- SIPSorceryMedia.Windows depends on the NAudio metapackage, which drags in
+         NAudio.WinForms. That single transitive package flips the publish onto the
+         Windows Desktop runtime pack — ~50 MB of WPF and WinForms this app never
+         touches, since the only NAudio types it uses (WaveInEvent, WaveOutEvent,
+         BufferedWaveProvider, WaveFormat) live in NAudio.WinMM and NAudio.Core.
+         A direct reference with no assets overrides the transitive one. -->
+    <PackageReference Include="NAudio.WinForms" Version="2.2.1" ExcludeAssets="all" />
   </ItemGroup>
 
 </Project>
