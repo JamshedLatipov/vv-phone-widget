@@ -67,7 +67,7 @@ namespace OrbitalSIP
             sip.CallStateChanged += state =>
                 Dispatcher.UIThread.InvokeAsync(() => OnCallStateChanged(state));
 
-            this.SystemDecorations = SystemDecorations.None;
+            this.SystemDecorations = WindowDecorations.None;
             this.PointerPressed   += MainWindow_PointerPressed;
             this.PointerReleased  += MainWindow_PointerReleased;
             this.DoubleTapped     += (_, __) => ExpandOnDoubleTap();

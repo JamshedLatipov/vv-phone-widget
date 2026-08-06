@@ -3,6 +3,7 @@
              xmlns:i18n="clr-namespace:OrbitalSIP.Services"
              xmlns:Views="clr-namespace:OrbitalSIP.Views"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="clr-namespace:OrbitalSIP.ViewModels"
              x:Class="OrbitalSIP.Views.RecentsView">
   <Border Width="320"
           Background="#0F172A"
@@ -29,7 +30,7 @@
       <ScrollViewer Grid.Row="2" Margin="14,10,14,10" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
           <ItemsControl Name="CdrItemsControl">
               <ItemsControl.ItemTemplate>
-                  <DataTemplate>
+                  <DataTemplate x:DataType="vm:CdrItemViewModel">
                       <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,4" ToolTip.Tip="{Binding DisplayStatus}">
                         <Border Width="32" Height="32" CornerRadius="16" Background="#1E293B">
                           <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">

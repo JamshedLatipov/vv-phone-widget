@@ -1,3 +1,4 @@
+using Avalonia.Input.Platform;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Media;
