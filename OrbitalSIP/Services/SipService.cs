@@ -8,7 +8,6 @@ using SIPSorcery.SIP;
 using SIPSorcery.SIP.App;
 using SIPSorcery.Net;
 using SIPSorcery.Media;
-using SIPSorceryMedia.Windows;
 using OrbitalSIP.Services.Audio;
 
 namespace OrbitalSIP.Services
