@@ -550,11 +550,11 @@ namespace OrbitalSIP.Services
                 int inIdx  = _settings.AudioInDeviceIndex;
 
                 string outName = outIdx < 0 ? "System Default"
-                    : (outIdx < NAudio.Wave.WaveOut.DeviceCount
-                        ? NAudio.Wave.WaveOut.GetCapabilities(outIdx).ProductName : $"[{outIdx}]");
+                    : (outIdx < WaveOutDevices.Count
+                        ? WaveOutDevices.ProductName(outIdx) : $"[{outIdx}]");
                 string inName  = inIdx < 0 ? "System Default"
-                    : (inIdx < NAudio.Wave.WaveIn.DeviceCount
-                        ? NAudio.Wave.WaveIn.GetCapabilities(inIdx).ProductName : $"[{inIdx}]");
+                    : (inIdx < NAudio.Wave.WaveInEvent.DeviceCount
+                        ? NAudio.Wave.WaveInEvent.GetCapabilities(inIdx).ProductName : $"[{inIdx}]");
 
                 Debug.WriteLine($"[SipService] Audio OUT: {outName}  IN: {inName}");
                 Log($"Audio devices. OUT={outName}; IN={inName}");

@@ -48,28 +48,28 @@ namespace OrbitalSIP.Services
             var problems = new List<string>();
 
             // ── Microphone (capture) ──────────────────────────────────────
-            if (WaveIn.DeviceCount == 0)
+            if (WaveInEvent.DeviceCount == 0)
             {
                 problems.Add(i18n.Get("audio.noMic", "Микрофон не найден (нет устройств записи)."));
             }
             else
             {
                 int inIdx = settings.AudioInDeviceIndex; // -1 = system default (WAVE_MAPPER)
-                if (inIdx >= WaveIn.DeviceCount)
+                if (inIdx >= WaveInEvent.DeviceCount)
                     problems.Add(i18n.Get("audio.micStale", "Выбранный микрофон недоступен — выберите устройство в Настройках."));
                 else if (!TryOpenInput(inIdx, out var err))
                     problems.Add(i18n.Get("audio.micFail", "Не удаётся открыть микрофон") + (string.IsNullOrEmpty(err) ? "" : $": {err}"));
             }
 
             // ── Speakers (render) ─────────────────────────────────────────
-            if (WaveOut.DeviceCount == 0)
+            if (Audio.WaveOutDevices.Count == 0)
             {
                 problems.Add(i18n.Get("audio.noSpk", "Динамики не найдены (нет устройств воспроизведения)."));
             }
             else
             {
                 int outIdx = settings.AudioOutDeviceIndex; // -1 = system default
-                if (outIdx >= WaveOut.DeviceCount)
+                if (outIdx >= Audio.WaveOutDevices.Count)
                     problems.Add(i18n.Get("audio.spkStale", "Выбранные динамики недоступны — выберите устройство в Настройках."));
                 else if (!TryOpenOutput(outIdx, out var err))
                     problems.Add(i18n.Get("audio.spkFail", "Не удаётся открыть динамики") + (string.IsNullOrEmpty(err) ? "" : $": {err}"));
@@ -77,7 +77,7 @@ namespace OrbitalSIP.Services
 
             AppLogger.Log("AudioDeviceCheck",
                 problems.Count == 0
-                    ? $"OK — mic devices={WaveIn.DeviceCount}, speaker devices={WaveOut.DeviceCount}"
+                    ? $"OK — mic devices={WaveInEvent.DeviceCount}, speaker devices={Audio.WaveOutDevices.Count}"
                     : "Problems: " + string.Join(" | ", problems));
             return problems;
         }

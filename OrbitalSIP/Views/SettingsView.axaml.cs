@@ -80,9 +80,11 @@ namespace OrbitalSIP.Views
             if (speakerBox == null || micBox == null) return;
 
             // Build output device list  (-1 = system default)
+            // WaveOutDevices rather than NAudio's WaveOut: the same winmm enumeration in
+            // the same order, but without pulling in NAudio.WinForms.
             var outItems = new List<string> { "System Default" };
-            for (int i = 0; i < WaveOut.DeviceCount; i++)
-                outItems.Add(WaveOut.GetCapabilities(i).ProductName);
+            for (int i = 0; i < Services.Audio.WaveOutDevices.Count; i++)
+                outItems.Add(Services.Audio.WaveOutDevices.ProductName(i));
             speakerBox.ItemsSource  = outItems;
             // Saved index -1 → list position 0; index N → list position N+1
             speakerBox.SelectedIndex = _settings.AudioOutDeviceIndex + 1;
@@ -90,8 +92,8 @@ namespace OrbitalSIP.Views
 
             // Build input device list  (-1 = system default)
             var inItems = new List<string> { "System Default" };
-            for (int i = 0; i < WaveIn.DeviceCount; i++)
-                inItems.Add(WaveIn.GetCapabilities(i).ProductName);
+            for (int i = 0; i < WaveInEvent.DeviceCount; i++)
+                inItems.Add(WaveInEvent.GetCapabilities(i).ProductName);
             micBox.ItemsSource   = inItems;
             micBox.SelectedIndex = _settings.AudioInDeviceIndex + 1;
             if (micBox.SelectedIndex < 0) micBox.SelectedIndex = 0;
