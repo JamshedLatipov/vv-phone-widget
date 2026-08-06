@@ -41,26 +41,10 @@
       <Setter Property="BorderBrush" Value="#334155" />
       <Setter Property="Foreground" Value="#E2E8F0" />
       <Setter Property="CornerRadius" Value="8" />
-    </Style>
-
-    <Style Selector="AutoCompleteBox /template/ TextBox#PART_TextBox">
-      <Setter Property="Background" Value="#1E293B" />
-      <Setter Property="BorderBrush" Value="#334155" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#E2E8F0" />
-      <Setter Property="CornerRadius" Value="8" />
       <Setter Property="Padding" Value="10,7" />
     </Style>
 
-    <Style Selector="AutoCompleteBox:pointerover /template/ TextBox#PART_TextBox">
-      <Setter Property="BorderBrush" Value="#3B82F6" />
-    </Style>
-
-    <Style Selector="AutoCompleteBox:focus-within /template/ TextBox#PART_TextBox">
-      <Setter Property="BorderBrush" Value="#3B82F6" />
-    </Style>
-
-    <Style Selector="AutoCompleteBox /template/ Popup#PART_Popup ListBox">
+    <Style Selector="AutoCompleteBox /template/ Border#PART_SuggestionsContainer">
       <Setter Property="Background" Value="#152132" />
       <Setter Property="BorderBrush" Value="#334155" />
       <Setter Property="BorderThickness" Value="1" />
