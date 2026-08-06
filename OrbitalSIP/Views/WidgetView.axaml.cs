@@ -13,6 +13,18 @@ namespace OrbitalSIP.Views
 {
     public partial class WidgetView : UserControl
     {
+        /// <summary>
+        /// Pulse cadence. This is the app's resting state — the widget sits on screen all day, the
+        /// window is composited with transparency, so every tick here is an alpha blend against the
+        /// desktop whether or not anything is happening. The ring breathes on a ~2.9 s sine, which
+        /// 20 samples a second render indistinguishably from the 60 this used to run at.
+        /// </summary>
+        private static readonly TimeSpan PulseInterval = TimeSpan.FromMilliseconds(50);
+
+        /// <summary>Below these the change would not survive rounding to a pixel or an 8-bit alpha.</summary>
+        private const double OpacityEpsilon   = 1.0 / 255.0;
+        private const double ThicknessEpsilon = 0.05;
+
         private DispatcherTimer? _pulseTimer;
         private Stopwatch?       _stopwatch;
         private Ellipse?         _strokeRing;
@@ -38,7 +50,7 @@ namespace OrbitalSIP.Views
             if (_pulseTimer == null)
             {
                 _pulseTimer = new DispatcherTimer(
-                    TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, OnPulseTick);
+                    PulseInterval, DispatcherPriority.Render, OnPulseTick);
             }
             
             _pulseTimer.Start();
@@ -100,8 +112,16 @@ namespace OrbitalSIP.Views
             if (_stopwatch == null || _strokeRing == null) return;
 
             var pulse = (Math.Sin(_stopwatch.Elapsed.TotalSeconds * 2.2) + 1.0) / 2.0;
-            _strokeRing.Opacity        = 0.35 + pulse * 0.65;
-            _strokeRing.StrokeThickness = 4.0 + pulse * 4.0;
+            var opacity   = 0.35 + pulse * 0.65;
+            var thickness = 4.0 + pulse * 4.0;
+
+            // Near the top and bottom of the sine the value barely moves, and assigning it anyway
+            // costs a visual invalidation and a repaint of a transparent window for nothing.
+            if (Math.Abs(_strokeRing.Opacity - opacity) >= OpacityEpsilon)
+                _strokeRing.Opacity = opacity;
+
+            if (Math.Abs(_strokeRing.StrokeThickness - thickness) >= ThicknessEpsilon)
+                _strokeRing.StrokeThickness = thickness;
         }
 
         private void UpdateStatus(RegistrationState state)
