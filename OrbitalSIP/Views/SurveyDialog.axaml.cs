@@ -326,9 +326,15 @@ namespace OrbitalSIP.Views
                 return;
             }
 
-            // Step header
+            // Step header. Flows imported through the API (not the builder) carry
+            // no node title — only a key and a script. The key is a technical slug
+            // and must never reach the operator, and the script is already shown in
+            // the bubble right below, so a title-less node hides the header row
+            // instead of showing an empty line or duplicating the script.
             SetTextBlock("StepLabel", $"Шаг {_stepCounter}");
-            SetTextBlock("NodeTitle", node.Title ?? "");
+            var nodeTitle = node.Title?.Trim() ?? "";
+            SetTextBlock("NodeTitle", nodeTitle);
+            Show("NodeTitle", nodeTitle.Length > 0);
 
             // Script
             var script = SubstituteVars(node.Script ?? "");
