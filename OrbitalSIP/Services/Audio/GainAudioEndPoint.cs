@@ -117,6 +117,13 @@ namespace OrbitalSIP.Services.Audio
         public event EncodedSampleDelegate OnAudioSourceEncodedSample;
 
         /// <summary>
+        /// Encoded capture frame ready for the RTP transport. VoIPMediaSession still sends from
+        /// <see cref="OnAudioSourceEncodedSample"/>, so this stays unsubscribed in practice and the
+        /// frame is only built when something actually listens.
+        /// </summary>
+        public event Action<EncodedAudioFrame> OnAudioSourceEncodedFrameReady;
+
+        /// <summary>
         /// This audio source DOES NOT generate raw samples. Subscribe to the encoded samples event
         /// to get samples ready for passing to the RTP transport layer.
         /// </summary>
@@ -332,7 +339,7 @@ namespace OrbitalSIP.Services.Audio
         /// <summary>
         /// Event handler for audio sample being supplied by local capture device.
         /// </summary>
-        private void LocalAudioSampleAvailable(object sender, WaveInEventArgs args)
+        private void LocalAudioSampleAvailable(object? sender, WaveInEventArgs args)
         {
             // Note NAudio.Wave.WaveBuffer.ShortBuffer does not take into account little endian.
             // https://github.com/naudio/NAudio/blob/master/NAudio/Wave/WaveOutputs/WaveBuffer.cs
@@ -350,6 +357,24 @@ namespace OrbitalSIP.Services.Audio
             AudioGain.Apply(_captureSamples, SourceGain);
             byte[] encodedSample = _audioEncoder.EncodeAudio(_captureSamples, _audioFormatManager.SelectedFormat);
             OnAudioSourceEncodedSample?.Invoke((uint)encodedSample.Length, encodedSample);
+
+            var frameReady = OnAudioSourceEncodedFrameReady;
+            if (frameReady != null)
+            {
+                var format = _audioFormatManager.SelectedFormat;
+                frameReady(new EncodedAudioFrame(0, format,
+                    EncodedFrameDurationMs(sampleCount, format), encodedSample));
+            }
+        }
+
+        /// <summary>Duration the encoded frame covers, needed for the RTP timestamp.</summary>
+        private static uint EncodedFrameDurationMs(int totalPcmSamples, AudioFormat audioFormat)
+        {
+            int channels = audioFormat.ChannelCount;
+            int sampleRate = audioFormat.ClockRate;
+            if (channels <= 0 || sampleRate <= 0) return 0;
+
+            return (uint)Math.Round(totalPcmSamples / (double)channels / sampleRate * 1000.0);
         }
 
         /// <summary>
@@ -403,13 +428,45 @@ namespace OrbitalSIP.Services.Audio
                 $"{provider.BufferedDuration.TotalMilliseconds:F0} ms ({excess - remaining} bytes dropped)");
         }
 
+        /// <summary>
+        /// Playback path for audio received from the remote party. From SIPSorcery 10 this is the
+        /// only one that runs: VoIPMediaSession wires the sink to OnAudioFrameReceived and never
+        /// calls GotAudioRtp again.
+        /// </summary>
+        public void GotEncodedMediaFrame(EncodedAudioFrame encodedMediaFrame)
+        {
+            var format = encodedMediaFrame.AudioFormat;
+            if (format.IsEmpty()) return;
+
+            // The format the far end actually sends is only known once media arrives, and it is not
+            // always the negotiated one. Rendering 16 KHz G.722 through a device opened at 8 KHz
+            // plays it at half speed, so the device follows the frame.
+            if (_waveSinkFormat != null && _waveSinkFormat.SampleRate != format.ClockRate)
+            {
+                SetAudioSinkFormat(format);
+
+                // A re-initialised playback device comes back stopped.
+                if (_isAudioSinkStarted) _waveOutEvent?.Play();
+            }
+
+            Render(encodedMediaFrame.EncodedAudio, format);
+        }
+
+        /// <summary>
+        /// Obsolete receive path. Implemented only because IAudioSink still declares it; nothing in
+        /// SIPSorcery 10 calls it.
+        /// </summary>
+        [Obsolete("Use GotEncodedMediaFrame instead.")]
         public void GotAudioRtp(IPEndPoint remoteEndPoint, uint ssrc, uint seqnum, uint timestamp, int payloadID, bool marker, byte[] payload)
+            => Render(payload, _audioFormatManager.SelectedFormat);
+
+        private void Render(byte[] payload, AudioFormat format)
         {
             // Snapshot the provider — InitPlaybackDevice can swap it from another thread.
             var provider = _waveProvider;
             if (provider == null || _audioEncoder == null) return;
 
-            var pcmSample = _audioEncoder.DecodeAudio(payload, _audioFormatManager.SelectedFormat);
+            var pcmSample = _audioEncoder.DecodeAudio(payload, format);
             AudioGain.Apply(pcmSample, SinkGain);
 
             // BufferedWaveProvider copies into its own ring buffer, so the scratch is
