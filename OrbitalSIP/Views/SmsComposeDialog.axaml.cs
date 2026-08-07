@@ -11,6 +11,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Material.Icons;
 using Material.Icons.Avalonia;
 using OrbitalSIP.Models;
@@ -359,7 +360,65 @@ public partial class SmsComposeDialog : Window
         }
 
         if (_templateBox.IsEnabled)
+            OpenTemplateDropDown();
+    }
+
+    /// <summary>
+    /// Opens the template dropdown, working around a guard in Avalonia 11.0.0's own
+    /// AutoCompleteBox.TextUpdated: setting IsDropDownOpen = true routes through
+    /// TextUpdated(Text, userInitiated: true), and — because MinimumPrefixLength is
+    /// 0 here — when Text and the control's own private SearchText are BOTH empty
+    /// (exactly the state on focusing an empty box), that method decides the open
+    /// is "not ready" and, as part of taking that branch, sets IsDropDownOpen back
+    /// to false itself, synchronously, before anything is ever visible. SearchText
+    /// only ever becomes non-empty through a real, user-initiated text change
+    /// (TextBox.TextChanged, forwarded with userInitiated: true); there is no public
+    /// way to set it directly, and setting AutoCompleteBox.Text ourselves does not
+    /// help either — that path is hardcoded to userInitiated: false, which the same
+    /// method separately requires to actually keep the dropdown open even when the
+    /// guard above does not fire.
+    ///
+    /// A box that already has text does not hit this guard, so only the empty case
+    /// needs a workaround: reach the control's own internal search TextBox (a
+    /// template part, not exposed as a public property) and simulate one keystroke
+    /// — a single space, which our own ItemFilter already treats the same as an
+    /// empty search (IsNullOrWhiteSpace) — then clear it again on the very next
+    /// UI-thread turn, once Avalonia's own TextUpdated(" ", true) has already run
+    /// and genuinely opened the list. That second, clearing write does not re-close
+    /// it: by then SearchText is " ", which String.IsNullOrEmpty does not consider
+    /// empty, so the guard does not fire for it either.
+    /// </summary>
+    private void OpenTemplateDropDown()
+    {
+        if (!string.IsNullOrEmpty(_templateBox.Text))
+        {
             _templateBox.IsDropDownOpen = true;
+            return;
+        }
+
+        var searchBox = _templateBox.GetVisualDescendants().OfType<TextBox>().FirstOrDefault();
+        if (searchBox is null)
+        {
+            // The template part should always be there once applied; if it somehow
+            // is not, fall back to the plain assignment rather than leaving focus
+            // with no way to open the list at all.
+            _templateBox.IsDropDownOpen = true;
+            return;
+        }
+
+        searchBox.Text = " ";
+        Dispatcher.UIThread.Post(() =>
+        {
+            // If Escape (or anything else) already closed the dropdown by the time
+            // this runs, leave the stray space alone rather than clear it: clearing
+            // still counts as a non-empty-SearchText populate (see the method
+            // comment above), which would compute "should be open" and reopen the
+            // very dropdown that just closed. A lingering space in an already-closed
+            // box is a cosmetic footnote; reopening a dropdown the operator just
+            // dismissed is a real regression.
+            if (_templateBox.IsDropDownOpen)
+                searchBox.Text = string.Empty;
+        });
     }
 
     private void ApplyPendingTemplateSelection()

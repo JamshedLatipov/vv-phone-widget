@@ -11,6 +11,24 @@
         Topmost="True"
         SystemDecorations="None"
         CornerRadius="16">
+  <Window.Styles>
+    <!--
+      Fluent's AutoCompleteBox template (Avalonia 11.0.0) only sets the dropdown
+      Popup's MinWidth to the field's own width, never a MaxWidth — so the popup
+      grows to fit its widest item instead of staying field-width, and the
+      TextTrimming/MaxLines on the item template below never get a bounded
+      available width to trim against. App.axaml already reaches this same
+      AutoCompleteBox template part with a /template/ selector (for colors), which
+      confirms that combinator resolves correctly against PART_SuggestionsContainer
+      in this app. Capping its MaxWidth the same way the theme caps the Popup's
+      MinWidth (TemplatedParent's own Bounds.Width) gives the whole suggestions
+      surface — and everything measured inside it, including our ItemTemplate — a
+      genuine upper bound to lay out against.
+    -->
+    <Style Selector="AutoCompleteBox#TemplateBox /template/ Border#PART_SuggestionsContainer">
+      <Setter Property="MaxWidth" Value="{Binding Bounds.Width, RelativeSource={RelativeSource TemplatedParent}}" />
+    </Style>
+  </Window.Styles>
   <Border BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16">
     <Grid RowDefinitions="Auto,*,Auto">
 
@@ -65,14 +83,35 @@
               <TextBlock Grid.Column="1" Text="{i18n:I18n SmsTemplateOptional}"
                          FontSize="10" Foreground="#64748B" VerticalAlignment="Center" />
             </Grid>
+            <!--
+              Above the field, not below: the dropdown opens downward and, as an
+              overlay Popup, paints on top of anything in the field's own normal
+              flow underneath it — a status line placed below would be covered the
+              instant the list opens, which is exactly when an operator would want
+              to read "showing 10 of N".
+            -->
+            <TextBlock Name="TemplateStatusLabel" IsVisible="False" FontSize="11"
+                       Foreground="#94A3B8" TextWrapping="Wrap" />
             <Grid ColumnDefinitions="*,Auto">
               <AutoCompleteBox Name="TemplateBox" HorizontalAlignment="Stretch"
                                Watermark="{i18n:I18n SmsTemplatePlaceholder}"
                                MinimumPrefixLength="0" MaxDropDownHeight="220">
                 <AutoCompleteBox.ItemTemplate>
                   <DataTemplate>
-                    <StackPanel Spacing="1">
-                      <TextBlock Text="{Binding Name}" FontSize="13" Foreground="#E2E8F0" />
+                    <!--
+                      Belt-and-suspenders alongside the Window.Styles MaxWidth on
+                      PART_SuggestionsContainer above: bind directly to the
+                      containing ListBox's own bounds too, in case its internal
+                      ScrollViewer ever offers unbounded width during measurement
+                      regardless of the outer container's cap. FindAncestor is a
+                      plain visual-tree walk, not a NameScope/ElementName lookup,
+                      so it resolves the same way from inside an ItemTemplate as it
+                      would anywhere else.
+                    -->
+                    <StackPanel Spacing="1"
+                                MaxWidth="{Binding Bounds.Width, RelativeSource={RelativeSource AncestorType=ListBox}}">
+                      <TextBlock Text="{Binding Name}" FontSize="13" Foreground="#E2E8F0"
+                                 TextTrimming="CharacterEllipsis" />
                       <TextBlock Text="{Binding Content}" FontSize="11" Foreground="#7B92AA"
                                  MaxLines="1" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
@@ -88,8 +127,6 @@
                 <materialIcons:MaterialIcon Kind="Close" Width="14" Height="14" Foreground="#94A3B8" />
               </Button>
             </Grid>
-            <TextBlock Name="TemplateStatusLabel" IsVisible="False" FontSize="11"
-                       Foreground="#94A3B8" TextWrapping="Wrap" />
           </StackPanel>
 
           <Grid Grid.Row="2" Margin="0,12,0,0" RowDefinitions="Auto,*,Auto,Auto">
