@@ -541,6 +541,16 @@ namespace OrbitalSIP.Services
         }
 
         // ── Audio helpers ─────────────────────────────────────────────
+
+        /// <summary>Banner for "no speakers", worded the same as the startup probe in AudioDeviceCheck.</summary>
+        private static void NotifySpeakerFailure()
+        {
+            var i18n = I18nService.Instance;
+            HttpErrorNotifier.Notify(
+                i18n.Get("audio.problemHead", "Проблема со звуком")
+                + ": " + i18n.Get("audio.spkFail", "Не удаётся открыть динамики"));
+        }
+
         private bool TryCreateAudio()
         {
             try
@@ -567,6 +577,24 @@ namespace OrbitalSIP.Services
                     Debug.WriteLine($"[SipService] Audio source error: {err}");
                     Log($"Audio source error: {err}");
                 };
+
+                // A render device that fails to open is the one fault nothing else reveals:
+                // RTP keeps arriving, the PBX keeps recording both directions, and the operator
+                // sits through a silent call with no error anywhere. Surface it.
+                _audioEndPoint.OnAudioSinkError += err =>
+                {
+                    Debug.WriteLine($"[SipService] Audio sink error: {err}");
+                    Log($"Audio sink error: {err}");
+                    NotifySpeakerFailure();
+                };
+
+                // The constructor opens playback before anything can subscribe above, so the
+                // failure that matters most — the one at call setup — has to be read back.
+                if (!_audioEndPoint.IsPlaybackDeviceOpen)
+                {
+                    Log("Playback device is not open after audio init — the operator will hear nothing.");
+                    NotifySpeakerFailure();
+                }
 
                 _audioEndPoint.SourceGain = _settings.MicGainPercent / 100f;
                 _audioEndPoint.SinkGain   = _settings.SpeakerGainPercent / 100f;
@@ -666,7 +694,11 @@ namespace OrbitalSIP.Services
             ActiveCallStartedAt = null;
             Log("Cleaning up media resources.");
             _audioEndPoint?.CloseAudio();
+            _audioEndPoint?.CloseAudioSink();
             _mediaSession?.Close("ended");
+            // Closing is not releasing — without this the winmm handles from every call
+            // stay open for the life of the process.
+            _audioEndPoint?.Dispose();
             _audioEndPoint = null;
             _mediaSession  = null;
             _audioPaused   = false; // reset so next call starts fresh
