@@ -169,6 +169,7 @@
   "SmsTemplateOptional": "міндетті емес",
   "SmsTemplatePlaceholder": "Үлгілерден іздеу",
   "SmsTemplateClear": "Үлгіні алып тастау",
+  "SmsTemplatesTruncated": "Алғашқы {0} үлгі көрсетілген ({1} ішінен). Қалғанын табу үшін теріңіз.",
   "SmsTemplatesLoading": "Үлгілер жүктелуде…",
   "SmsTemplatesEmpty": "Қолжетімді үлгілер жоқ",
   "SmsTemplatesLoadError": "Үлгілерді жүктеу мүмкін болмады",

@@ -179,6 +179,7 @@
   "SmsTemplateOptional": "необязательно",
   "SmsTemplatePlaceholder": "Поиск по шаблонам",
   "SmsTemplateClear": "Сбросить шаблон",
+  "SmsTemplatesTruncated": "Показаны первые {0} из {1}. Начните вводить, чтобы найти остальные.",
   "SmsTemplatesLoading": "Загрузка шаблонов…",
   "SmsTemplatesEmpty": "Нет доступных шаблонов",
   "SmsTemplatesLoadError": "Не удалось загрузить шаблоны",

@@ -167,6 +167,7 @@
   "SmsTemplateOptional": "ихтиёрӣ",
   "SmsTemplatePlaceholder": "Ҷустуҷӯ дар шаблонҳо",
   "SmsTemplateClear": "Бекор кардани шаблон",
+  "SmsTemplatesTruncated": "{0} шаблони аввал аз {1} нишон дода шуд. Барои ёфтани боқимонда нависед.",
   "SmsTemplatesLoading": "Шаблонҳо бор шуда истодаанд…",
   "SmsTemplatesEmpty": "Шаблонҳои дастрас нестанд",
   "SmsTemplatesLoadError": "Шаблонҳоро бор кардан муяссар нашуд",

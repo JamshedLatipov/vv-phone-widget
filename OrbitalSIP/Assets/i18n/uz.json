@@ -169,6 +169,7 @@
   "SmsTemplateOptional": "majburiy emas",
   "SmsTemplatePlaceholder": "Shablonlardan qidirish",
   "SmsTemplateClear": "Shablonni bekor qilish",
+  "SmsTemplatesTruncated": "{1} tadan dastlabki {0} tasi ko'rsatilgan. Qolganini topish uchun yozing.",
   "SmsTemplatesLoading": "Shablonlar yuklanmoqda…",
   "SmsTemplatesEmpty": "Mavjud shablonlar yo'q",
   "SmsTemplatesLoadError": "Shablonlarni yuklab bo'lmadi",

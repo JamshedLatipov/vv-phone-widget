@@ -32,6 +32,13 @@ public partial class SmsComposeDialog : Window
     private static readonly IBrush SendEnabledForegroundBrush = Brush.Parse("#FFFFFF");
     private static readonly IBrush SendDisabledForegroundBrush = Brush.Parse("#7796C4");
 
+    /// <summary>
+    /// How many templates the dropdown offers before the operator narrows it by
+    /// typing. An org can carry a hundred active SMS templates, and scrolling that
+    /// blind is what the old combo box already got wrong.
+    /// </summary>
+    private const int UnfilteredTemplateCount = 10;
+
     private readonly SmsComposeState _state;
     private readonly SmsComposeSendSession _sendSession;
     private readonly SmsService _smsService;
@@ -54,6 +61,13 @@ public partial class SmsComposeDialog : Window
     private bool _suppressTemplateAutoOpen;
     private bool _templateDropDownClosedViaEscape;
     private bool _templateDropDownCloseHandledForThisOpen;
+
+    /// <summary>
+    /// The templates an empty search box offers. Membership rather than an index
+    /// because ItemFilter is a per-item predicate with no position and no promise
+    /// about evaluation order.
+    /// </summary>
+    private readonly HashSet<Guid> _unfilteredTemplateIds = new();
 
     private TextBlock _recipientValue = null!;
     private AutoCompleteBox _templateBox = null!;
@@ -131,8 +145,11 @@ public partial class SmsComposeDialog : Window
         {
             if (item is not MessageTemplateDto template)
                 return false;
+            // An empty box shows a short head of the list, not all of it — typing is
+            // what reaches the rest. The label under the field says so, otherwise the
+            // operator would read the head as the whole set.
             if (string.IsNullOrWhiteSpace(search))
-                return true;
+                return _unfilteredTemplateIds.Contains(template.Id);
 
             return template.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                    (template.Content?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false);
@@ -208,8 +225,18 @@ public partial class SmsComposeDialog : Window
                 .ToList();
             _templateBox.ItemsSource = usable;
 
+            _unfilteredTemplateIds.Clear();
+            foreach (var template in usable.Take(UnfilteredTemplateCount))
+                _unfilteredTemplateIds.Add(template.Id);
+
             if (usable.Count == 0)
                 SetTemplateStatus("SmsTemplatesEmpty");
+            else if (usable.Count > UnfilteredTemplateCount)
+                SetTemplateStatusText(string.Format(
+                    CultureInfo.CurrentCulture,
+                    I18nService.Instance.Get("SmsTemplatesTruncated"),
+                    UnfilteredTemplateCount,
+                    usable.Count));
             else
                 HideTemplateStatus();
         }
@@ -601,8 +628,11 @@ public partial class SmsComposeDialog : Window
     }
 
     private void SetTemplateStatus(string key, bool isError = false)
+        => SetTemplateStatusText(I18nService.Instance.Get(key), isError);
+
+    private void SetTemplateStatusText(string text, bool isError = false)
     {
-        _templateStatusLabel.Text = I18nService.Instance.Get(key);
+        _templateStatusLabel.Text = text;
         _templateStatusLabel.Foreground = isError ? InvalidCountBrush : NormalCountBrush;
         _templateStatusLabel.IsVisible = true;
     }
