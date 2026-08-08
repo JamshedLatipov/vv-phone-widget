@@ -387,9 +387,33 @@ public partial class SmsComposeDialog : Window
     /// and genuinely opened the list. That second, clearing write does not re-close
     /// it: by then SearchText is " ", which String.IsNullOrEmpty does not consider
     /// empty, so the guard does not fire for it either.
+    ///
+    /// Must be a no-op when the dropdown is already open. GotFocus on this control
+    /// does not only fire from the operator tabbing or clicking directly into it:
+    /// Avalonia's FocusManager runs a global Tunnel-phase handler on every
+    /// PointerPressed (FocusManager.cs's static constructor) that moves keyboard
+    /// focus to the pressed element's nearest focusable ancestor — for a press on a
+    /// template item in the open dropdown, that is the ListBoxItem, before the
+    /// ListBox's own bubble-phase handling has set SelectedItem. That GotFocus
+    /// bubbles straight back out to this control (PopupRoot overrides
+    /// InteractiveParent to route through the popup's logical Parent, so routed
+    /// events cross the popup boundary same as if there were no popup at all) and
+    /// reaches this same handler mid-click, before Text reflects the pick and
+    /// before _suppressTemplateAutoOpen has anything to suppress. The plain
+    /// "IsDropDownOpen = true" this replaced was harmless there — a same-value
+    /// property set raises no notification — but launching the space-poke a second
+    /// time while a pick is already in flight races its own deferred continuations
+    /// against the SelectedItem-driven text update and the eventual commit, and one
+    /// of them can end up running last: a fresh populate against the picked name,
+    /// which — because it matches exactly one item — reopens the dropdown on a
+    /// single-item list nothing is left to close. Bailing out up front when the
+    /// dropdown is already open restores the idempotence the plain assignment had.
     /// </summary>
     private void OpenTemplateDropDown()
     {
+        if (_templateBox.IsDropDownOpen)
+            return;
+
         if (!string.IsNullOrEmpty(_templateBox.Text))
         {
             _templateBox.IsDropDownOpen = true;
