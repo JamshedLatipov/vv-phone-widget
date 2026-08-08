@@ -99,17 +99,16 @@
                 <AutoCompleteBox.ItemTemplate>
                   <DataTemplate>
                     <!--
-                      Belt-and-suspenders alongside the Window.Styles MaxWidth on
-                      PART_SuggestionsContainer above: bind directly to the
-                      containing ListBox's own bounds too, in case its internal
-                      ScrollViewer ever offers unbounded width during measurement
-                      regardless of the outer container's cap. FindAncestor is a
-                      plain visual-tree walk, not a NameScope/ElementName lookup,
-                      so it resolves the same way from inside an ItemTemplate as it
-                      would anywhere else.
+                      No width binding here. An earlier attempt bound MaxWidth to the
+                      containing ListBox's bounds as a backstop; inside a DataTemplate
+                      that ancestor lookup resolved to null on every realisation, and
+                      MaxWidth is a double, so each row logged a binding error and the
+                      run ended in an InvalidOperationException out of Avalonia.Base.
+                      The Window.Styles cap on PART_SuggestionsContainer above bounds
+                      the whole suggestions surface, which is what the trimming below
+                      needs to measure against.
                     -->
-                    <StackPanel Spacing="1"
-                                MaxWidth="{Binding Bounds.Width, RelativeSource={RelativeSource AncestorType=ListBox}}">
+                    <StackPanel Spacing="1">
                       <TextBlock Text="{Binding Name}" FontSize="13" Foreground="#E2E8F0"
                                  TextTrimming="CharacterEllipsis" />
                       <TextBlock Text="{Binding Content}" FontSize="11" Foreground="#7B92AA"
