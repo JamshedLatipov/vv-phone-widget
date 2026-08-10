@@ -1,119 +1,143 @@
-# OrbitalSIP — Code Review (баги)
+# OrbitalSIP — Code Review
 
-Метод: многоагентный обзор. Финдеры по 8 группам файлов → каждая находка проверена вторым скептик-агентом (чтение исходника, презумпция «не баг»). Подтверждено **57 из 95** кандидатов. ~7800 строк C#/Avalonia.
+**Обзор от 10 августа 2026.** Заменяет обзор от 27 июня: его находки закрыты, кроме двух архитектурных и одной, требующей изменений вне этого репозитория. Одна была неверно оценена — см. «Транспорт».
+
+Кодовая база: ~13.5k строк C#/Avalonia, 81 файл. Тесты: **407/407 зелёные** (было 329).
 
 Severity: 🔴 critical · 🟠 high · 🟡 medium · ⚪ low
 
 ---
 
-## 🔴 SYSTEMIC — TLS-валидация отключена во всём приложении
+## Закрыто
 
-`ServerCertificateCustomValidationCallback = (_,_,_,_) => true` — принимается **любой** сертификат (просрочен, самоподписан, чужой хост, MITM). Дублируется в **8 файлах**, все шлют Bearer-токен/учётки. Активный MITM на сети крадёт JWT, SIP-пароль, PII лидов/звонков, подменяет ответы. Уже отмечено в `plan.md:151`.
+### Безопасность
 
-| Файл | Строки | Что течёт |
-|------|--------|-----------|
-| [LoginView.axaml.cs:20](OrbitalSIP/Views/LoginView.axaml.cs:20) | 20-23 | логин/пароль + SIP-пароль (🔴 critical — точка входа учёток) |
-| [LeadService.cs:15](OrbitalSIP/Services/LeadService.cs:15) | 15-19 | JWT + данные лидов |
-| [CallInfoService.cs:21](OrbitalSIP/Services/CallInfoService.cs:21) | 21-25 | JWT + PII звонящего (телефоны) |
-| [FlowsService.cs:17](OrbitalSIP/Services/FlowsService.cs:17) | 17-21 | JWT + данные сценариев |
-| [ScriptService.cs:17](OrbitalSIP/Services/ScriptService.cs:17) | 17-21 | JWT + CDR/скрипты |
-| [StatusService.cs:27](OrbitalSIP/Services/StatusService.cs:27) | 27-30 | JWT + presence |
-| [OperatorStatsControl.axaml.cs:22](OrbitalSIP/Views/OperatorStatsControl.axaml.cs:22) | 22-26 | JWT + статистика |
-| [RecentsView.axaml.cs:32](OrbitalSIP/Views/RecentsView.axaml.cs:32) | 32 | JWT + CDR |
+| Что | Где | Суть фикса |
+|-----|-----|------------|
+| 🔴 Инъекция SIP URI через named pipe | [Program.cs:153](OrbitalSIP/Program.cs:153) | Строка из pipe прогоняется через `NormalizeNumber`, как путь через командную строку. Раньше значение с `@` уходило в `SipService` как готовый SIP URI — INVITE на произвольный хост |
+| 🟠 Нет обработки 401 / refresh-токена | [BackendAuth.cs](OrbitalSIP/Services/BackendAuth.cs), [AuthRefreshHandler.cs](OrbitalSIP/Services/AuthRefreshHandler.cs) | Проактивное обновление по claim `exp` в `DelegatingHandler` общего пула, single-flight через семафор, ротация refresh-токена. Переживший 401 = конец сессии → экран логина (отложенный, если идёт звонок) |
+| 🟠 Подмена инсталлятора между записью и запуском | [UpdateService.cs:245](OrbitalSIP/Services/UpdateService.cs:245) | Скачивание в свежий каталог с непредсказуемым именем, `FileMode.CreateNew` + `FileShare.None`, сверка размера с `size` из release API, проверка что download URL ведёт на GitHub. Заодно стрим на диск вместо ~90 МБ в памяти |
+| 🟡 Сырые тела ответов в UI-баннере | [HttpErrorNotifier.cs:33](OrbitalSIP/Services/HttpErrorNotifier.cs:33) | URL и тело — только в лог; в баннер идёт статус, длина ограничена 160 символами |
+| 🟡 PII в логах | [LogRedaction.cs](OrbitalSIP/Models/LogRedaction.cs), `CallInfoService`, `LeadService`, `StatusService` | Номера маскируются (`+992*******67`), полные тела ответов на успешном пути не пишутся. Самым крупным источником был `CallInfoService`, писавший весь CRM-профиль звонящего на каждый отвеченный звонок |
 
-**Фикс:** убрать callback везде — дефолтная проверка по системному хранилищу. Если нужен внутренний CA — пиннинг конкретного thumbprint для известного хоста, никогда `=> true`. Завести один общий `HttpClient`/handler-фабрику, чтобы не дублировать.
+### Корректность
 
----
+| Что | Где | Суть фикса |
+|-----|-----|------------|
+| 🟠 `Environment.Exit(0)` мимо всей очистки | [MainWindow.axaml.cs:769](OrbitalSIP/MainWindow.axaml.cs:769) | `desktop.Shutdown()`. Теперь поднимается `desktop.Exit` → `SipService.Dispose()`: снятие регистрации на PBX, BYE активному звонку, снятие keyboard hook, флаш Sentry |
+| 🟠 Сохранение настроек рвёт активный звонок | [SipService.cs:70](OrbitalSIP/Services/SipService.cs:70) | `Start()` кладёт трубку до пересборки транспорта + верификация выхода в `Idle` |
+| 🟠 Утечка `DispatcherTimer` на смене вида | [ActiveCallView.axaml.cs:107](OrbitalSIP/Views/ActiveCallView.axaml.cs:107), [ActiveCallWidgetView.axaml.cs:49](OrbitalSIP/Views/ActiveCallWidgetView.axaml.cs:49) | `_timer.Stop()` в `OnDetachedFromVisualTree`. У виджета override отсутствовал вовсе |
+| 🟠 Неатомарный `OnCallEnded` | [SipService.cs](OrbitalSIP/Services/SipService.cs) | Переход захватывается внутри `_lock`; `CleanupMedia` идемпотентен (забирает поля под локом, закрывает свои копии); `_state` — `volatile` |
+| 🟠 BYE принимался от любого диалога | [SipService.cs:358](OrbitalSIP/Services/SipService.cs:358) | Сверка Call-ID с активным диалогом, чужому — 481 |
+| 🟠 Хоткей уходил в шелл вместе с действием | [GlobalHotkeyService.cs:184](OrbitalSIP/Services/GlobalHotkeyService.cs:184) | Комбинация с модификатором поглощается. `Alt+Escape`/`Alt+Enter`/`Alt+Space` — системные шорткаты Windows, и сброс звонка заодно переключал окна. Биндинг без модификатора **не** поглощается: иначе буква стала бы ненабираемой во всей системе |
+| 🟠 Баннер верификации мигал и исчезал | [SurveyDialog.axaml.cs:414](OrbitalSIP/Views/SurveyDialog.axaml.cs:414) | Результат сверки передаётся следующему рендеру вместо гонки с ним. Раньше два `UiPost` попадали в один проход диспетчера, а `RenderNode` безусловно гасит баннер — оператор **никогда** не видел «Несоответствие данных» на нетерминальных узлах, то есть ровно там, где это ещё может изменить разговор |
+| 🟡 Гонки в `CallAsync`/`AnswerAsync`/`ToggleHold`/`SendDtmfAsync` | [SipService.cs](OrbitalSIP/Services/SipService.cs) | Переходы под локом, события — вне; снапшот `_mediaSession` вместо null-check поля; откат `ToggleHold` при сбое re-INVITE |
+| 🟡 UAS не reject'ился при сбое аудио | [SipService.cs](OrbitalSIP/Services/SipService.cs) | `TryRejectPending` шлёт 480 на всех путях аварийного выхода из ответа. Раньше звонящий слушал гудки до своего таймаута |
+| 🟡 Баннер ошибки раз в 20 с при мёртвом бэкенде | [StatusService.cs](OrbitalSIP/Services/StatusService.cs), [PollBackoff.cs](OrbitalSIP/Models/PollBackoff.cs) | Экспоненциальный бэкофф 20 с → 5 мин, уведомление только на первый сбой серии |
+| 🟡 `async void` обработчики кликов | [SafeHandler.cs](OrbitalSIP/Views/SafeHandler.cs), [ActiveCallView.axaml.cs:370](OrbitalSIP/Views/ActiveCallView.axaml.cs:370) | Обёртка логирует исключение вместо ухода в `AppDomain.UnhandledException`; `CreateLeadAsync` разделён так, что `finally` возвращает кнопку при любом исходе кроме созданного лида |
+| 🟡 `SmsService` мимо общего пула | [SmsService.cs:37](OrbitalSIP/Services/SmsService.cs:37) | Перешёл на `BackendHttp.Client`: один пул сокетов, `PooledConnectionLifetime`, и refresh-токен теперь работает и для SMS |
+| 🟡 `HttpResponseMessage` без `using` | 7 файлов | `using var response = ...` везде |
+| ⚪ `Trim()` на пароле | [LoginView.axaml.cs:51](OrbitalSIP/Views/LoginView.axaml.cs:51) | Снят — пробелы по краям легальны в пароле |
+| ⚪ Неатомарная запись настроек | [SipSettings.cs:82](OrbitalSIP/Services/SipSettings.cs:82) | Запись во временный файл + `File.Move(overwrite)`. Обрыв на середине больше не оставляет обрезанный файл, который `Load()` молча заменяет дефолтами |
+| ⚪ Мёртвая кнопка Recents в панели звонка | [ActiveCallView.axaml.cs:287](OrbitalSIP/Views/ActiveCallView.axaml.cs:287) | Warning CS0067 указывал на живой баг: `MainWindow` подписывался на `OnRecentsRequested`, а вид его никогда не поднимал — кнопка в нижней навигации не делала ничего. Событие проброшено из `BottomNavControl`, как в `ExpandedView` |
+| ⚪ Утечка PII в статическом кэше | [ActiveCallView.axaml.cs:65](OrbitalSIP/Views/ActiveCallView.axaml.cs:65) | `ForgetCachedCall()` вызывается при переходе звонка в `Idle` и при истечении сессии. Кэш должен переживать collapse/expand, но не звонок и не логаут |
+| ⚪ Корневые `bin`/`obj` не в `.gitignore` | [.gitignore](.gitignore:3) | Добавлены |
+| ⚪ Варнинги сборки | [SurveyDialog.axaml.cs:70](OrbitalSIP/Views/SurveyDialog.axaml.cs:70), `GainAudioEndPoint` | AVLN:0005 — добавлен parameterless-конструктор для XAML-загрузчика, не запускающий `InitAsync` (как `loadTemplates:false` у `SmsComposeDialog`). CS0067 — см. выше. 4× CS8618 на событиях — `= null!` |
 
-## 🟠 HIGH
-
-### 1. Гонка в `OnCallEnded` — двойной cleanup, NRE/повреждение состояния
-[SipService.cs:648](OrbitalSIP/Services/SipService.cs:648) (648-659, 661-670). Guard `if (State==Idle) return` держит `_lock` только на **чтение**, потом отпускает и зовёт `CleanupMedia()`/`SetState()` вне лока. `OnCallEnded` прилетает с нескольких потоков SIPSorcery (`OnCallHungup`, `OnRtpClosed`, BYE). Два потока проходят guard, оба входят в `CleanupMedia` (тоже без синхронизации): один обнуляет `_mediaSession`, другой зовёт `.Close()` на null/disposed → double-Close/NRE. `State` — обычное авто-свойство, без `volatile`, запись Idle вне лока не видна другим потокам.
-**Фикс:** атомарно — `lock(_lock){ if(State==Idle) return; State=Idle; }`, затем `CleanupMedia`/события вне лока; поля медиа обнулять под локом до dispose.
-
-### 2. `ShutdownApp` → `Environment.Exit(0)` минует всю очистку
-[MainWindow.axaml.cs:678](OrbitalSIP/MainWindow.axaml.cs:678). `Environment.Exit(0)` не поднимает событие `desktop.Exit` ([App.axaml.cs:53](OrbitalSIP/App.axaml.cs:53)) — единственное место, где зовётся `SipService.Dispose()` (`_reg.Stop()`, hangup, transport shutdown). Итог: после выхода оператор **остаётся REGISTERED** на PBX (фантомная регистрация, звонки звонят в мёртвый клиент), активный звонок не получает BYE. Все 4 пути выхода (Recents/Settings/ActiveCall/Dialer) идут сюда.
-**Фикс:** `((IClassicDesktopStyleApplicationLifetime)Application.Current!.ApplicationLifetime!).Shutdown();` — как уже сделано в `MenuExit_Click` ([App.axaml.cs:96](OrbitalSIP/App.axaml.cs:96)).
-
-### 3. Сохранение настроек во время звонка роняет звонок
-[MainWindow.axaml.cs:393](OrbitalSIP/MainWindow.axaml.cs:393) (393-411). `OnSaveRequested` → `SipService.Start(settings)` без проверки состояния. `Start()` пересоздаёт `_transport`, но **не** зовёт `Hangup()`/`CleanupMedia()` на текущем `_activeCall`. Старый диалог остаётся на уже-disposed транспорте → BYE не уходит (удалённая сторона висит до RTP-таймаута), аудио-endpoint утекает, `State` застревает Active. Кнопка Settings доступна в активном звонке ([MainWindow.axaml.cs:563](OrbitalSIP/MainWindow.axaml.cs:563)).
-**Фикс:** в `Start()` при `State != Idle` сначала `Hangup()`/`CleanupMedia()`; или блокировать Save во время звонка.
-
-### 4. Баннер верификации мигает и исчезает
-[SurveyDialog.axaml.cs:428](OrbitalSIP/Views/SurveyDialog.axaml.cs:428) (428-458). При успешном ответе один `Dispatcher.Post` показывает `VerificationBanner` (mismatch/нет данных), следом другой `Post` зовёт `RenderNode`, а тот на [:285](OrbitalSIP/Views/SurveyDialog.axaml.cs:285) безусловно `Show("VerificationBanner", false)`. Обе задачи в одном проходе диспетчера (FIFO) → баннер показан и скрыт до отрисовки. Оператор **никогда не видит** предупреждение о расхождении данных на не-терминальных узлах.
-**Фикс:** переносить состояние верификации в `RenderNode` следующего узла, либо не скрывать баннер безусловно.
-
-### 5+6. `DispatcherTimer` 1 Гц никогда не останавливается
-[ActiveCallView.axaml.cs:50](OrbitalSIP/Views/ActiveCallView.axaml.cs:50) (50-57, stop только на 106/360) и [ActiveCallWidgetView.axaml.cs:49](OrbitalSIP/Views/ActiveCallWidgetView.axaml.cs:49) (вообще нет `Stop()`). При minimize/expand/transfer создаётся новый view+timer, старый таймер рутится в очереди диспетчера → старый view не собирается GC, `OnTick` тикает на отсоединённом дереве вечно. Утечка на каждый цикл minimize/expand и каждый hangup (виджет). Накапливается на весь сеанс.
-**Фикс:** `OnDetachedFromVisualTree` → `_timer?.Stop(); _timer=null;` (или MainWindow останавливает таймер уходящего view перед свопом контента).
+**Новые тесты (+78):** [AccessTokenLifetimeTests](OrbitalSIP.Tests/AccessTokenLifetimeTests.cs) — границы skew, отсутствующий `exp`, непредставимые значения; [PollBackoffTests](OrbitalSIP.Tests/PollBackoffTests.cs) — удвоение, потолок, отрицательный счётчик; [LogRedactionTests](OrbitalSIP.Tests/LogRedactionTests.cs) — маска сохраняет различимость номеров и не содержит середины; [GlobalHotkeyServiceTests](OrbitalSIP.Tests/GlobalHotkeyServiceTests.cs) — парсер комбинаций и правило «голая клавиша не регистрируется»; [BackendHttpTests](OrbitalSIP.Tests/BackendHttpTests.cs) — детект http/https, disposal `SmsService`.
 
 ---
 
-## 🟡 MEDIUM
+## 🔴 Открыто — транспорт без шифрования
 
-| # | Файл:строка | Проблема | Фикс |
-|---|-------------|----------|------|
-| 7 | [SipService.cs:182](OrbitalSIP/Services/SipService.cs:182) | `CallAsync` ставит `_activeCall`/`State` **вне** `_lock` — гонка со входящим INVITE и реентрантностью | весь переход под `_lock` |
-| 8 | [SipService.cs:259](OrbitalSIP/Services/SipService.cs:259) | BYE-хендлер зовёт `OnCallEnded` без проверки, что BYE относится к активному диалогу — чужой/устаревший BYE рвёт звонок | сверять Call-ID диалога |
-| 9 | [SipService.cs:324](OrbitalSIP/Services/SipService.cs:324) | `AnswerAsync` при сбое аудио обнуляет `_activeCall`, но `_pendingUas` уже очищен и UAS не reject'нут серверу | reject UAS перед сбросом |
-| 10 | [SipService.cs:690](OrbitalSIP/Services/SipService.cs:690) | `Log` = `File.AppendAllText` на каждое событие без try/catch — IO-исключение на потоке SIPSorcery валит обработчик | обернуть в try/catch, буферизация |
-| 11 | [SipService.cs:493](OrbitalSIP/Services/SipService.cs:493) | `ToggleHold` меняет `IsOnHold`/`State` без лока; `SetState` шлёт события на потоке вызывающего | под `_lock`, маршалинг событий |
-| 12 | [SipService.cs:483](OrbitalSIP/Services/SipService.cs:483) | `IsMuted`/`IsOnHold` не сбрасываются в false при новом звонке — mute/hold протекает между звонками | сбрасывать в `CleanupMedia`/старте |
-| 13 | [SipService.cs:66](OrbitalSIP/Services/SipService.cs:66) | `Start()` рвёт/заменяет `_transport` без `_lock`, пока `OnSIPRequest`/коллбэки используют его на потоках SIPSorcery | синхронизация доступа к `_transport` |
-| 14 | [SurveyDialog.axaml.cs:410](OrbitalSIP/Views/SurveyDialog.axaml.cs:410) | Любой сбой `AnswerAsync` трактуется как 409 — ответ оператора молча теряется, без фидбэка | различать ошибки, показывать сбой |
-| 15 | [MainWindow.axaml.cs:494](OrbitalSIP/MainWindow.axaml.cs:494) | Авто-открытый модальный опрос не закрывается, когда звонок завершился под ним | закрывать диалог по событию конца звонка |
-| 16 | [UpdateService.cs:127](OrbitalSIP/Services/UpdateService.cs:127) | Guard «идёт звонок» проверяется 1 раз, до 20-мин загрузки; перед `Process.Start` (installer `/CLOSEAPPLICATIONS`) не перепроверяется → убивает активный звонок | перепроверить `State==Idle` перед стартом инсталлятора |
-| 17 | [StatusService.cs:127](OrbitalSIP/Services/StatusService.cs:127) | `durationMinutes` не уходит на сервер — при перезапуске/на другом устройстве оператор навсегда «на паузе» | слать длительность в payload, таймер от серверного состояния |
-| 18 | [GlobalHotkeyService.cs:146](OrbitalSIP/Services/GlobalHotkeyService.cs:146) | Колбэк LL-хука диспатчит асинхронно — ломает подавление хоткея и тормозит глобальный хук | обрабатывать синхронно в колбэке |
-| 19 | [AppLogger.cs:21](OrbitalSIP/Services/AppLogger.cs:21) | Безграничный рост лога + синхронный `File.AppendAllText` на каждый вызов | ротация, async/очередь |
-| 20 | [ActiveCallView.axaml.cs:29](OrbitalSIP/Views/ActiveCallView.axaml.cs:29) | Конструктор не синхронит `_onHold/_muted` с `SipService` — после expand/transfer первое нажатие Mute/Hold инвертировано | передавать `isMuted/isOnHold` в конструктор (как виджет) |
-| 21 | [SettingsView.axaml.cs:26](OrbitalSIP/Views/SettingsView.axaml.cs:26) | Подписка на статические события синглтонов без отписки — утечка + мульти-инвок на мёртвых view | `OnDetachedFromVisualTree` → отписка (как в `WidgetView`) |
-| 22 | [LoginView.axaml.cs:104](OrbitalSIP/Views/LoginView.axaml.cs:104) | Тело HTTP-ошибки (может нести токены) логируется и показывается в баннере | логировать только код + санитизированное сообщение |
-| 23 | [LoginView.axaml.cs:45](OrbitalSIP/Views/LoginView.axaml.cs:45) | `async void` KeyDown: Enter во время идущего логина запускает второй `AttemptLogin` → двойной `SipService.Start` | флаг `_loggingIn`, ранний выход |
-| 24 | [RecentsView.axaml.cs:89](OrbitalSIP/Views/RecentsView.axaml.cs:89) | Диапазон дат CDR берёт сегодняшнюю **UTC**-дату как локальный рабочий день — пропуск/лишние звонки у краёв суток | локальная дата или серверный TZ |
+Июньский обзор описывал это как «TLS-валидация отключена в 8 файлах» и предлагал убрать колбэк. **Оценка была неверной.** Развёрнутая конфигурация:
 
----
+```
+"BackendUrl": "http://10.10.103.46"
+"Transport":  "UDP"
+```
 
-## ⚪ LOW
+TLS там нет вообще, поэтому `RemoteCertificateValidationCallback => true` никогда не вызывался, и его удаление ничего не меняло. Реальная экспозиция проще и шире:
 
-| # | Файл:строка | Проблема |
-|---|-------------|----------|
-| 25 | [SoundService.cs:42](OrbitalSIP/Services/SoundService.cs:42) | `_prevState` читается/пишется без синхронизации с фоновых потоков |
-| 26 | [SipService.cs:200](OrbitalSIP/Services/SipService.cs:200) | Два `OnCallHungup` оба гонят `OnCallEnded`; защита только `State==Idle` |
-| 27 | [SipSettings.cs:59](OrbitalSIP/Services/SipSettings.cs:59) | `Save()` не атомарен, без обработки ошибок — краш при записи рушит файл настроек |
-| 28 | [SoundService.cs:52](OrbitalSIP/Services/SoundService.cs:52) | Переходы OnHold и IncomingRinging→Active без звука; OnHold оставляет луп играть |
-| 29 | [SipService.cs:118](OrbitalSIP/Services/SipService.cs:118) | ContactHost-проба только при literal-IP; для hostname-серверов ContactHost не задаётся |
-| 30 | [MainWindow.axaml.cs:458](OrbitalSIP/MainWindow.axaml.cs:458) | Двойной `StartAnimation` при ответе на входящий в Panel-режиме (мёртвый код/churn) |
-| 31 | [Program.cs:133](OrbitalSIP/Program.cs:133) | Pipe-сервер: номер `tel:`, пришедший до подписки MainWindow, молча теряется |
-| 32 | [MainWindow.axaml.cs:62](OrbitalSIP/MainWindow.axaml.cs:62) | Closing отменяет закрытие и прячет окно → `OnClosed`-очистка в норме не выполняется |
-| 33 | [SurveyDialog.axaml.cs:623](OrbitalSIP/Views/SurveyDialog.axaml.cs:623) | Next на числовом узле шлёт сырую строку без числовой/культурной валидации |
-| 34 | [LoggedCallService.cs:118](OrbitalSIP/Services/LoggedCallService.cs:118) | `Save()` неатомарный overwrite — краш при записи рушит `logged-calls.json` |
-| 35 | [UpdateService.cs:100](OrbitalSIP/Services/UpdateService.cs:100) | Парсинг версии срезает только ведущий `v`, не тянет `-beta`/`+build` (SemVer) |
-| 36 | [JwtDecoder.cs:44](OrbitalSIP/Services/JwtDecoder.cs:44) | Декод base64url молча возвращает null при битом токене, без лога — оператор- id тихо деградирует |
-| 37 | [StatusService.cs:54](OrbitalSIP/Services/StatusService.cs:54) | Отсчёт паузы на `DateTime.Now` — DST/перевод часов даёт ±час/застрявшую паузу |
-| 38 | [GlobalHotkeyService.cs:90](OrbitalSIP/Services/GlobalHotkeyService.cs:90) | Сбой установки хука молча игнорируется — мёртвые хоткеи без диагностики |
-| 39 | [GlobalHotkeyService.cs:130](OrbitalSIP/Services/GlobalHotkeyService.cs:130) | Не-латинские одиночные хоткеи мапятся в неверный VK |
-| 40 | [FlowsService.cs:59](OrbitalSIP/Services/FlowsService.cs:59) | Сырые тела HTTP-ошибок логируются/показываются (утечка токен/PII) |
-| 41 | [AppLogger.cs:23](OrbitalSIP/Services/AppLogger.cs:23) | Таймстамп форматируется текущей культурой |
-| 42 | [StatusState.cs:24](OrbitalSIP/Models/StatusState.cs:24) | Compat-свойство Paused считает пустой manualStatus за «на паузе» |
-| 43 | [ActiveCallView.axaml.cs:70](OrbitalSIP/Views/ActiveCallView.axaml.cs:70) | Раздельные метки мин/сек переполняются при ≥100 минут |
-| 44 | [ActiveCallView.CallInfo.cs:168](OrbitalSIP/Views/ActiveCallView.CallInfo.cs:168) | Async-обработчик копирования в строке гонит состояние иконки, держит ссылку на view |
-| 45 | [SettingsView.axaml.cs:127](OrbitalSIP/Views/SettingsView.axaml.cs:127) | GotFocus затирает сохранённый хоткей плейсхолдером, теряя его при клике мимо |
-| 46 | [SettingsView.axaml.cs:277](OrbitalSIP/Views/SettingsView.axaml.cs:277) | Port сохраняется как сырой текст без числовой валидации |
-| 47 | [ExpandedView.axaml.cs:30](OrbitalSIP/Views/ExpandedView.axaml.cs:30) | Дублированный null-check (copy-paste) на проводке bottomNav |
-| 48 | [ExpandedView.axaml.cs:112](OrbitalSIP/Views/ExpandedView.axaml.cs:112) | Async-лямбда Copy реентрит за 1200мс restore, портит `originalKind` |
-| 49 | [StatusPopupControl.axaml.cs:217](OrbitalSIP/Views/StatusPopupControl.axaml.cs:217) | Отсчёт паузы через Minutes/Seconds даёт неверное/отрицательное время через границу суток |
-| 50 | [CdrItemViewModel.cs:38](OrbitalSIP/ViewModels/CdrItemViewModel.cs:38) | `ToLocalTime()` зависит от `DateTimeKind` десериализации — двойной/нулевой сдвиг |
-| 51 | [CdrItemViewModel.cs:55](OrbitalSIP/ViewModels/CdrItemViewModel.cs:55) | `DisplayStatus` показывает сырую disposition, минуя i18n, светит бэкенд-коды |
+- `POST /api/auth/login` — логин и пароль оператора в открытом виде;
+- `GET /api/auth/sip-credentials` — **SIP-пароль** в открытом виде;
+- Bearer-токен на каждом последующем запросе;
+- PII лидов, CDR, номера звонящих;
+- SIP-сигнализация по UDP без TLS, RTP без SRTP — разговор тоже в открытую.
 
-(+ #52-57 — менее значимые культурно-парсинговые/UX-варианты тех же классов; см. полный JSON воркфлоу.)
+Достаточно снифера в том же сегменте: подставной сертификат не нужен, MITM не нужен.
+
+**Клиентская часть подготовлена:** мёртвый колбэк удалён, применяется дефолтная валидация ([BackendHttp.cs:37](OrbitalSIP/Services/BackendHttp.cs:37)), при `http://` BackendUrl один раз за запуск пишется предупреждение в лог ([BackendHttp.cs:75](OrbitalSIP/Services/BackendHttp.cs:75)) — из двух точек: старт приложения и момент отправки логина.
+
+**Что осталось — вне этого репозитория:** поднять https на бэкенде, перевести SIP на TLS + SRTP. До этого никакой клиентский код проблему не закрывает.
 
 ---
 
-## Приоритет
-1. **TLS** — один фикс закрывает 8 находок и весь класс утечки учёток. Делать первым.
-2. **SIP-жизненный цикл** (#1,2,3,7,8,9,13) — гонки и утечки звонков, прямой пользовательский урон (фантомная регистрация, оборванные звонки).
-3. **Утечки таймеров/подписок** (#5,6,21) — деградация за смену.
-4. Остальное по severity.
+## 🟠 Открыто
 
-Самый частый системный антипаттерн: разделяемое состояние (`SipService`, культурные даты, event-подписки) трогается с нескольких потоков/без отписки. Стоит ввести единый паттерн локинга в `SipService` и `OnDetachedFromVisualTree`-отписку во всех view.
+### Инсталлятор не подписан
+[UpdateService.cs:321](OrbitalSIP/Services/UpdateService.cs:321). В сборке нет шага `signtool` — ни в [build.ps1](build.ps1), ни в [OrbitalSIP.iss](installer/OrbitalSIP.iss). Поэтому проверка Authenticode перед запуском **намеренно не включена**: она сломала бы каждое обновление.
+
+Сейчас факт отсутствия подписи пишется в лог при каждом обновлении, а окно подмены файла закрыто (непредсказуемый каталог, `CreateNew`, сверка размера). Но целостность скачанного бинаря по-прежнему держится только на TLS до GitHub.
+
+**Фикс — в пайплайне сборки:** подписать инсталлятор, затем включить проверку в `LogAuthenticode` (превратить лог в отказ).
+
+### Хоткеи: `RegisterHotKey` написан, но выключен по умолчанию
+[GlobalHotkeyService.cs:192](OrbitalSIP/Services/GlobalHotkeyService.cs:192), флаг [SipSettings.cs:67](OrbitalSIP/Services/SipSettings.cs:67).
+
+Коллизия с шеллом уже закрыта на стороне хука, callback удешевлён. Архитектурная часть — `WH_KEYBOARD_LL` пропускает через процесс **каждое нажатие на машине**, и зависание колбэка дольше `LowLevelHooksTimeout` подвешивает ввод во всей системе — решается реализованным путём `RegisterHotKey`: выделенный поток с `GetMessage`-циклом, регистрация всё-или-ничего, повторная регистрация по `WM_REREGISTER` при сохранении настроек.
+
+**Почему по умолчанию выключено:** этот код нельзя выполнить в headless-прогоне. Автоматический откат на хук закрывает отказ регистрации (комбинация занята другой программой — сценарий, которого у хука не было вовсе), но не «зарегистрировались, а цикл сообщений молча не доставляет». Оператор, потерявший хоткей сброса посреди смены, — худший исход, чем невежливый хук.
+
+**Чтобы включить:** `"UseHotkeyRegistration": true` в `sip-settings.json`, затем прогнать все четыре хоткея при неактивном окне, при активном окне, и проверить, что комбинация больше не уходит в шелл. После успешного прогона — поменять дефолт в `SipSettings`.
+
+Ограничение по конструкции: если хоть один биндинг без модификатора, путь регистрации не используется вовсе (`RegisterHotKey` поглощает то, что занял, и голая буква перестала бы набираться во всей системе). Правило покрыто тестами.
+
+---
+
+## ⚪ Открыто
+
+- [ActiveCallView.axaml.cs:318](OrbitalSIP/Views/ActiveCallView.axaml.cs:318) — захардкоженные `"Unmute"/"Mute"` посреди i18n-интерфейса. Ключей нет ни в одном из четырёх файлов; нужны переводы на `kk`/`tg`/`uz`.
+- `SessionExpired` добавлен только в [ru.json](OrbitalSIP/Assets/i18n/ru.json). В `kk`/`tg`/`uz` подставляется русский дефолт — нужен перевод.
+- Корневой `obj/` всё ещё в индексе — 16 файлов от мёртвого `test_icon.csproj`: `git rm -r --cached obj`. `test.py` в корне — двухстрочный скрап.
+- 5× CS8618 в [GainAudioEndPoint.cs:154](OrbitalSIP/Services/Audio/GainAudioEndPoint.cs:154) оставлены намеренно. Предупреждения честные: `_waveInEvent`, `_waveOutEvent`, `_waveProvider`, `_waveSinkFormat`, `_waveSourceFormat` инициализируются условно (`disableSource`/`disableSink`), и это приложение всегда передаёт `false`. Перевод в nullable — 39 мест в аудио-хотпате, который здесь не прогоняется; ошибочный `?.` в capture-колбэке молча съест звук. Стоит делать вместе с тестами на аудио, не вслепую.
+- Avalonia приколочена к **11.0.0** (середина 2023). [SmsComposeDialog](OrbitalSIP/Views/SmsComposeDialog.axaml.cs:412) несёт три обхода багов `AutoCompleteBox`, один из них лезет в визуальное дерево контрола за приватной template-частью. Апгрейд снимет костыли — но и сломает их, если внутренности переедут. Планировать отдельно.
+
+---
+
+## Проверка самих правок
+
+Изменения этого обзора прогнаны через состязательное ревью (6 областей, находки проверялись отдельным скептиком с презумпцией «не баг»): **26 кандидатов → 5 подтверждено, 3 опровергнуто**. Подтверждённые были реальными регрессиями, внесёнными правками, и исправлены здесь же:
+
+| Что нашли | Почему это важно |
+|-----------|------------------|
+| `_timer = null` в `OnDetachedFromVisualTree` убивал таймер звонка **навсегда** | Анимированная смена вида переносит контрол из `OverlayHost` в `Host` — это detach+attach, restart'а не было. Таймер показывал бы `00:00` весь разговор, и замороженное значение уезжало в следующий вид. Исправлено переходом на `Stopwatch` (остановленный таймер больше не может потерять время) + restart на attach |
+| Сохранение настроек теряло `RefreshToken` | Обработчик копировал 4 поля сессии из списка, написанного руками; новое поле в список не попало — сохранение настроек молча обезоруживало обновление токена на всю смену. Заменено на `SipSettings.CopySessionFrom` + рефлексивный тест, падающий при добавлении следующего такого поля |
+| Refresh шёл под токеном отмены случайного вызывающего | Ротация уже совершена на сервере, а отмена одного запроса бросала клиент со сгоревшим refresh-токеном — сессия умирала для всех. Теперь у refresh собственный дедлайн |
+| 401 = мгновенный логаут | Запрос мог уйти с токеном, который другой поток только что проротировал. Теперь 401 **проверяется** принудительным refresh; сессию закрывает только 401 от самого `/auth/refresh` |
+| Повторная регистрация хоткеев обходила guard на голую клавишу | Правка хоткея на голую букву в рантайме зарегистрировала бы её — и `RegisterHotKey` поглотил бы букву во всей системе |
+
+Из непроверенных кандидатов дополнительно исправлены: баннер верификации оставался на финальной странице; `ResetBackoff` срабатывал до разбора тела; каталог обновления не подчищался; `Start()` объявлял `Idle` дважды; неотвеченный входящий leg оставался без финального ответа; URL с номером звонящего попадал в лог через `NotifyHttpError`; короткие номера маскировались тремя звёздами; анимация перетирала геометрию экрана логина; `Matches` игнорировал Shift/Win и с новым поглощением съедал неназначенные комбинации.
+
+Уже после этого нашлась ещё одна, внесённая самими правками: `Hangup()` отклонял `uas`, а добавленный `RollbackToIdle` отклонял его повторно — два финальных ответа на один INVITE. Исправлено.
+
+## Чего в этом проходе не проверяли
+
+Изменения в `SipService`, `GlobalHotkeyService`, `SurveyDialog`, `UpdateService` и потоке логина проверены сборкой и юнит-тестами, но **не прогонялись на живом стенде**. Ручной прогон:
+
+1. Входящий и исходящий звонок; hold / mute / transfer.
+2. Сохранение настроек **во время** звонка — звонок должен корректно завершиться, а не зависнуть в `Active`.
+3. Выход из приложения всеми четырьмя путями — проверить на PBX, что регистрация снята.
+4. Четыре хоткея при неактивном окне; убедиться, что `Alt+Space` больше не открывает системное меню чужого окна.
+5. Анкета с расхождением данных на **нетерминальном** узле — баннер «Несоответствие данных» должен остаться на экране.
+6. Обновление: скачивание, сверка размера, запуск инсталлятора; в `app.log` — строка про отсутствие подписи.
+7. Долгая сессия (> 2 суток) или подмена `exp` — проверить, что токен обновляется молча, а отзыв токена приводит к экрану логина, причём не посреди звонка.
+
+---
+
+## Что в проекте сделано хорошо
+
+- Логика вынесена из view в тестируемые модели (`SmsComposeState`, `LeadCallPanelPresenter`, `ActiveCallSmsLifecycle`, `WindowPlacement`, `JitterTrim`) — для UI-приложения это правильный шов, и он же позволил покрыть тестами всю новую логику этого прохода.
+- `AsyncLogWriter`/`BoundedLogQueue`/`LogRotation` — ограниченная очередь, не бросает, ротация всегда прогрессирует, финальный дренаж на shutdown.
+- Комментарии объясняют **почему**, а не что, включая обходы багов фреймворка и обоснование зависимостей в `.csproj`.
+- `SmsService` парсит строго и принципиально не отражает сырые тела в исключениях.

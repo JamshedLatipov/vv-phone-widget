@@ -111,17 +111,23 @@ namespace OrbitalSIP.Services.Audio
         /// <summary>Rendered packet count, used only to sample the backlog into the log.</summary>
         private int _renderPacketCount;
 
+        // The four events below implement SIPSorceryMedia.Abstractions interfaces that are
+        // not nullable-annotated, so they cannot be declared `?` without trading nine
+        // CS8618s for four nullability-mismatch warnings. `= null!` states the same thing
+        // the interface already does — an unsubscribed event is null, and every raise site
+        // here uses `?.Invoke`.
+
         /// <summary>
         /// Not used by this audio source.
         /// </summary>
-        public event EncodedSampleDelegate OnAudioSourceEncodedSample;
+        public event EncodedSampleDelegate OnAudioSourceEncodedSample = null!;
 
         /// <summary>
         /// Encoded capture frame ready for the RTP transport. VoIPMediaSession still sends from
         /// <see cref="OnAudioSourceEncodedSample"/>, so this stays unsubscribed in practice and the
         /// frame is only built when something actually listens.
         /// </summary>
-        public event Action<EncodedAudioFrame> OnAudioSourceEncodedFrameReady;
+        public event Action<EncodedAudioFrame> OnAudioSourceEncodedFrameReady = null!;
 
         /// <summary>
         /// This audio source DOES NOT generate raw samples. Subscribe to the encoded samples event
@@ -130,9 +136,9 @@ namespace OrbitalSIP.Services.Audio
         [Obsolete("The audio source only generates encoded samples.")]
         public event RawAudioSampleDelegate OnAudioSourceRawSample { add { } remove { } }
 
-        public event SourceErrorDelegate OnAudioSourceError;
+        public event SourceErrorDelegate OnAudioSourceError = null!;
 
-        public event SourceErrorDelegate OnAudioSinkError;
+        public event SourceErrorDelegate OnAudioSinkError = null!;
 
         /// <summary>
         /// Creates a new basic RTP session that captures and renders audio to/from the default system devices.
