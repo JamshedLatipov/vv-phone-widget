@@ -506,6 +506,26 @@ git commit -m "feat(nav): decide the in-call tab pulse in one testable place"
 
 ## Task 3: Переписать `BottomNavControl`
 
+> **Как оно легло на самом деле.** Задачи 3 и 4 выполнены; код ниже — исходное задание, а
+> не описание того, что в репозитории. Три вещи здесь были неверны и исправлены по
+> измерению (коммит `2296e79`), ещё четыре пришли из ревью и меняют форму решения:
+>
+> - `_currentTab` **не присваивается вручную**. Он выводится из типа контента в
+>   `AttachNav` — десять ручных присваиваний были той же схемой отказа «каждый экран
+>   должен не забыть», ради устранения которой затевался рефакторинг.
+> - `_settingsFromLogin` **не гасится вручную**. `AttachNav` делает
+>   `_settingsFromLogin &= content is Views.SettingsView`, потому что флаг описывает один
+>   экран, а ручные сбросы закрывали один выход из четырёх — панель активного звонка
+>   наследовала login-режим, и любое нажатие таба выбрасывало на логин посреди разговора.
+> - `NavigateTo` начинается со стража `if (tab == _currentTab) return;`. Без него нажатие
+>   уже активного таба пересобирало экран и молча теряло несохранённые настройки SIP.
+> - Выбор иконки первого слота вынесен в чистый `OrbitalSIP/Services/NavTabIcon.cs` рядом
+>   с `NavPulse` и покрыт тестами; login-режим выигрывает у состояния звонка во всех
+>   четырёх решениях, а метод называется `RefreshTabVisuals`, а не `RefreshInCallVisuals`.
+>
+> Смотреть по коммитам `74d92c9`, `a0a3934`, `bdafa79`, `ee399e8`.
+
+
 UI, тестами не покрывается — проверяется сборкой и прогоном приложения на Task 4.
 
 **Files:**
@@ -1298,7 +1318,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: PASS, 528 тестов (501 базовых + 19 из Task 1 + 8 из Task 2).
+Ожидаемо: PASS, 536 тестов (501 базовых + 19 из Task 1 + 8 из Task 2 + 8 из `NavTabIcon`, добавленных по ревью Task 3+4).
 
 - [ ] **Step 11: Проверить руками**
 
@@ -2099,7 +2119,7 @@ dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "Ful
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: PASS, 561 тест.
+Ожидаемо: PASS, 569 тестов.
 
 - [ ] **Step 6: Коммит**
 
@@ -2411,7 +2431,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 561 тест зелёный. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
+Ожидаемо: сборка чистая, 569 тестов зелёные. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
 
 ```bash
 grep -rn "class OperatorDetailsResponse" OrbitalSIP/Models/OperatorStats.cs
@@ -2838,8 +2858,6 @@ namespace OrbitalSIP.Views
 ```csharp
         private void ShowTasks()
         {
-            _currentTab = NavTab.Tasks;
-
             var tasks = new Views.TasksView();
             tasks.OnCloseRequested += (_, __) => ToggleExpanded();
             tasks.OnExitAppRequested += (_, __) => ShutdownApp();
@@ -2848,6 +2866,16 @@ namespace OrbitalSIP.Views
         }
 ```
 
+`_currentTab` здесь не присваивается: после Task 4 он выводится из типа контента внутри
+`AttachNav`. Туда же добавить недостающую ветку — до Task 8 её не было, потому что типа
+не существовало:
+
+```csharp
+                Views.TasksView    => NavTab.Tasks,
+```
+
+И снять `TODO(task-8):` с комментария заглушки.
+
 - [ ] **Step 6: Собрать и прогнать тесты**
 
 ```bash
@@ -2855,7 +2883,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка без ошибок, 561 тест зелёный.
+Ожидаемо: сборка без ошибок, 569 тестов зелёные.
 
 - [ ] **Step 7: Проверить руками**
 
@@ -3011,7 +3039,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 561 тест зелёный.
+Ожидаемо: сборка чистая, 569 тестов зелёные.
 
 - [ ] **Step 6: Проверить руками**
 
@@ -3034,7 +3062,7 @@ git commit -m "fix(call): send DTMF from the keypad button instead of rebuilding
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: 561 тест, 0 упавших.
+Ожидаемо: 569 тестов, 0 упавших.
 
 - [ ] **Сборка релизной конфигурации**
 
