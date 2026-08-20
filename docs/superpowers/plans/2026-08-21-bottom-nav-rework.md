@@ -1318,7 +1318,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: PASS, 536 тестов (501 базовых + 19 из Task 1 + 8 из Task 2 + 8 из `NavTabIcon`, добавленных по ревью Task 3+4).
+Ожидаемо: PASS, 537 тестов (501 базовых + 19 из Task 1 + 8 из Task 2 + 9 из `NavTabIcon`, добавленных по ревью Task 3+4).
 
 - [ ] **Step 11: Проверить руками**
 
@@ -2119,7 +2119,7 @@ dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "Ful
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: PASS, 569 тестов.
+Ожидаемо: PASS, 570 тестов.
 
 - [ ] **Step 6: Коммит**
 
@@ -2431,7 +2431,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 569 тестов зелёные. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
+Ожидаемо: сборка чистая, 570 тестов зелёные. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
 
 ```bash
 grep -rn "class OperatorDetailsResponse" OrbitalSIP/Models/OperatorStats.cs
@@ -2883,7 +2883,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка без ошибок, 569 тестов зелёные.
+Ожидаемо: сборка без ошибок, 570 тестов зелёные.
 
 - [ ] **Step 7: Проверить руками**
 
@@ -3039,7 +3039,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 569 тестов зелёные.
+Ожидаемо: сборка чистая, 570 тестов зелёные.
 
 - [ ] **Step 6: Проверить руками**
 
@@ -3062,7 +3062,7 @@ git commit -m "fix(call): send DTMF from the keypad button instead of rebuilding
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: 569 тестов, 0 упавших.
+Ожидаемо: 570 тестов, 0 упавших.
 
 - [ ] **Сборка релизной конфигурации**
 
