@@ -241,13 +241,28 @@ public class NavBadgeStateTests
     /// number or a subtraction into an inflated one.
     /// </summary>
     [Fact]
-    public void NegativeTaskCountsAreIgnored()
+    public void NegativePendingCountClampsToZeroInsteadOfSubtracting()
     {
         var state = new NavBadgeState();
 
-        state.SetTasks(pending: -5, inProgress: 2, overdue: 0);
+        state.SetTasks(pending: -3, inProgress: 5, overdue: 0);
 
-        Assert.Equal(2, state.OpenTasks);
+        Assert.Equal(5, state.OpenTasks);
+    }
+
+    /// <summary>
+    /// One test per guard, not one table covering both: a case that makes only pending
+    /// negative leaves the inProgress clamp free to be deleted unnoticed, which is
+    /// exactly what happened the first time this was written.
+    /// </summary>
+    [Fact]
+    public void NegativeInProgressCountClampsToZeroInsteadOfSubtracting()
+    {
+        var state = new NavBadgeState();
+
+        state.SetTasks(pending: 1, inProgress: -5, overdue: 0);
+
+        Assert.Equal(1, state.OpenTasks);
     }
 
     [Fact]
@@ -378,7 +393,7 @@ public sealed class NavBadgeState
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~NavBadgeStateTests"
 ```
 
-Ожидаемо: PASS, 18 тестов.
+Ожидаемо: PASS, 19 тестов.
 
 - [ ] **Step 6: Коммит**
 
@@ -1253,7 +1268,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: PASS, 527 тестов (501 базовых + 18 из Task 1 + 8 из Task 2).
+Ожидаемо: PASS, 528 тестов (501 базовых + 19 из Task 1 + 8 из Task 2).
 
 - [ ] **Step 11: Проверить руками**
 
@@ -2054,7 +2069,7 @@ dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "Ful
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: PASS, 560 тестов.
+Ожидаемо: PASS, 561 тест.
 
 - [ ] **Step 6: Коммит**
 
@@ -2367,7 +2382,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 560 тестов зелёные. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
+Ожидаемо: сборка чистая, 561 тест зелёный. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
 
 ```bash
 grep -rn "class OperatorDetailsResponse" OrbitalSIP/Models/OperatorStats.cs
@@ -2811,7 +2826,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка без ошибок, 560 тестов зелёные.
+Ожидаемо: сборка без ошибок, 561 тест зелёный.
 
 - [ ] **Step 7: Проверить руками**
 
@@ -2967,7 +2982,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 560 тестов зелёные.
+Ожидаемо: сборка чистая, 561 тест зелёный.
 
 - [ ] **Step 6: Проверить руками**
 
@@ -2990,7 +3005,7 @@ git commit -m "fix(call): send DTMF from the keypad button instead of rebuilding
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: 560 тестов, 0 упавших.
+Ожидаемо: 561 тест, 0 упавших.
 
 - [ ] **Сборка релизной конфигурации**
 
