@@ -456,14 +456,31 @@ namespace OrbitalSIP.Services
                     catch (Exception ex) { Log($"OnCallHungup(incoming) handler threw: {ex}"); }
                 };
 
+                // The remote can CANCEL between AcceptCall above and this point, and that
+                // handler claims Idle. Publishing the legs and announcing IncomingRinging
+                // over it would put a call on the operator's screen that no longer exists —
+                // answerable, with a dead agent behind it. SetState wrote _state
+                // unconditionally, so it would have overwritten the Idle that CANCEL just
+                // claimed; announce only while the claim we made is still ours.
+                bool stillRinging;
                 lock (_lock)
                 {
-                    _activeCall = ua;
-                    _pendingUas = uas;
-                    ActiveCallerId = req.Header.From?.FromURI?.User ?? "Unknown";
+                    stillRinging = _state == CallState.IncomingRinging;
+                    if (stillRinging)
+                    {
+                        _activeCall = ua;
+                        _pendingUas = uas;
+                        ActiveCallerId = req.Header.From?.FromURI?.User ?? "Unknown";
+                    }
                 }
 
-                SetState(CallState.IncomingRinging);
+                if (!stillRinging)
+                {
+                    Log("Incoming call ended before it could be announced; not showing it.");
+                    return Task.CompletedTask;
+                }
+
+                AnnounceState(CallState.IncomingRinging);
                 IncomingCallReceived?.Invoke(ActiveCallerId);
             }
             return Task.CompletedTask;
