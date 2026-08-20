@@ -520,8 +520,8 @@ foreach (var (tab, btn) in _buttons)
 2. `AttachNav` / `NavigateTo` в `MainWindow`, вычистка событий из четырёх
    экранов.
 3. `TaskService`: `SendAsync` и три метода; модели; `TaskItemPresenter`.
-4. `TasksView`, `TaskItemViewModel`, ключи локализации.
-5. `NavBadgeService`, перевод `OperatorStatsControl` на него.
+4. `NavBadgeService`, перевод `OperatorStatsControl` на него.
+5. `TasksView`, `TaskItemViewModel`, ключи локализации.
 6. Починка `KeypadBtn`.
 7. Тесты.
 
