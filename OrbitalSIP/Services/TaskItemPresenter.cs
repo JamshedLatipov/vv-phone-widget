@@ -3,12 +3,45 @@ using OrbitalSIP.Models;
 
 namespace OrbitalSIP.Services
 {
+    /// <summary>How soon a task is due, in the buckets the row label distinguishes.</summary>
+    public enum DueBucket
+    {
+        /// <summary>No deadline set.</summary>
+        None,
+
+        /// <summary>Past its deadline and still open.</summary>
+        Overdue,
+
+        /// <summary>Due later today, at the offset <c>now</c> was read at.</summary>
+        Today,
+
+        /// <summary>Due on the calendar day immediately after today.</summary>
+        Tomorrow,
+
+        /// <summary>
+        /// Everything else the row label renders as a plain date, no relative word
+        /// attached: a deadline more than a day out, AND a finished task whose deadline
+        /// has already passed. IsOverdue excludes done/completed tasks, so a closed task
+        /// with an old deadline lands here rather than in Overdue — Later is defined by
+        /// what the renderer does with it ("just the date"), not by when it happens, and
+        /// that is exactly right for both a far-future deadline and a closed task's
+        /// history.
+        /// </summary>
+        Later,
+    }
+
     /// <summary>
     /// Everything a task row displays that can be worked out from the task itself.
     ///
     /// Kept apart from the view model — and free of I18nService — so the awkward parts
     /// (what counts as overdue, where "today" ends) are testable without Avalonia. The
     /// view model layers the translated words on top.
+    ///
+    /// Day boundaries always come from the offset the caller's <c>now</c> carries — see
+    /// <see cref="DateAt"/> — never from <see cref="TimeZoneInfo.Local"/>.
+    /// OrbitalSIP/Models/CallHistoryWindow.cs, in this same folder, already paid for that
+    /// exact mistake once: reading the machine's zone instead of the operator's cut the
+    /// first five hours off a night-shift operator's own call history.
     /// </summary>
     public static class TaskItemPresenter
     {
@@ -32,8 +65,8 @@ namespace OrbitalSIP.Services
             if (task.DueDate is not { } due) return DueBucket.None;
             if (IsOverdue(task, now)) return DueBucket.Overdue;
 
-            var dueDay = due.ToLocalTime().Date;
-            var today = now.ToLocalTime().Date;
+            var dueDay = DateAt(due, now);
+            var today = now.Date;
 
             if (dueDay == today) return DueBucket.Today;
             if (dueDay == today.AddDays(1)) return DueBucket.Tomorrow;
@@ -45,8 +78,8 @@ namespace OrbitalSIP.Services
         {
             if (due is not { } value) return string.Empty;
 
-            var local = value.ToLocalTime();
-            return local.Date == now.ToLocalTime().Date
+            var local = value.ToOffset(now.Offset);
+            return DateAt(value, now) == now.Date
                 ? local.ToString("HH:mm")
                 : local.ToString("dd.MM HH:mm");
         }
@@ -63,6 +96,25 @@ namespace OrbitalSIP.Services
             _        => ColorLow,
         };
 
+        /// <summary>
+        /// The calendar date <paramref name="instant"/> falls on, read at the offset
+        /// <paramref name="now"/> carries — e.g. a UTC dueDate from the backend, read
+        /// against the operator's own local offset. <see cref="DateTimeOffset.ToLocalTime"/>
+        /// would substitute <see cref="TimeZoneInfo.Local"/> instead — the machine's zone,
+        /// not the operator's — so Bucket and TimeText both go through this rather than
+        /// each converting separately, which is also what stops the two from silently
+        /// disagreeing about where a day ends.
+        /// </summary>
+        private static DateTime DateAt(DateTimeOffset instant, DateTimeOffset now) =>
+            instant.ToOffset(now.Offset).Date;
+
+        /// <summary>
+        /// Ordinal, deliberately: mirrors the backend's own case-sensitive SQL predicate.
+        /// An unrecognised casing such as "Done" is treated as still open, never as
+        /// silently finished — a closed task mislabelled overdue is a cosmetic annoyance,
+        /// but a genuinely open task mislabelled finished would vanish from the operator's
+        /// overdue view entirely.
+        /// </summary>
         private static bool IsFinished(string? status) =>
             status is "done" or "completed";
     }

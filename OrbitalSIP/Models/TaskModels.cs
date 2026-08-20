@@ -117,14 +117,4 @@ namespace OrbitalSIP.Models
         [JsonPropertyName("overdue")]
         public int Overdue { get; set; }
     }
-
-    /// <summary>How soon a task is due, in the buckets the row label distinguishes.</summary>
-    public enum DueBucket
-    {
-        None,
-        Overdue,
-        Today,
-        Tomorrow,
-        Later,
-    }
 }
