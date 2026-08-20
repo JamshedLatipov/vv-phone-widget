@@ -27,13 +27,18 @@ public sealed class SmsService : IDisposable
     private readonly bool _ownsHttpClient;
 
     /// <summary>
-    /// Creates the application client with the platform's default TLS validation.
+    /// Creates the application client over the shared backend pool.
+    ///
+    /// It used to build its own HttpClient, which cost it a second socket pool against
+    /// the same host, no PooledConnectionLifetime (so it pinned the first address it
+    /// resolved for a process that runs all day), and — once the shared pool grew one —
+    /// no access to the token refresh every other service now gets for free.
     /// </summary>
     public SmsService()
         : this(
-            new HttpClient(new HttpClientHandler()),
+            BackendHttp.Client,
             () => App.SipService?.CurrentSettings ?? SipSettings.Load(),
-            ownsHttpClient: true)
+            ownsHttpClient: false)
     {
     }
 

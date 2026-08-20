@@ -62,7 +62,7 @@ namespace OrbitalSIP.Services
 
                 var url = $"{cfg.Value.backendUrl}/api/flows";
                 using var request = AuthRequest(HttpMethod.Get, url);
-                var response = await _httpClient.SendAsync(request, ct);
+                using var response = await _httpClient.SendAsync(request, ct);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -97,7 +97,7 @@ namespace OrbitalSIP.Services
 
                 var url = $"{cfg.Value.backendUrl}/api/flows/suggest-for-number?number={Uri.EscapeDataString(number)}";
                 using var request = AuthRequest(HttpMethod.Get, url);
-                var response = await _httpClient.SendAsync(request, ct);
+                using var response = await _httpClient.SendAsync(request, ct);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -125,7 +125,7 @@ namespace OrbitalSIP.Services
 
                 var url = $"{cfg.Value.backendUrl}/api/flow-runs?subjectType=call&subjectId={Uri.EscapeDataString(subjectId)}";
                 using var request = AuthRequest(HttpMethod.Get, url);
-                var response = await _httpClient.SendAsync(request, ct);
+                using var response = await _httpClient.SendAsync(request, ct);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -160,7 +160,7 @@ namespace OrbitalSIP.Services
                 var body = new { subjectType = "call", subjectId, contactId, phone };
                 request.Content = JsonContent.Create(body);
 
-                var response = await _httpClient.SendAsync(request, ct);
+                using var response = await _httpClient.SendAsync(request, ct);
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync(ct);
@@ -194,7 +194,7 @@ namespace OrbitalSIP.Services
                 var body = new { nodeKey, value, comment };
                 request.Content = JsonContent.Create(body);
 
-                var response = await _httpClient.SendAsync(request, ct);
+                using var response = await _httpClient.SendAsync(request, ct);
 
                 if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
                 {
@@ -232,7 +232,7 @@ namespace OrbitalSIP.Services
                 using var request = AuthRequest(HttpMethod.Post, url);
                 request.Content = JsonContent.Create(new { });
 
-                var response = await _httpClient.SendAsync(request, ct);
+                using var response = await _httpClient.SendAsync(request, ct);
                 var body = await response.Content.ReadAsStringAsync(ct);
                 if (response.IsSuccessStatusCode)
                 {
@@ -264,7 +264,7 @@ namespace OrbitalSIP.Services
                 using var request = AuthRequest(HttpMethod.Post, url);
                 request.Content = JsonContent.Create(new { reason });
 
-                var response = await _httpClient.SendAsync(request, ct);
+                using var response = await _httpClient.SendAsync(request, ct);
                 if (response.IsSuccessStatusCode)
                     return true;
 
@@ -289,7 +289,7 @@ namespace OrbitalSIP.Services
                 var url = $"{cfg.Value.backendUrl}/api/flow-runs/{Uri.EscapeDataString(runId)}";
                 using var request = AuthRequest(HttpMethod.Get, url);
 
-                var response = await _httpClient.SendAsync(request, ct);
+                using var response = await _httpClient.SendAsync(request, ct);
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync(ct);
@@ -317,7 +317,7 @@ namespace OrbitalSIP.Services
                 var url = $"{cfg.Value.backendUrl}/api/cdr/channel-uniqueid?callerNumber={Uri.EscapeDataString(phoneNumber)}";
                 using var request = AuthRequest(HttpMethod.Get, url);
 
-                var response = await _httpClient.SendAsync(request, ct);
+                using var response = await _httpClient.SendAsync(request, ct);
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync(ct);

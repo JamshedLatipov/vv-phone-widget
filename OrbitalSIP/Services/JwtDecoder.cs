@@ -17,6 +17,15 @@ namespace OrbitalSIP.Services
         [JsonConverter(typeof(NumberOrStringConverter))]
         public string? Sub { get; set; }
 
+        /// <summary>
+        /// Expiry, seconds since the Unix epoch. Read so the session can be renewed
+        /// before it lapses rather than after the first request fails — see
+        /// <see cref="BackendAuth"/>. Null when the issuer omits the claim, which reads
+        /// as «assume spent».
+        /// </summary>
+        [JsonPropertyName("exp")]
+        public long? Exp { get; set; }
+
         [JsonPropertyName("username")]
         public string? Username { get; set; }
 

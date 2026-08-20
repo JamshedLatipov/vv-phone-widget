@@ -1,12 +1,19 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using Material.Icons;
+using Material.Icons.Avalonia;
 using OrbitalSIP.Models;
 using OrbitalSIP.Services;
 
@@ -14,39 +21,70 @@ namespace OrbitalSIP.Views;
 
 public partial class SmsComposeDialog : Window
 {
-    private static readonly IBrush SelectedModeBrush = Brush.Parse("#1D4ED8");
-    private static readonly IBrush UnselectedModeBrush = Brush.Parse("#1E293B");
+    private static readonly TimeSpan SuccessCloseDelay = TimeSpan.FromMilliseconds(1500);
     private static readonly IBrush NormalCountBrush = Brush.Parse("#64748B");
     private static readonly IBrush InvalidCountBrush = Brush.Parse("#F87171");
+    private static readonly IBrush NeutralBorderBrush = Brush.Parse("#334155");
+    private static readonly IBrush NeutralForegroundBrush = Brush.Parse("#94A3B8");
+    private static readonly IBrush CancelSendBorderBrush = Brush.Parse("#7F1D1D");
+    private static readonly IBrush CancelSendForegroundBrush = Brush.Parse("#FCA5A5");
+    private static readonly IBrush SendEnabledBrush = Brush.Parse("#3B82F6");
+    private static readonly IBrush SendDisabledBrush = Brush.Parse("#1E3A6B");
+    private static readonly IBrush SendEnabledForegroundBrush = Brush.Parse("#FFFFFF");
+    private static readonly IBrush SendDisabledForegroundBrush = Brush.Parse("#7796C4");
+
+    /// <summary>
+    /// How many templates the dropdown offers before the operator narrows it by
+    /// typing. An org can carry a hundred active SMS templates, and scrolling that
+    /// blind is what the old combo box already got wrong.
+    /// </summary>
+    private const int UnfilteredTemplateCount = 10;
 
     private readonly SmsComposeState _state;
     private readonly SmsComposeSendSession _sendSession;
     private readonly SmsService _smsService;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly bool _loadTemplates;
+    private DispatcherTimer? _successCloseTimer;
     private bool _contentWasEdited;
+    private bool _suppressContentChanged;
+    private bool _lastSendFailed;
+
+    // Template-picker commit tracking. Avalonia's AutoCompleteBox forwards arrow-key
+    // navigation through the same SelectionChanged event as a mouse pick or Enter
+    // commit, and closes its dropdown (with a refocus of its own internal search box)
+    // on Escape exactly the same way it does on a commit — and, separately, raises
+    // DropDownClosed twice per close regardless of which of those it was. These four
+    // fields let us tell an actual commit apart from browsing/cancelling/losing focus,
+    // exactly once per close — see OnTemplateBoxPreviewKeyDown, OnTemplateDropDownClosed
+    // and OnTemplateBoxGotFocus.
+    private MessageTemplateDto? _pendingTemplateSelection;
+    private bool _suppressTemplateAutoOpen;
+    private bool _templateDropDownClosedViaEscape;
+    private bool _templateDropDownCloseHandledForThisOpen;
+
+    /// <summary>
+    /// The templates an empty search box offers. Membership rather than an index
+    /// because ItemFilter is a per-item predicate with no position and no promise
+    /// about evaluation order.
+    /// </summary>
+    private readonly HashSet<Guid> _unfilteredTemplateIds = new();
 
     private TextBlock _recipientValue = null!;
-    private Button _templateModeButton = null!;
-    private Button _freeTextModeButton = null!;
-    private StackPanel _templateArea = null!;
-    private ComboBox _templateBox = null!;
+    private AutoCompleteBox _templateBox = null!;
+    private Button _clearTemplateButton = null!;
     private TextBlock _templateStatusLabel = null!;
     private TextBox _contentBox = null!;
     private TextBlock _validationLabel = null!;
     private TextBlock _countLabel = null!;
+    private Border _errorBanner = null!;
     private TextBlock _errorLabel = null!;
     private Border _successBanner = null!;
     private Grid _composeFooter = null!;
-    private StackPanel _confirmationFooter = null!;
     private Button _sendButton = null!;
+    private MaterialIcon _sendIcon = null!;
+    private TextBlock _sendLabel = null!;
     private Button _cancelButton = null!;
-    private Button _backButton = null!;
-    private Button _cancelSendButton = null!;
-    private Button _confirmButton = null!;
-    private TextBlock _confirmRecipientValue = null!;
-    private TextBlock _confirmContentValue = null!;
-    private TextBlock _progressLabel = null!;
 
     public SmsComposeDialog()
         : this(new SmsCallSource("active", "design-time"), "—", App.SmsService, loadTemplates: false)
@@ -71,8 +109,9 @@ public partial class SmsComposeDialog : Window
 
         InitializeComponent();
         FindControls();
+        ConfigureTemplateBox();
         WireEvents();
-        _recipientValue.Text = _state.Recipient;
+        _recipientValue.Text = SmsRecipientFormatter.Format(_state.Recipient);
         Render();
     }
 
@@ -81,46 +120,77 @@ public partial class SmsComposeDialog : Window
     private void FindControls()
     {
         _recipientValue = this.FindControl<TextBlock>("RecipientValue")!;
-        _templateModeButton = this.FindControl<Button>("TemplateModeBtn")!;
-        _freeTextModeButton = this.FindControl<Button>("FreeTextModeBtn")!;
-        _templateArea = this.FindControl<StackPanel>("TemplateArea")!;
-        _templateBox = this.FindControl<ComboBox>("TemplateBox")!;
+        _templateBox = this.FindControl<AutoCompleteBox>("TemplateBox")!;
+        _clearTemplateButton = this.FindControl<Button>("ClearTemplateBtn")!;
         _templateStatusLabel = this.FindControl<TextBlock>("TemplateStatusLabel")!;
         _contentBox = this.FindControl<TextBox>("ContentBox")!;
         _validationLabel = this.FindControl<TextBlock>("ValidationLabel")!;
         _countLabel = this.FindControl<TextBlock>("CountLabel")!;
+        _errorBanner = this.FindControl<Border>("ErrorBanner")!;
         _errorLabel = this.FindControl<TextBlock>("ErrorLabel")!;
         _successBanner = this.FindControl<Border>("SuccessBanner")!;
         _composeFooter = this.FindControl<Grid>("ComposeFooter")!;
-        _confirmationFooter = this.FindControl<StackPanel>("ConfirmationFooter")!;
         _sendButton = this.FindControl<Button>("SendBtn")!;
+        _sendIcon = this.FindControl<MaterialIcon>("SendIcon")!;
+        _sendLabel = this.FindControl<TextBlock>("SendLabel")!;
         _cancelButton = this.FindControl<Button>("CancelBtn")!;
-        _backButton = this.FindControl<Button>("BackBtn")!;
-        _cancelSendButton = this.FindControl<Button>("CancelSendBtn")!;
-        _confirmButton = this.FindControl<Button>("ConfirmBtn")!;
-        _confirmRecipientValue = this.FindControl<TextBlock>("ConfirmRecipientValue")!;
-        _confirmContentValue = this.FindControl<TextBlock>("ConfirmContentValue")!;
-        _progressLabel = this.FindControl<TextBlock>("ProgressLabel")!;
+    }
+
+    private void ConfigureTemplateBox()
+    {
+        // Name is what lands in the text box after a pick; the filter below is what
+        // decides visibility, and it deliberately looks at the body too.
+        _templateBox.ValueMemberBinding = new Binding("Name");
+        _templateBox.FilterMode = AutoCompleteFilterMode.Custom;
+        _templateBox.ItemFilter = (search, item) =>
+        {
+            if (item is not MessageTemplateDto template)
+                return false;
+            // An empty box shows a short head of the list, not all of it — typing is
+            // what reaches the rest. The label under the field says so, otherwise the
+            // operator would read the head as the whole set.
+            if (string.IsNullOrWhiteSpace(search))
+                return _unfilteredTemplateIds.Contains(template.Id);
+
+            return template.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                   (template.Content?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false);
+        };
     }
 
     private void WireEvents()
     {
         this.FindControl<Button>("CloseBtn")!.Click += (_, _) => CloseDialog();
         _cancelButton.Click += (_, _) => CancelOrClose();
-        _templateModeButton.Click += (_, _) => SwitchMode(SmsComposeMode.Template);
-        _freeTextModeButton.Click += (_, _) => SwitchMode(SmsComposeMode.FreeText);
-        _templateBox.SelectionChanged += (_, _) => SelectTemplate();
+        _clearTemplateButton.Click += (_, _) => ClearTemplate();
+        // SelectionChanged fires on every ListBox.SelectedIndex mutation, including
+        // plain arrow-key browsing — it is not a commit signal. Stage the candidate
+        // here; ApplyPendingTemplateSelection decides whether it actually lands.
+        _templateBox.SelectionChanged += (_, _) =>
+            _pendingTemplateSelection = _templateBox.SelectedItem as MessageTemplateDto;
+        // DropDownOpened fires once per open (including re-populates while already
+        // open, which never reach OnTemplateDropDownClosed in between) — use it to
+        // reset the one-shot guard for the close that will eventually follow.
+        _templateBox.DropDownOpened += (_, _) => _templateDropDownCloseHandledForThisOpen = false;
+        _templateBox.DropDownClosed += (_, _) => OnTemplateDropDownClosed();
+        // Escape closes the dropdown through the same internal path a commit uses
+        // (both end with Avalonia refocusing its own search TextBox), so
+        // DropDownClosed alone can't tell them apart. Catch Escape in the tunnel
+        // phase, before AutoCompleteBox's own OnKeyDown consumes it.
+        _templateBox.AddHandler(InputElement.KeyDownEvent, OnTemplateBoxPreviewKeyDown, RoutingStrategies.Tunnel);
+        // An empty prefix must still show the whole list, otherwise the control
+        // reads as a dead text box to anyone used to the old combo box. The one
+        // exception is the GotFocus Avalonia raises on itself right after a commit —
+        // see OnTemplateBoxGotFocus.
+        _templateBox.GotFocus += (_, _) => OnTemplateBoxGotFocus();
         _contentBox.TextChanged += (_, _) => EditContent();
-        _sendButton.Click += (_, _) => ShowConfirmation();
-        _backButton.Click += (_, _) => HideConfirmation();
-        _cancelSendButton.Click += (_, _) => CancelActiveSend();
-        _confirmButton.Click += async (_, _) => await SendConfirmedAsync();
+        _sendButton.Click += async (_, _) => await SendAsync();
 
         this.EnableDrag(this.FindControl<Border>("HeaderBar"));
         KeyDown += OnDialogKeyDown;
         Opened += OnOpened;
         Closed += (_, _) =>
         {
+            StopSuccessClose();
             _sendSession.Dispose();
             _lifetimeCancellation.Cancel();
             _lifetimeCancellation.Dispose();
@@ -138,10 +208,7 @@ public partial class SmsComposeDialog : Window
         if (_loadTemplates)
             await LoadTemplatesAsync();
 
-        if (_state.Mode == SmsComposeMode.Template && _templateBox.IsEnabled)
-            _templateBox.Focus();
-        else
-            _contentBox.Focus();
+        _contentBox.Focus();
     }
 
     private async Task LoadTemplatesAsync()
@@ -152,17 +219,25 @@ public partial class SmsComposeDialog : Window
         try
         {
             var templates = await _smsService.GetTemplatesAsync(_lifetimeCancellation.Token);
-            foreach (var template in templates)
-            {
-                _templateBox.Items.Add(new ComboBoxItem
-                {
-                    Content = template.Name,
-                    Tag = template,
-                });
-            }
+            // A template with no body cannot be composed from; hiding it beats
+            // offering a pick that throws in SelectTemplate.
+            var usable = templates
+                .Where(template => !string.IsNullOrWhiteSpace(template.Content))
+                .ToList();
+            _templateBox.ItemsSource = usable;
 
-            if (templates.Count == 0)
+            _unfilteredTemplateIds.Clear();
+            foreach (var template in usable.Take(UnfilteredTemplateCount))
+                _unfilteredTemplateIds.Add(template.Id);
+
+            if (usable.Count == 0)
                 SetTemplateStatus("SmsTemplatesEmpty");
+            else if (usable.Count > UnfilteredTemplateCount)
+                SetTemplateStatusText(string.Format(
+                    CultureInfo.CurrentCulture,
+                    I18nService.Instance.Get("SmsTemplatesTruncated"),
+                    UnfilteredTemplateCount,
+                    usable.Count));
             else
                 HideTemplateStatus();
         }
@@ -177,34 +252,228 @@ public partial class SmsComposeDialog : Window
         finally
         {
             if (!_lifetimeCancellation.IsCancellationRequested)
-                _templateBox.IsEnabled = !_state.IsInFlight && !_state.IsQueued;
+                Render();
         }
     }
 
-    private void SwitchMode(SmsComposeMode mode)
+    /// <summary>
+    /// Tunnel-phase KeyDown on the template box. Runs before AutoCompleteBox's own
+    /// (bubble-phase) OnKeyDown, so it can flag a dropdown-closing Escape before the
+    /// framework's internal Commit/Cancel handling — which we cannot see directly —
+    /// has a chance to run.
+    /// </summary>
+    private void OnTemplateBoxPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && _templateBox.IsDropDownOpen)
+            _templateDropDownClosedViaEscape = true;
+    }
+
+    /// <summary>
+    /// Fires whenever the template dropdown closes: a mouse pick, Enter, Escape, the
+    /// operator focusing something else, or the filtered list emptying out. Only the
+    /// first two are a commit; this method tells them apart from the rest and arms
+    /// OnTemplateBoxGotFocus for the refocus that follows a genuine commit.
+    /// </summary>
+    private void OnTemplateDropDownClosed()
+    {
+        // AutoCompleteBox.CloseDropDown() (Avalonia 11.0.0) raises DropDownClosed
+        // twice per close: once re-entrantly through DropDownPopup.IsOpen = false ->
+        // Popup.Close() -> the Popup's own Closed event (synchronous, no dispatcher
+        // involved) -> DropDownPopup_Closed, and once more from CloseDropDown()'s own
+        // unconditional call right after. Both fire because _popupHasOpened is set on
+        // the first open and never reset — this is not a one-off startup quirk, every
+        // close (Escape, commit, blur, empty-filter) double-fires this way. Gate on a
+        // flag that DropDownOpened resets, so only the first firing per open/close
+        // cycle is treated as real; the second is a structural no-op.
+        if (_templateDropDownCloseHandledForThisOpen)
+            return;
+        _templateDropDownCloseHandledForThisOpen = true;
+
+        var closedViaEscape = _templateDropDownClosedViaEscape;
+        _templateDropDownClosedViaEscape = false;
+
+        if (closedViaEscape)
+        {
+            // Cancel. Whatever SelectedItem Avalonia's own cancel handling leaves
+            // behind (OnAdapterSelectionCanceled's exact-match recompute can restore
+            // one) must never be applied. Deliberately no "return" here — Escape
+            // still needs the arm-and-continuation below, see why underneath.
+            _pendingTemplateSelection = null;
+        }
+
+        // AutoCompleteBox's SelectionAdapter setter wires OnAdapterSelectionComplete
+        // to the adapter's Cancel event as well as its Commit event (in addition to
+        // _adapter.Commit += OnAdapterSelectionComplete, there is a separate
+        // _adapter.Cancel += OnAdapterSelectionComplete). That means Escape closes
+        // the dropdown through the exact same SetCurrentValue(IsDropDownOpenProperty,
+        // false) -> ... -> TextBox!.Focus() -> GotFocus sequence a real commit uses.
+        // If this arm-and-continuation were skipped for Escape (e.g. an early
+        // "return" in the branch above), that GotFocus would fall straight through
+        // to OnTemplateBoxGotFocus's reopen branch and the dropdown would spring
+        // back open on the very keystroke that just closed it. Arming the same flag
+        // here instead makes OnTemplateBoxGotFocus consume that GotFocus as a no-op
+        // apply — _pendingTemplateSelection is already null from the branch above —
+        // so the dropdown simply stays closed, which is all Escape should do.
+        //
+        // For a genuine commit (mouse pick or Enter), the flag is what
+        // OnTemplateBoxGotFocus consumes to apply the pending selection instead of
+        // reopening. Losing focus entirely, and an empty-filter auto-close (the
+        // operator keeps typing until nothing matches, without ever unfocusing the
+        // box), also raise DropDownClosed but never call that Focus() — so nothing
+        // will consume the flag in those cases. The continuation below is what
+        // actually detects that: if the flag is still armed on the very next
+        // UI-thread turn, no refocus arrived, so whatever is still staged must be
+        // dropped rather than left to apply itself later against text the operator
+        // has since edited. In practice this only ever has real work to do for the
+        // focus-loss case — PopulateComplete's empty-filter path already nulls
+        // SelectedItem itself (UpdateTextCompletion's SetCurrentValue call sits
+        // outside its own "if the view has items" guard, so it unconditionally nulls
+        // SelectedItem when the view is empty), which our SelectionChanged handler
+        // turns into a null _pendingTemplateSelection synchronously, before this
+        // continuation ever runs. Losing focus touches neither SelectedItem nor this
+        // dropdown's own focus, so it is the one path only this continuation catches.
+        _suppressTemplateAutoOpen = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_suppressTemplateAutoOpen)
+                return; // Already consumed by the GotFocus after Commit/Cancel.
+
+            _suppressTemplateAutoOpen = false;
+            _pendingTemplateSelection = null;
+        });
+    }
+
+    /// <summary>
+    /// Normally reopens the dropdown so an empty prefix still shows the whole list.
+    /// The one exception is the GotFocus Avalonia raises on its own search TextBox
+    /// right after a commit closes the dropdown — reopening there is bug 1 from the
+    /// review (mouse pick ends with the dropdown back open); applying the pending
+    /// template here instead is what actually completes the commit.
+    /// </summary>
+    private void OnTemplateBoxGotFocus()
+    {
+        if (_suppressTemplateAutoOpen)
+        {
+            _suppressTemplateAutoOpen = false;
+            ApplyPendingTemplateSelection();
+            return;
+        }
+
+        if (_templateBox.IsEnabled)
+            OpenTemplateDropDown();
+    }
+
+    /// <summary>
+    /// Opens the template dropdown, working around a guard in Avalonia 11.0.0's own
+    /// AutoCompleteBox.TextUpdated: setting IsDropDownOpen = true routes through
+    /// TextUpdated(Text, userInitiated: true), and — because MinimumPrefixLength is
+    /// 0 here — when Text and the control's own private SearchText are BOTH empty
+    /// (exactly the state on focusing an empty box), that method decides the open
+    /// is "not ready" and, as part of taking that branch, sets IsDropDownOpen back
+    /// to false itself, synchronously, before anything is ever visible. SearchText
+    /// only ever becomes non-empty through a real, user-initiated text change
+    /// (TextBox.TextChanged, forwarded with userInitiated: true); there is no public
+    /// way to set it directly, and setting AutoCompleteBox.Text ourselves does not
+    /// help either — that path is hardcoded to userInitiated: false, which the same
+    /// method separately requires to actually keep the dropdown open even when the
+    /// guard above does not fire.
+    ///
+    /// A box that already has text does not hit this guard, so only the empty case
+    /// needs a workaround: reach the control's own internal search TextBox (a
+    /// template part, not exposed as a public property) and simulate one keystroke
+    /// — a single space, which our own ItemFilter already treats the same as an
+    /// empty search (IsNullOrWhiteSpace) — then clear it again on the very next
+    /// UI-thread turn, once Avalonia's own TextUpdated(" ", true) has already run
+    /// and genuinely opened the list. That second, clearing write does not re-close
+    /// it: by then SearchText is " ", which String.IsNullOrEmpty does not consider
+    /// empty, so the guard does not fire for it either.
+    ///
+    /// Must be a no-op when the dropdown is already open. GotFocus on this control
+    /// does not only fire from the operator tabbing or clicking directly into it:
+    /// Avalonia's FocusManager runs a global Tunnel-phase handler on every
+    /// PointerPressed (FocusManager.cs's static constructor) that moves keyboard
+    /// focus to the pressed element's nearest focusable ancestor — for a press on a
+    /// template item in the open dropdown, that is the ListBoxItem, before the
+    /// ListBox's own bubble-phase handling has set SelectedItem. That GotFocus
+    /// bubbles straight back out to this control (PopupRoot overrides
+    /// InteractiveParent to route through the popup's logical Parent, so routed
+    /// events cross the popup boundary same as if there were no popup at all) and
+    /// reaches this same handler mid-click, before Text reflects the pick and
+    /// before _suppressTemplateAutoOpen has anything to suppress. The plain
+    /// "IsDropDownOpen = true" this replaced was harmless there — a same-value
+    /// property set raises no notification — but launching the space-poke a second
+    /// time while a pick is already in flight races its own deferred continuations
+    /// against the SelectedItem-driven text update and the eventual commit, and one
+    /// of them can end up running last: a fresh populate against the picked name,
+    /// which — because it matches exactly one item — reopens the dropdown on a
+    /// single-item list nothing is left to close. Bailing out up front when the
+    /// dropdown is already open restores the idempotence the plain assignment had.
+    /// </summary>
+    private void OpenTemplateDropDown()
+    {
+        if (_templateBox.IsDropDownOpen)
+            return;
+
+        if (!string.IsNullOrEmpty(_templateBox.Text))
+        {
+            _templateBox.IsDropDownOpen = true;
+            return;
+        }
+
+        var searchBox = _templateBox.GetVisualDescendants().OfType<TextBox>().FirstOrDefault();
+        if (searchBox is null)
+        {
+            // The template part should always be there once applied; if it somehow
+            // is not, fall back to the plain assignment rather than leaving focus
+            // with no way to open the list at all.
+            _templateBox.IsDropDownOpen = true;
+            return;
+        }
+
+        searchBox.Text = " ";
+        Dispatcher.UIThread.Post(() =>
+        {
+            // If Escape (or anything else) already closed the dropdown by the time
+            // this runs, leave the stray space alone rather than clear it: clearing
+            // still counts as a non-empty-SearchText populate (see the method
+            // comment above), which would compute "should be open" and reopen the
+            // very dropdown that just closed. A lingering space in an already-closed
+            // box is a cosmetic footnote; reopening a dropdown the operator just
+            // dismissed is a real regression.
+            if (_templateBox.IsDropDownOpen)
+                searchBox.Text = string.Empty;
+        });
+    }
+
+    private void ApplyPendingTemplateSelection()
+    {
+        var template = _pendingTemplateSelection;
+        _pendingTemplateSelection = null;
+        if (_state.IsInFlight || _state.IsQueued ||
+            template is null || string.IsNullOrWhiteSpace(template.Content))
+            return;
+
+        _state.SelectTemplate(template);
+        SetContentBoxText(_state.Content);
+        ClearTransientMessages();
+        _contentWasEdited = false;
+        Render();
+        // Avalonia's OnAdapterSelectionComplete calls TextBox!.Focus() on its own
+        // search box right after raising the GotFocus we're handling here, which
+        // would otherwise immediately steal focus back from the message box. Posting
+        // lets that framework call finish first, so ours is the one that sticks.
+        Dispatcher.UIThread.Post(() => _contentBox.Focus());
+    }
+
+    private void ClearTemplate()
     {
         if (_state.IsInFlight || _state.IsQueued)
             return;
 
-        _state.SwitchMode(mode);
-        ClearTransientMessages();
-        Render();
-        if (mode == SmsComposeMode.Template)
-            _templateBox.Focus();
-        else
-            _contentBox.Focus();
-    }
-
-    private void SelectTemplate()
-    {
-        if (_state.IsInFlight || _state.IsQueued ||
-            _templateBox.SelectedItem is not ComboBoxItem { Tag: MessageTemplateDto template })
-            return;
-
-        _state.SelectTemplate(template);
-        _contentBox.Text = _state.Content;
-        _contentBox.CaretIndex = _state.Content.Length;
-        _contentWasEdited = false;
+        _state.ClearTemplate();
+        _pendingTemplateSelection = null;
+        _templateBox.SelectedItem = null;
+        _templateBox.Text = string.Empty;
         ClearTransientMessages();
         Render();
         _contentBox.Focus();
@@ -212,7 +481,7 @@ public partial class SmsComposeDialog : Window
 
     private void EditContent()
     {
-        if (_state.IsInFlight || _state.IsQueued)
+        if (_suppressContentChanged || _state.IsInFlight || _state.IsQueued)
             return;
 
         _state.EditContent(_contentBox.Text);
@@ -221,29 +490,30 @@ public partial class SmsComposeDialog : Window
         Render();
     }
 
-    private void ShowConfirmation()
+    /// <summary>Writes text the operator did not type, without counting it as an edit.</summary>
+    private void SetContentBoxText(string text)
     {
-        if (!_state.RequestConfirmation())
+        _suppressContentChanged = true;
+        try
+        {
+            _contentBox.Text = text;
+            _contentBox.CaretIndex = text.Length;
+        }
+        finally
+        {
+            _suppressContentChanged = false;
+        }
+    }
+
+    private async Task SendAsync()
+    {
+        if (!_state.CanSend)
         {
             _contentWasEdited = true;
             Render();
             return;
         }
 
-        ClearTransientMessages();
-        Render();
-        _confirmButton.Focus();
-    }
-
-    private void HideConfirmation()
-    {
-        _state.CancelConfirmation();
-        Render();
-        _contentBox.Focus();
-    }
-
-    private async Task SendConfirmedAsync()
-    {
         if (!_sendSession.TryBeginSend(out var attempt) || attempt is null)
             return;
 
@@ -252,12 +522,13 @@ public partial class SmsComposeDialog : Window
             attempt.CancellationToken,
             _lifetimeCancellation.Token);
         Render();
-        _cancelSendButton.Focus();
+        _cancelButton.Focus();
 
         try
         {
             await _smsService.SendFromCallAsync(attempt.Request, cancellation.Token);
-            _sendSession.CompleteSuccess(attempt);
+            if (_sendSession.CompleteSuccess(attempt) && !_lifetimeCancellation.IsCancellationRequested)
+                StartSuccessClose();
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
@@ -292,6 +563,24 @@ public partial class SmsComposeDialog : Window
         }
     }
 
+    private void StartSuccessClose()
+    {
+        StopSuccessClose();
+        _successCloseTimer = new DispatcherTimer { Interval = SuccessCloseDelay };
+        _successCloseTimer.Tick += (_, _) =>
+        {
+            StopSuccessClose();
+            Close(true);
+        };
+        _successCloseTimer.Start();
+    }
+
+    private void StopSuccessClose()
+    {
+        _successCloseTimer?.Stop();
+        _successCloseTimer = null;
+    }
+
     private void CancelOrClose()
     {
         if (_sendSession.CanCancelSend)
@@ -322,7 +611,7 @@ public partial class SmsComposeDialog : Window
         var key = _sendSession.StatusMessageKey ?? SmsComposeSendSession.CancelledMessageKey;
         ShowError(I18nService.Instance.Get(key));
         Render();
-        _confirmButton.Focus();
+        _sendButton.Focus();
     }
 
     private void OnDialogKeyDown(object? sender, KeyEventArgs e)
@@ -337,39 +626,48 @@ public partial class SmsComposeDialog : Window
         if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             e.Handled = true;
-            if (_state.IsConfirmationVisible)
-                _ = SendConfirmedAsync();
-            else
-                ShowConfirmation();
+            _ = SendAsync();
         }
     }
 
     private void Render()
     {
         var editable = !_state.IsInFlight && !_state.IsQueued;
-        var templateMode = _state.Mode == SmsComposeMode.Template;
+        var canCancelSend = _sendSession.CanCancelSend;
 
-        _templateModeButton.Background = templateMode ? SelectedModeBrush : UnselectedModeBrush;
-        _freeTextModeButton.Background = templateMode ? UnselectedModeBrush : SelectedModeBrush;
-        _templateArea.IsVisible = templateMode;
-        _templateModeButton.IsEnabled = editable;
-        _freeTextModeButton.IsEnabled = editable;
         _templateBox.IsEnabled = editable && _loadTemplates;
+        _clearTemplateButton.IsVisible = _state.SelectedTemplate is not null;
+        _clearTemplateButton.IsEnabled = editable;
         _contentBox.IsEnabled = editable;
-        _sendButton.IsEnabled = _state.CanSend;
 
-        _composeFooter.IsVisible = !_state.IsConfirmationVisible && !_state.IsQueued;
-        _confirmationFooter.IsVisible = _state.IsConfirmationVisible && !_state.IsQueued;
-        _backButton.IsVisible = !_state.IsInFlight;
-        _backButton.IsEnabled = !_state.IsInFlight;
-        _cancelSendButton.IsVisible = _sendSession.CanCancelSend;
-        _cancelSendButton.IsEnabled = _sendSession.CanCancelSend;
-        _confirmButton.IsEnabled = !_state.IsInFlight;
-        _progressLabel.IsVisible = _state.IsInFlight;
-
-        _confirmRecipientValue.Text = _state.Recipient;
-        _confirmContentValue.Text = _state.Content;
+        _composeFooter.IsVisible = !_state.IsQueued;
         _successBanner.IsVisible = _state.IsQueued;
+
+        _cancelButton.Content = I18nService.Instance.Get(canCancelSend ? "SmsCancelSend" : "Cancel");
+        _cancelButton.BorderBrush = canCancelSend ? CancelSendBorderBrush : NeutralBorderBrush;
+        _cancelButton.Foreground = canCancelSend ? CancelSendForegroundBrush : NeutralForegroundBrush;
+
+        _sendButton.IsEnabled = _state.CanSend;
+        _sendButton.Background = _state.CanSend ? SendEnabledBrush : SendDisabledBrush;
+        var sendForeground = _state.CanSend ? SendEnabledForegroundBrush : SendDisabledForegroundBrush;
+        _sendLabel.Foreground = sendForeground;
+        _sendIcon.Foreground = sendForeground;
+
+        if (_state.IsInFlight)
+        {
+            _sendLabel.Text = I18nService.Instance.Get("SmsSendingShort");
+            _sendIcon.Kind = MaterialIconKind.ClockOutline;
+        }
+        else if (_lastSendFailed)
+        {
+            _sendLabel.Text = I18nService.Instance.Get("SmsRetry");
+            _sendIcon.Kind = MaterialIconKind.Refresh;
+        }
+        else
+        {
+            _sendLabel.Text = I18nService.Instance.Get("SmsSend");
+            _sendIcon.Kind = MaterialIconKind.Send;
+        }
 
         _countLabel.Text = string.Format(
             CultureInfo.CurrentCulture,
@@ -389,7 +687,6 @@ public partial class SmsComposeDialog : Window
         {
             SmsComposeValidation.ContentRequired => "SmsContentRequired",
             SmsComposeValidation.ContentTooLong => "SmsContentTooLong",
-            SmsComposeValidation.TemplateRequired => "SmsTemplateRequired",
             _ => null,
         };
 
@@ -401,19 +698,24 @@ public partial class SmsComposeDialog : Window
 
     private void ClearTransientMessages()
     {
-        _errorLabel.IsVisible = false;
+        _lastSendFailed = false;
+        _errorBanner.IsVisible = false;
         _errorLabel.Text = string.Empty;
     }
 
     private void ShowError(string message)
     {
+        _lastSendFailed = true;
         _errorLabel.Text = message;
-        _errorLabel.IsVisible = true;
+        _errorBanner.IsVisible = true;
     }
 
     private void SetTemplateStatus(string key, bool isError = false)
+        => SetTemplateStatusText(I18nService.Instance.Get(key), isError);
+
+    private void SetTemplateStatusText(string text, bool isError = false)
     {
-        _templateStatusLabel.Text = I18nService.Instance.Get(key);
+        _templateStatusLabel.Text = text;
         _templateStatusLabel.Foreground = isError ? InvalidCountBrush : NormalCountBrush;
         _templateStatusLabel.IsVisible = true;
     }

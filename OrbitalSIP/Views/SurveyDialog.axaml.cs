@@ -58,14 +58,29 @@ namespace OrbitalSIP.Views
             "Другое"
         };
 
+        /// <summary>
+        /// For Avalonia's runtime XAML loader and the designer, which need a public
+        /// parameterless constructor — without one the build reports AVLN:0005 and this
+        /// window is unreachable through avares://.
+        ///
+        /// Skips <see cref="InitAsync"/> on purpose: it opens a backend round-trip, and a
+        /// design-time instance must not do that. Same shape as SmsComposeDialog's
+        /// loadTemplates:false constructor. The real entry point is SurveyWindowLauncher.
+        /// </summary>
+        public SurveyDialog() : this("", null, initialize: false) { }
+
         public SurveyDialog(string callerNumber, string? autoFlowId = null)
+            : this(callerNumber, autoFlowId, initialize: true) { }
+
+        private SurveyDialog(string callerNumber, string? autoFlowId, bool initialize)
         {
             _callerNumber = callerNumber;
             _autoFlowId = autoFlowId;
             InitializeComponent();
             this.EnableDrag(this.FindControl<Border>("HeaderBar"));
             WireStaticButtons();
-            _ = InitAsync();
+
+            if (initialize) _ = InitAsync();
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
@@ -390,6 +405,50 @@ namespace OrbitalSIP.Views
             // Назад enabled only when not on first step
             var backBtn = this.FindControl<Button>("BackBtn");
             if (backBtn != null) backBtn.IsEnabled = _stepCounter > 1;
+
+            // Last, after the unconditional hide above has run.
+            RenderPendingVerification();
+        }
+
+        /// <summary>
+        /// Verification outcome from the answer just submitted, waiting for the render
+        /// that will show it.
+        ///
+        /// It used to be painted straight from SubmitAnswerAsync through its own
+        /// Dispatcher.Post, with the next node's RenderNode posted a few lines later.
+        /// Both landed in the same dispatcher pass, and RenderNode clears the banner
+        /// unconditionally as part of resetting the node — FIFO meant shown-then-hidden
+        /// before a single frame was drawn. The operator never saw «Несоответствие
+        /// данных» on any non-terminal node, which is precisely where it could still
+        /// change what they say next. Only the terminal node showed it, because
+        /// ShowCompleted does not clear the banner.
+        /// </summary>
+        private string? _pendingVerification;
+
+        /// <summary>Paints the banner the last answer earned, once.</summary>
+        private void RenderPendingVerification()
+        {
+            var result = _pendingVerification;
+            _pendingVerification = null;
+            if (string.IsNullOrEmpty(result)) return;
+
+            var banner = this.FindControl<Border>("VerificationBanner");
+            var text = this.FindControl<TextBlock>("VerificationText");
+            if (banner == null || text == null) return;
+
+            banner.IsVisible = true;
+            if (result == "mismatch")
+            {
+                text.Text = "Несоответствие данных";
+                banner.BorderBrush = SolidColorBrush.Parse("#78350F");
+                text.Foreground = SolidColorBrush.Parse("#FCD34D");
+            }
+            else
+            {
+                text.Text = "Нет данных для сверки";
+                banner.BorderBrush = SolidColorBrush.Parse("#1E3A5F");
+                text.Foreground = SolidColorBrush.Parse("#93C5FD");
+            }
         }
 
         private void RenderButtonOptions(FlowNode node)
@@ -503,29 +562,9 @@ namespace OrbitalSIP.Views
 
             SetWizardBusy(false);
 
-            // Show verification banner before moving
-            if (!string.IsNullOrEmpty(resp.VerificationResult))
-            {
-                UiPost(() =>
-                {
-                    var banner = this.FindControl<Border>("VerificationBanner");
-                    var text = this.FindControl<TextBlock>("VerificationText");
-                    if (banner == null || text == null) return;
-                    banner.IsVisible = true;
-                    if (resp.VerificationResult == "mismatch")
-                    {
-                        text.Text = "Несоответствие данных";
-                        banner.BorderBrush = SolidColorBrush.Parse("#78350F");
-                        text.Foreground = SolidColorBrush.Parse("#FCD34D");
-                    }
-                    else
-                    {
-                        text.Text = "Нет данных для сверки";
-                        banner.BorderBrush = SolidColorBrush.Parse("#1E3A5F");
-                        text.Foreground = SolidColorBrush.Parse("#93C5FD");
-                    }
-                });
-            }
+            // Handed to the next render rather than posted alongside it — see
+            // _pendingVerification for what racing them cost.
+            _pendingVerification = resp.VerificationResult;
 
             if (resp.Completed)
             {
@@ -539,6 +578,17 @@ namespace OrbitalSIP.Views
 
         private void ShowCompleted(JsonElement? verdict)
         {
+            // Clear first, then paint: RenderNode resets the banner as part of resetting
+            // the node, but this page is reached without it on the terminal-answer path,
+            // so a banner raised for an earlier node would otherwise still be on screen
+            // next to the verdict, describing a node the operator has left behind.
+            Show("VerificationBanner", false);
+
+            // Painted here as well as in RenderNode: a terminal answer skips RenderNode
+            // entirely, and an `end`-type node reaches this through RenderNode's early
+            // return, before RenderNode gets to its own call.
+            RenderPendingVerification();
+
             Show("WizardFooter", false);
             Show("AbandonArea", false);
             Show("CompletedArea", true);

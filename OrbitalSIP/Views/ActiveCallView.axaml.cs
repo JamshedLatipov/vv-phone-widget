@@ -16,8 +16,25 @@ namespace OrbitalSIP.Views
     public partial class ActiveCallView : UserControl
     {
         private DispatcherTimer? _timer;
-        private TimeSpan _elapsed = TimeSpan.Zero;
-        public TimeSpan Elapsed => _elapsed;
+
+        /// <summary>
+        /// The call clock. Derived from a stopwatch rather than accumulated one tick at a
+        /// time, because the timer does not survive the view's whole life: MainWindow's
+        /// animated swap parents this view into OverlayHost and then moves it to Host,
+        /// which raises a detach/attach pair, and the timer is stopped on the detach. A
+        /// tick-counting clock loses whatever time it was not running for — and, without
+        /// the restart in OnAttachedToVisualTree below, lost the entire call. A stopwatch
+        /// keeps time regardless of whether anything is currently repainting it.
+        /// </summary>
+        private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+
+        /// <summary>Time this call had already run when the view was built.</summary>
+        private readonly TimeSpan _initialElapsed;
+
+        /// <summary>Set once the call is over, so a later re-attach does not restart the clock display.</summary>
+        private bool _timerRetired;
+
+        public TimeSpan Elapsed => _initialElapsed + _clock.Elapsed;
         private bool _muted;
         private bool _onHold;
         private bool _leadCreated;
@@ -52,6 +69,18 @@ namespace OrbitalSIP.Views
 
         private static LeadCallCache? _leadCache;
 
+        /// <summary>
+        /// Drops the cached lead context and comment draft.
+        ///
+        /// The cache is static so it can outlive the view — that is the point, since
+        /// MainWindow rebuilds this view on every collapse/expand. But it also outlived
+        /// the call and the session, leaving the last caller's lead, status and whatever
+        /// the operator had typed about them sitting in memory indefinitely, including
+        /// after a sign-out. App wires this to the call ending, which is the moment the
+        /// cache stops being useful.
+        /// </summary>
+        public static void ForgetCachedCall() => _leadCache = null;
+
         public ActiveCallView()
             : this("Unknown", false)
         {
@@ -70,7 +99,7 @@ namespace OrbitalSIP.Views
             if (statusLabel != null) statusLabel.Text = isOutgoing ? Services.I18nService.Instance.Get("Calling") : Services.I18nService.Instance.Get("InCall");
 
             WireButtons();
-            if (initialElapsed.HasValue) _elapsed = initialElapsed.Value;
+            _initialElapsed = initialElapsed ?? TimeSpan.Zero;
             SetStatus(App.SipService.IsOnHold);
             UpdateTimeUI();
             StartTimer();
@@ -86,6 +115,11 @@ namespace OrbitalSIP.Views
         protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
         {
             base.OnAttachedToVisualTree(e);
+
+            // The animated swap detaches this view from OverlayHost and re-attaches it to
+            // Host, and the detach stops the repaint timer. Without this it never ticked
+            // again — the same asymmetry RecentsView already avoids.
+            if (!_timerRetired && _timer == null) StartTimer();
 
             if (_smsCallStateChangedHandler == null)
             {
@@ -106,6 +140,17 @@ namespace OrbitalSIP.Views
 
         protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
         {
+            // Minimize, expand and transfer all swap in a freshly built view, and the
+            // outgoing one only ever stopped its timer when the operator hung up from
+            // this very view. Every other swap left a 1 Hz timer ticking against a
+            // detached tree — which also keeps that tree alive — for the whole session.
+            //
+            // Only the repaint stops here; Elapsed comes from _clock, so a detach that is
+            // really the overlay→host reparenting loses nothing and OnAttachedToVisualTree
+            // starts painting again.
+            _timer?.Stop();
+            _timer = null;
+
             InvalidateSmsComposeForCallLifecycle();
             if (_smsCallStateChangedHandler != null)
             {
@@ -126,24 +171,33 @@ namespace OrbitalSIP.Views
             _timer.Start();
         }
 
-        private void OnTick(object? sender, EventArgs e)
+        /// <summary>
+        /// Ends the clock for good, as opposed to the detach in OnDetachedFromVisualTree
+        /// which only pauses the repaint. Called from the hangup paths, so a later
+        /// re-attach does not put a running timer back on a call that is over.
+        /// </summary>
+        private void RetireTimer()
         {
-            _elapsed = _elapsed.Add(TimeSpan.FromSeconds(1));
-            UpdateTimeUI();
+            _timerRetired = true;
+            _timer?.Stop();
+            _timer = null;
         }
+
+        private void OnTick(object? sender, EventArgs e) => UpdateTimeUI();
 
         private void UpdateTimeUI()
         {
             var label = this.FindControl<TextBlock>("TimerLabel");
             var minutesLabel = this.FindControl<TextBlock>("TimerMinutesLabel");
             var secondsLabel = this.FindControl<TextBlock>("TimerSecondsLabel");
-            var totalMinutes = (int)_elapsed.TotalMinutes;
-            var seconds = _elapsed.Seconds;
+            var elapsed = Elapsed;
+            var totalMinutes = (int)elapsed.TotalMinutes;
+            var seconds = elapsed.Seconds;
 
             if (label != null)
-                label.Text = _elapsed.TotalHours >= 1
-                    ? _elapsed.ToString(@"h\:mm\:ss")
-                    : _elapsed.ToString(@"mm\:ss");
+                label.Text = elapsed.TotalHours >= 1
+                    ? elapsed.ToString(@"h\:mm\:ss")
+                    : elapsed.ToString(@"mm\:ss");
 
             if (minutesLabel != null)
                 minutesLabel.Text = totalMinutes.ToString("00");
@@ -173,7 +227,7 @@ namespace OrbitalSIP.Views
             if (hangup != null)
                 hangup.Click += (_, __) =>
                 {
-                    _timer?.Stop();
+                    RetireTimer();
                     InvalidateSmsComposeForCallLifecycle();
                     OnHangup?.Invoke(this, EventArgs.Empty);
                 };
@@ -208,7 +262,7 @@ namespace OrbitalSIP.Views
 
             var leadBtn = this.FindControl<Button>("CreateLeadBtn");
             if (leadBtn != null)
-                leadBtn.Click += async (_, __) => await CreateLeadAsync();
+                leadBtn.Click += SafeHandler.Click("CreateLead", CreateLeadAsync);
 
             var taskBtn = this.FindControl<Button>("TaskBtn");
             if (taskBtn != null)
@@ -216,7 +270,7 @@ namespace OrbitalSIP.Views
 
             var leadRetryBtn = this.FindControl<Button>("LeadRetryBtn");
             if (leadRetryBtn != null)
-                leadRetryBtn.Click += async (_, __) => await LoadLeadContextAsync();
+                leadRetryBtn.Click += SafeHandler.Click("LeadPanel", () => LoadLeadContextAsync());
 
             var leadOpenBtn = this.FindControl<Button>("LeadOpenBtn");
             if (leadOpenBtn != null)
@@ -228,7 +282,7 @@ namespace OrbitalSIP.Views
 
             var leadCommentAddBtn = this.FindControl<Button>("LeadCommentAddBtn");
             if (leadCommentAddBtn != null)
-                leadCommentAddBtn.Click += async (_, __) => await AddLeadCommentAsync();
+                leadCommentAddBtn.Click += SafeHandler.Click("LeadPanel", AddLeadCommentAsync);
 
             // Keeps a half-typed comment alive across a collapse/expand, which
             // rebuilds this whole view.
@@ -238,7 +292,7 @@ namespace OrbitalSIP.Views
 
             var smsBtn = this.FindControl<Button>("SmsBtn");
             if (smsBtn != null)
-                smsBtn.Click += async (_, __) => await ShowSmsComposeDialog();
+                smsBtn.Click += SafeHandler.Click("ActiveCallSms", ShowSmsComposeDialog);
 
             var callInfoBtn = this.FindControl<Button>("CallInfoBtn");
             if (callInfoBtn != null)
@@ -258,9 +312,17 @@ namespace OrbitalSIP.Views
 
             var copy = this.FindControl<Button>("CopyCallerBtn");
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
-            if (bottomNav != null) bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
+            if (bottomNav != null)
+            {
+                bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
+                // Recents was wired at the MainWindow end (WireActiveCallView subscribes
+                // to it) but never raised here, so the button in this panel's bottom nav
+                // did nothing at all — the compiler had been reporting it as CS0067 on an
+                // event with no publisher. ExpandedView forwards it the same way.
+                bottomNav.OnRecentsRequested += (_, __) => OnRecentsRequested?.Invoke(this, EventArgs.Empty);
+            }
             if (copy != null)
-                copy.Click += async (_, __) => await CopyCallerAsync();
+                copy.Click += SafeHandler.Click("ActiveCall", CopyCallerAsync);
         }
 
         private async Task CopyCallerAsync()
@@ -322,9 +384,7 @@ namespace OrbitalSIP.Views
             }
 
             var callerNumber = this.FindControl<TextBlock>("CallerNumberLabel")?.Text?.Trim() ?? string.Empty;
-            AppLogger.Log("CreateLead", $"Extracted callerNumber: '{callerNumber}'");
-
-            AppLogger.Log("CreateLead", $"Caller number: {callerNumber}");
+            AppLogger.Log("CreateLead", $"Caller number: {Models.LogRedaction.Phone(callerNumber)}");
             if (string.IsNullOrWhiteSpace(callerNumber))
             {
                 AppLogger.Log("CreateLead", "Caller number is empty, aborting.");
@@ -347,6 +407,24 @@ namespace OrbitalSIP.Views
             if (leadBtn != null)
                 leadBtn.IsEnabled = false;
 
+            // The button is disabled across an await with no finally underneath it, so a
+            // throw from here down used to leave it dead for the rest of the call — the
+            // operator could neither create the lead nor retry. LeadService catches
+            // everything internally today, which is the only reason this has not bitten.
+            var created = false;
+            try
+            {
+                await CreateLeadInnerAsync(request, leadBtn, c => created = c);
+            }
+            finally
+            {
+                if (!created && leadBtn != null) leadBtn.IsEnabled = true;
+            }
+        }
+
+        private async Task CreateLeadInnerAsync(
+            Models.CreateLeadRequest request, Button? leadBtn, Action<bool> reportCreated)
+        {
             var result = await App.LeadService.CreateLeadAsync(request);
             bool success = result.Success;
             AppLogger.Log("CreateLead", $"Request success: {success}");
@@ -361,8 +439,7 @@ namespace OrbitalSIP.Views
 
                 // Recorded BEFORE the refresh: SelectState reads it to refuse any
                 // downgrade below the card, and without it a refresh returning
-                // `none` would put the create button back — still disabled, since
-                // this branch skips the re-enable below.
+                // `none` would put the create button back.
                 _leadConflict = result;
                 if (leadBtn != null) leadBtn.IsEnabled = true;
 
@@ -375,6 +452,7 @@ namespace OrbitalSIP.Views
             if (success)
             {
                 _leadCreated = true;
+                reportCreated(true);   // the button stays disabled: the lead exists now
 
                 // Refresh so the cache holds the lead that now exists. Without this
                 // the cached «none» outlives the create, and the next expand — which
@@ -400,12 +478,9 @@ namespace OrbitalSIP.Views
                     }
                 }
             }
-            else
-            {
-                // Re-enable if failed so they can try again
-                if (leadBtn != null)
-                    leadBtn.IsEnabled = true;
-            }
+            // A failure needs no re-enable here: the finally in CreateLeadAsync gives the
+            // button back for everything that did not end in a created lead, which is the
+            // same set plus the throws this used to miss.
         }
 
         // ── Active-lead panel ────────────────────────────────────────────────
@@ -1070,7 +1145,7 @@ namespace OrbitalSIP.Views
         public void TriggerHold()   => ToggleHold();
         public void TriggerHangup()
         {
-            _timer?.Stop();
+            RetireTimer();
             InvalidateSmsComposeForCallLifecycle();
             OnHangup?.Invoke(this, System.EventArgs.Empty);
         }

@@ -1,129 +1,194 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:i18n="clr-namespace:OrbitalSIP.Services"
+        xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         x:Class="OrbitalSIP.Views.SmsComposeDialog"
         Title="SMS"
         Width="420" Height="560"
-        MinWidth="380" MinHeight="500"
+        MinWidth="380" MinHeight="480"
         WindowStartupLocation="CenterOwner"
         Background="#0F172A"
         Topmost="True"
         SystemDecorations="None"
         CornerRadius="16">
+  <Window.Styles>
+    <!--
+      Fluent's AutoCompleteBox template (Avalonia 11.0.0) only sets the dropdown
+      Popup's MinWidth to the field's own width, never a MaxWidth — so the popup
+      grows to fit its widest item instead of staying field-width, and the
+      TextTrimming/MaxLines on the item template below never get a bounded
+      available width to trim against. App.axaml already reaches this same
+      AutoCompleteBox template part with a /template/ selector (for colors), which
+      confirms that combinator resolves correctly against PART_SuggestionsContainer
+      in this app. Capping its MaxWidth the same way the theme caps the Popup's
+      MinWidth (TemplatedParent's own Bounds.Width) gives the whole suggestions
+      surface — and everything measured inside it, including our ItemTemplate — a
+      genuine upper bound to lay out against.
+    -->
+    <Style Selector="AutoCompleteBox#TemplateBox /template/ Border#PART_SuggestionsContainer">
+      <Setter Property="MaxWidth" Value="{Binding Bounds.Width, RelativeSource={RelativeSource TemplatedParent}}" />
+    </Style>
+  </Window.Styles>
   <Border BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16">
     <Grid RowDefinitions="Auto,*,Auto">
-      <Border Name="HeaderBar" Background="#152132" CornerRadius="16,16,0,0" Padding="14">
-        <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Text="{i18n:I18n SmsDialogTitle}"
-                     Foreground="#E2E8F0" FontWeight="Bold" VerticalAlignment="Center" />
-          <Button Grid.Column="1" Name="CloseBtn" Content="×" Width="28" Height="28"
-                  Background="Transparent" Foreground="#94A3B8" BorderThickness="0" Padding="0"
-                  HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Cursor="Hand" />
+
+      <Border Name="HeaderBar" Background="#152132" CornerRadius="16,16,0,0"
+              Padding="14,12" BorderBrush="#1E293B" BorderThickness="0,0,0,1">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <materialIcons:MaterialIcon Kind="MessageTextOutline" Width="17" Height="17"
+                                      Foreground="#3B82F6" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{i18n:I18n SmsDialogTitle}"
+                     Foreground="#E2E8F0" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <Button Grid.Column="2" Name="CloseBtn" Width="28" Height="28"
+                  Background="Transparent" BorderThickness="0" Padding="0"
+                  HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Cursor="Hand">
+            <materialIcons:MaterialIcon Kind="Close" Width="16" Height="16" Foreground="#94A3B8" />
+          </Button>
         </Grid>
       </Border>
 
       <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="16" Spacing="12">
-          <Border Background="#111C2E" BorderBrush="#334155" BorderThickness="1"
-                  CornerRadius="10" Padding="12,10">
-            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-              <TextBlock Text="{i18n:I18n SmsRecipient}" FontSize="10" FontWeight="Bold"
-                         LetterSpacing="1.1" Foreground="#7B92AA" />
-              <TextBlock Grid.Column="1" Text="🔒" FontSize="12" Foreground="#94A3B8" />
-              <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Name="RecipientValue"
-                         Margin="0,4,0,0" Foreground="#E2E8F0" FontSize="15" FontWeight="SemiBold" />
+        <Grid Margin="14" RowDefinitions="Auto,Auto,*">
+
+          <Border Background="#111C2E" BorderBrush="#2A3B52" BorderThickness="1"
+                  CornerRadius="10" Padding="11,10">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <Border Width="34" Height="34" CornerRadius="17" Background="#1D3055">
+                <materialIcons:MaterialIcon Kind="AccountOutline" Width="17" Height="17"
+                                            Foreground="#7FB0F0" />
+              </Border>
+              <StackPanel Grid.Column="1" Margin="11,0,8,0" VerticalAlignment="Center">
+                <TextBlock Text="{i18n:I18n SmsRecipient}" FontSize="10"
+                           LetterSpacing="0.8" Foreground="#7B92AA" />
+                <TextBlock Name="RecipientValue" Margin="0,1,0,0"
+                           Foreground="#E2E8F0" FontSize="16" FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+              <Border Grid.Column="2" Background="#16233A" CornerRadius="6" Padding="7,3"
+                      VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                  <materialIcons:MaterialIcon Kind="LockOutline" Width="12" Height="12"
+                                              Foreground="#64748B" VerticalAlignment="Center" />
+                  <TextBlock Text="{i18n:I18n SmsRecipientFromCall}" FontSize="10"
+                             Foreground="#64748B" VerticalAlignment="Center" />
+                </StackPanel>
+              </Border>
             </Grid>
           </Border>
 
-          <TextBlock Text="{i18n:I18n SmsRecipientLocked}" FontSize="11"
-                     Foreground="#64748B" TextWrapping="Wrap" Margin="2,-7,2,0" />
-
-          <StackPanel Spacing="5">
-            <TextBlock Text="{i18n:I18n SmsMode}" FontSize="11" Foreground="#6E859D" />
-            <Grid ColumnDefinitions="*,*">
-              <Button Name="TemplateModeBtn" Grid.Column="0"
-                      Content="{i18n:I18n SmsTemplateMode}" CornerRadius="8,0,0,8"
-                      BorderBrush="#3B82F6" BorderThickness="1" Padding="10,7" Cursor="Hand" />
-              <Button Name="FreeTextModeBtn" Grid.Column="1"
-                      Content="{i18n:I18n SmsFreeTextMode}" CornerRadius="0,8,8,0"
-                      BorderBrush="#334155" BorderThickness="1" Padding="10,7" Cursor="Hand" />
+          <StackPanel Grid.Row="1" Margin="0,12,0,0" Spacing="5">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="{i18n:I18n SmsTemplate}" FontSize="11" Foreground="#94A3B8" />
+              <TextBlock Grid.Column="1" Text="{i18n:I18n SmsTemplateOptional}"
+                         FontSize="10" Foreground="#64748B" VerticalAlignment="Center" />
             </Grid>
-          </StackPanel>
-
-          <StackPanel Name="TemplateArea" Spacing="5">
-            <TextBlock Text="{i18n:I18n SmsTemplate}" FontSize="11" Foreground="#6E859D" />
-            <ComboBox Name="TemplateBox" HorizontalAlignment="Stretch"
-                      PlaceholderText="{i18n:I18n SmsTemplatePlaceholder}"
-                      Background="#1E293B" BorderBrush="#334155"
-                      Foreground="#E2E8F0" CornerRadius="8" />
+            <!--
+              Above the field, not below: the dropdown opens downward and, as an
+              overlay Popup, paints on top of anything in the field's own normal
+              flow underneath it — a status line placed below would be covered the
+              instant the list opens, which is exactly when an operator would want
+              to read "showing 10 of N".
+            -->
             <TextBlock Name="TemplateStatusLabel" IsVisible="False" FontSize="11"
                        Foreground="#94A3B8" TextWrapping="Wrap" />
-          </StackPanel>
-
-          <StackPanel Spacing="5">
-            <TextBlock Text="{i18n:I18n SmsMessage}" FontSize="11" Foreground="#6E859D" />
-            <TextBox Name="ContentBox" Height="116" AcceptsReturn="True" TextWrapping="Wrap"
-                     VerticalContentAlignment="Top" Watermark="{i18n:I18n SmsMessagePlaceholder}"
-                     Background="#1E293B" BorderBrush="#334155"
-                     Foreground="#E2E8F0" CornerRadius="8" />
             <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Name="ValidationLabel" Foreground="#F87171" FontSize="11"
-                         TextWrapping="Wrap" IsVisible="False" />
-              <TextBlock Grid.Column="1" Name="CountLabel" Foreground="#64748B" FontSize="11" />
+              <AutoCompleteBox Name="TemplateBox" HorizontalAlignment="Stretch"
+                               Watermark="{i18n:I18n SmsTemplatePlaceholder}"
+                               MinimumPrefixLength="0" MaxDropDownHeight="220">
+                <AutoCompleteBox.ItemTemplate>
+                  <DataTemplate>
+                    <!--
+                      No width binding here. An earlier attempt bound MaxWidth to the
+                      containing ListBox's bounds as a backstop; inside a DataTemplate
+                      that ancestor lookup resolved to null on every realisation, and
+                      MaxWidth is a double, so each row logged a binding error and the
+                      run ended in an InvalidOperationException out of Avalonia.Base.
+                      The Window.Styles cap on PART_SuggestionsContainer above bounds
+                      the whole suggestions surface, which is what the trimming below
+                      needs to measure against.
+                    -->
+                    <StackPanel Spacing="1">
+                      <TextBlock Text="{Binding Name}" FontSize="13" Foreground="#E2E8F0"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Content}" FontSize="11" Foreground="#7B92AA"
+                                 MaxLines="1" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                  </DataTemplate>
+                </AutoCompleteBox.ItemTemplate>
+              </AutoCompleteBox>
+              <Button Grid.Column="1" Name="ClearTemplateBtn" IsVisible="False"
+                      Margin="6,0,0,0" Width="34" Height="34" Padding="0"
+                      Background="#1E293B" BorderBrush="#334155" BorderThickness="1"
+                      CornerRadius="8" Cursor="Hand"
+                      HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                      ToolTip.Tip="{i18n:I18n SmsTemplateClear}">
+                <materialIcons:MaterialIcon Kind="Close" Width="14" Height="14" Foreground="#94A3B8" />
+              </Button>
             </Grid>
           </StackPanel>
 
-          <TextBlock Name="ErrorLabel" IsVisible="False" Foreground="#F87171"
-                     FontSize="12" TextWrapping="Wrap" />
-          <Border Name="SuccessBanner" IsVisible="False" Background="#052E2B"
-                  BorderBrush="#0F766E" BorderThickness="1" CornerRadius="8" Padding="10,8">
-            <TextBlock Text="{i18n:I18n SmsQueuedSuccess}" Foreground="#5EEAD4"
-                       FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap" />
-          </Border>
-        </StackPanel>
+          <Grid Grid.Row="2" Margin="0,12,0,0" RowDefinitions="Auto,*,Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,5">
+              <TextBlock Text="{i18n:I18n SmsMessage}" FontSize="11" Foreground="#94A3B8" />
+              <TextBlock Grid.Column="1" Name="CountLabel" Foreground="#64748B" FontSize="10"
+                         VerticalAlignment="Center" />
+            </Grid>
+            <TextBox Grid.Row="1" Name="ContentBox" MinHeight="120"
+                     AcceptsReturn="True" TextWrapping="Wrap"
+                     VerticalContentAlignment="Top" Watermark="{i18n:I18n SmsMessagePlaceholder}"
+                     Background="#1E293B" BorderBrush="#334155" BorderThickness="1"
+                     Foreground="#E2E8F0" CornerRadius="8" Padding="10,8" />
+            <TextBlock Grid.Row="2" Name="ValidationLabel" Margin="2,5,0,0"
+                       Foreground="#F87171" FontSize="11"
+                       TextWrapping="Wrap" IsVisible="False" />
+            <Border Grid.Row="3" Name="ErrorBanner" IsVisible="False" Margin="0,8,0,0"
+                    Background="#2A1416" BorderBrush="#7F1D1D" BorderThickness="1"
+                    CornerRadius="8" Padding="10,8">
+              <StackPanel Orientation="Horizontal" Spacing="7">
+                <materialIcons:MaterialIcon Kind="AlertCircleOutline" Width="14" Height="14"
+                                            Foreground="#FCA5A5" VerticalAlignment="Top" />
+                <TextBlock Name="ErrorLabel" Foreground="#FCA5A5" FontSize="11"
+                           TextWrapping="Wrap" MaxWidth="320" />
+              </StackPanel>
+            </Border>
+          </Grid>
+
+        </Grid>
       </ScrollViewer>
 
-      <Border Grid.Row="2" Background="#152132" CornerRadius="0,0,16,16" Padding="14,10">
+      <Border Grid.Row="2" Background="#152132" CornerRadius="0,0,16,16"
+              Padding="14,12" BorderBrush="#1E293B" BorderThickness="0,1,0,0">
         <Panel>
           <Grid Name="ComposeFooter" ColumnDefinitions="Auto,*,Auto">
             <Button Name="CancelBtn" Grid.Column="0" Content="{i18n:I18n Cancel}"
                     Background="Transparent" BorderThickness="1" BorderBrush="#334155"
-                    Foreground="#94A3B8" CornerRadius="8" Padding="12,7" Cursor="Hand" />
-            <Button Name="SendBtn" Grid.Column="2" Content="{i18n:I18n SmsSend}"
-                    Background="#3B82F6" Foreground="White" BorderThickness="0"
-                    CornerRadius="8" Padding="15,7" FontWeight="Bold" Cursor="Hand" />
+                    Foreground="#94A3B8" CornerRadius="8" Padding="13,7" Cursor="Hand" />
+            <Button Name="SendBtn" Grid.Column="2"
+                    Background="#3B82F6" BorderThickness="0"
+                    CornerRadius="8" Padding="14,7" Cursor="Hand">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <materialIcons:MaterialIcon Name="SendIcon" Kind="Send" Width="15" Height="15"
+                                            Foreground="#FFFFFF" VerticalAlignment="Center" />
+                <TextBlock Name="SendLabel" Text="{i18n:I18n SmsSend}" Foreground="#FFFFFF"
+                           FontWeight="SemiBold" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
           </Grid>
 
-          <StackPanel Name="ConfirmationFooter" IsVisible="False" Spacing="9">
-            <StackPanel Spacing="3">
-              <TextBlock Text="{i18n:I18n SmsConfirmTitle}" Foreground="#E2E8F0"
-                         FontSize="13" FontWeight="Bold" />
-              <TextBlock Text="{i18n:I18n SmsConfirmHint}" Foreground="#94A3B8"
-                         FontSize="11" TextWrapping="Wrap" />
-              <TextBlock Name="ConfirmRecipientValue" Foreground="#CBD5E1"
-                         FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" />
-              <TextBlock Name="ConfirmContentValue" Foreground="#CBD5E1"
-                         FontSize="11" MaxHeight="56" TextTrimming="CharacterEllipsis"
-                         TextWrapping="Wrap" />
+          <Border Name="SuccessBanner" IsVisible="False" Background="#052E2B"
+                  BorderBrush="#0F766E" BorderThickness="1" CornerRadius="8" Padding="10,9">
+            <StackPanel Orientation="Horizontal" Spacing="7">
+              <materialIcons:MaterialIcon Kind="CheckCircleOutline" Width="15" Height="15"
+                                          Foreground="#5EEAD4" VerticalAlignment="Center" />
+              <TextBlock Text="{i18n:I18n SmsQueuedSuccess}" Foreground="#5EEAD4"
+                         FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
+                         VerticalAlignment="Center" />
             </StackPanel>
-            <Grid ColumnDefinitions="Auto,*,Auto">
-              <Button Name="BackBtn" Grid.Column="0" Content="{i18n:I18n SmsBack}"
-                      Background="Transparent" BorderThickness="1" BorderBrush="#334155"
-                      Foreground="#94A3B8" CornerRadius="8" Padding="11,7" Cursor="Hand" />
-              <Button Name="CancelSendBtn" Grid.Column="0" IsVisible="False"
-                      Content="{i18n:I18n SmsCancelSend}"
-                      Background="Transparent" BorderThickness="1" BorderBrush="#F87171"
-                      Foreground="#FCA5A5" CornerRadius="8" Padding="11,7" Cursor="Hand" />
-              <Button Name="ConfirmBtn" Grid.Column="2" Content="{i18n:I18n SmsConfirmSend}"
-                      Background="#3B82F6" Foreground="White" BorderThickness="0"
-                      CornerRadius="8" Padding="13,7" FontWeight="Bold" Cursor="Hand" />
-            </Grid>
-            <TextBlock Name="ProgressLabel" IsVisible="False" Text="{i18n:I18n SmsSending}"
-                       Foreground="#93C5FD" FontSize="11" HorizontalAlignment="Right" />
-          </StackPanel>
+          </Border>
         </Panel>
       </Border>
+
     </Grid>
   </Border>
 </Window>
