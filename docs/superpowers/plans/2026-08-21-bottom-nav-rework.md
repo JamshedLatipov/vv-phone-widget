@@ -151,7 +151,7 @@ public class NavBadgeStateTests
         state.SetTasks(pending: 3, inProgress: 2, overdue: 2);
 
         Assert.Equal(5, state.OpenTasks);
-        Assert.True(state.TasksAlert);
+        Assert.True(state.HasOverdueTasks);
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public class NavBadgeStateTests
 
         state.SetTasks(pending: 4, inProgress: 0, overdue: 0);
 
-        Assert.False(state.TasksAlert);
+        Assert.False(state.HasOverdueTasks);
     }
 
     [Fact]
@@ -217,16 +217,60 @@ public class NavBadgeStateTests
         Assert.Equal(1, state.NewMissed);
     }
 
+    /// <summary>
+    /// The rollover is rarely caught at exactly zero: the counter restarts at midnight
+    /// and the next poll two minutes later already reports the calls missed since. Those
+    /// are unseen, and reseating the watermark to the new total instead of to zero would
+    /// hide every one of them.
+    /// </summary>
     [Fact]
-    public void MissedCountNeverGoesNegative()
+    public void CounterRestartingBelowTheWatermarkTreatsTheRemainderAsUnseen()
     {
         var state = new NavBadgeState();
-        state.SetMissed(4);
+        state.SetMissed(10);
         state.MarkRecentsSeen();
 
-        state.SetMissed(2);
+        state.SetMissed(3);
+
+        Assert.Equal(3, state.NewMissed);
+    }
+
+    /// <summary>
+    /// Guards the shape of the arithmetic rather than a caller: the backend should never
+    /// send a negative count, but one arriving must not turn a badge into a negative
+    /// number or a subtraction into an inflated one.
+    /// </summary>
+    [Fact]
+    public void NegativeTaskCountsAreIgnored()
+    {
+        var state = new NavBadgeState();
+
+        state.SetTasks(pending: -5, inProgress: 2, overdue: 0);
+
+        Assert.Equal(2, state.OpenTasks);
+    }
+
+    [Fact]
+    public void NegativeMissedCountIsIgnored()
+    {
+        var state = new NavBadgeState();
+
+        state.SetMissed(-4);
 
         Assert.Equal(0, state.NewMissed);
+    }
+
+    /// <summary>Each poll replaces the totals; they do not accumulate across calls.</summary>
+    [Fact]
+    public void SecondPollReplacesTheTaskTotalsRatherThanAddingToThem()
+    {
+        var state = new NavBadgeState();
+        state.SetTasks(pending: 3, inProgress: 2, overdue: 1);
+
+        state.SetTasks(pending: 1, inProgress: 0, overdue: 0);
+
+        Assert.Equal(1, state.OpenTasks);
+        Assert.False(state.HasOverdueTasks);
     }
 
     [Theory]
@@ -248,7 +292,7 @@ public class NavBadgeStateTests
 
         Assert.Equal(0, state.OpenTasks);
         Assert.Equal(0, state.NewMissed);
-        Assert.False(state.TasksAlert);
+        Assert.False(state.HasOverdueTasks);
     }
 }
 ```
@@ -291,7 +335,7 @@ public sealed class NavBadgeState
     public int OpenTasks { get; private set; }
 
     /// <summary>True when at least one open task is past its due date.</summary>
-    public bool TasksAlert { get; private set; }
+    public bool HasOverdueTasks { get; private set; }
 
     /// <summary>Missed calls the operator has not looked at since last opening Recents.</summary>
     public int NewMissed => Math.Max(0, _missedCalls - _seenMissed);
@@ -299,20 +343,22 @@ public sealed class NavBadgeState
     public void SetTasks(int pending, int inProgress, int overdue)
     {
         OpenTasks = Math.Max(0, pending) + Math.Max(0, inProgress);
-        TasksAlert = overdue > 0;
+        HasOverdueTasks = overdue > 0;
     }
 
     /// <summary>
     /// Records the backend's "missed today" total.
     ///
-    /// A total below the watermark means the day rolled over and the counter restarted,
-    /// not that calls were un-missed. Re-seating the watermark there is what keeps the
-    /// first missed call after midnight visible instead of silently absorbed.
+    /// A total below the previous one can only mean the counter restarted at midnight —
+    /// calls are never un-missed. Everything it reports after a restart is therefore
+    /// unseen, which is why the watermark goes to zero and not to the new total:
+    /// reseating it to the total would swallow any call missed between the rollover and
+    /// this poll, and at a two-minute interval that gap is ordinary, not exotic.
     /// </summary>
     public void SetMissed(int missedCalls)
     {
         var value = Math.Max(0, missedCalls);
-        if (value < _seenMissed) _seenMissed = value;
+        if (value < _missedCalls) _seenMissed = 0;
         _missedCalls = value;
     }
 
@@ -332,7 +378,7 @@ public sealed class NavBadgeState
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~NavBadgeStateTests"
 ```
 
-Ожидаемо: PASS, 15 тестов.
+Ожидаемо: PASS, 18 тестов.
 
 - [ ] **Step 6: Коммит**
 
@@ -1207,7 +1253,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: PASS, 524 теста (501 базовых + 15 из Task 1 + 8 из Task 2).
+Ожидаемо: PASS, 527 тестов (501 базовых + 18 из Task 1 + 8 из Task 2).
 
 - [ ] **Step 11: Проверить руками**
 
@@ -2008,7 +2054,7 @@ dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "Ful
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: PASS, 557 тестов.
+Ожидаемо: PASS, 560 тестов.
 
 - [ ] **Step 6: Коммит**
 
@@ -2101,7 +2147,7 @@ namespace OrbitalSIP.Services
         /// <summary>Pushes the current numbers into a freshly built bar.</summary>
         public void ApplyTo(BottomNavControl nav)
         {
-            nav.SetBadge(NavTab.Tasks, _state.OpenTasks, _state.TasksAlert);
+            nav.SetBadge(NavTab.Tasks, _state.OpenTasks, _state.HasOverdueTasks);
             nav.SetBadge(NavTab.Recents, _state.NewMissed, alert: false);
         }
 
@@ -2321,7 +2367,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 557 тестов зелёные. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
+Ожидаемо: сборка чистая, 560 тестов зелёные. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
 
 ```bash
 grep -rn "class OperatorDetailsResponse" OrbitalSIP/Models/OperatorStats.cs
@@ -2765,7 +2811,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка без ошибок, 557 тестов зелёные.
+Ожидаемо: сборка без ошибок, 560 тестов зелёные.
 
 - [ ] **Step 7: Проверить руками**
 
@@ -2921,7 +2967,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 557 тестов зелёные.
+Ожидаемо: сборка чистая, 560 тестов зелёные.
 
 - [ ] **Step 6: Проверить руками**
 
@@ -2944,7 +2990,7 @@ git commit -m "fix(call): send DTMF from the keypad button instead of rebuilding
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: 557 тестов, 0 упавших.
+Ожидаемо: 560 тестов, 0 упавших.
 
 - [ ] **Сборка релизной конфигурации**
 
