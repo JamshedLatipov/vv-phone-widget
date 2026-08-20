@@ -45,7 +45,10 @@ namespace OrbitalSIP.Views
         private async Task AttemptLogin()
         {
             var username = this.FindControl<TextBox>("UsernameBox")?.Text?.Trim();
-            var password = this.FindControl<TextBox>("PasswordBox")?.Text?.Trim();
+            // Deliberately not trimmed: leading and trailing whitespace are legal password
+            // characters, and trimming them silently turned a correct password into a
+            // wrong one with nothing on screen to explain the rejection.
+            var password = this.FindControl<TextBox>("PasswordBox")?.Text;
 
             if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
             {
@@ -69,7 +72,12 @@ namespace OrbitalSIP.Views
             try
             {
                 var baseUrl = settings.BackendUrl.TrimEnd('/');
-                var response = await _httpClient.PostAsJsonAsync($"{baseUrl}/api/auth/login", new
+
+                // The moment the credentials leave this machine is the moment worth
+                // recording that they are leaving it in the clear.
+                BackendHttp.WarnIfInsecure(baseUrl);
+
+                using var response = await _httpClient.PostAsJsonAsync($"{baseUrl}/api/auth/login", new
                 {
                     username = username,
                     password = password
@@ -85,12 +93,16 @@ namespace OrbitalSIP.Views
                     }
 
                     settings.AccessToken = result.AccessToken;
+                    // Kept, not discarded: it is what BackendAuth spends to keep the
+                    // session alive past the access token's two days.
+                    settings.RefreshToken = result.RefreshToken;
                     settings.DecodedToken = JwtDecoder.Decode(result.AccessToken);
+                    BackendAuth.BeginSession();
 
                     // Fetch SIP credentials from the dedicated endpoint
                     using var sipRequest = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/auth/sip-credentials");
                     sipRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", result.AccessToken);
-                    var sipResponse = await _httpClient.SendAsync(sipRequest);
+                    using var sipResponse = await _httpClient.SendAsync(sipRequest);
 
                     if (!sipResponse.IsSuccessStatusCode)
                     {

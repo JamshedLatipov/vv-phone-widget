@@ -98,4 +98,51 @@ public class BackendHttpTests
 
         Assert.False(IsDisposed(BackendHttp.Client));
     }
+
+    /// <summary>
+    /// SmsService used to build and own its own HttpClient. Now that it shares the pool
+    /// like everyone else, it also has to stop disposing it — this is precisely the
+    /// regression that would take every other service down with it.
+    /// </summary>
+    [Fact]
+    public void DisposingAnSmsServiceLeavesTheSharedClientAlive()
+    {
+        new SmsService().Dispose();
+
+        Assert.False(IsDisposed(BackendHttp.Client));
+    }
+
+    // ── Insecure-transport detection ────────────────────────────────────────
+
+    [Theory]
+    [InlineData("http://10.10.103.46")]
+    [InlineData("http://crm.internal/api")]
+    [InlineData("HTTP://CRM.INTERNAL")]
+    [InlineData("  http://crm.internal")]   // pasted into the settings box with whitespace
+    public void PlainHttpBackendIsInsecure(string url)
+    {
+        Assert.True(BackendHttp.IsInsecure(url));
+    }
+
+    /// <summary>
+    /// «https» starts with «http», so a naive prefix test would flag every secure backend
+    /// and train the operator to ignore the warning.
+    /// </summary>
+    [Theory]
+    [InlineData("https://crm.internal")]
+    [InlineData("HTTPS://crm.internal")]
+    [InlineData("https://crm.internal/api/v1")]
+    public void HttpsBackendIsNotInsecure(string url)
+    {
+        Assert.False(BackendHttp.IsInsecure(url));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void UnconfiguredBackendIsNotReportedAsInsecure(string? url)
+    {
+        Assert.False(BackendHttp.IsInsecure(url));
+    }
 }

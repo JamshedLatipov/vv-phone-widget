@@ -3,18 +3,11 @@ using System.Threading;
 
 namespace OrbitalSIP.Models;
 
-public enum SmsComposeMode
-{
-    Template,
-    FreeText,
-}
-
 public enum SmsComposeValidation
 {
     None,
     ContentRequired,
     ContentTooLong,
-    TemplateRequired,
 }
 
 /// <summary>
@@ -26,6 +19,7 @@ public sealed class SmsComposeState
     public const int MaxContentLength = 1000;
 
     private Guid? _requestId;
+    private bool _contentMatchesTemplate;
 
     public SmsComposeState(SmsCallSource source, string recipient)
     {
@@ -37,20 +31,23 @@ public sealed class SmsComposeState
 
     public SmsCallSource Source { get; }
     public string Recipient { get; }
-    public SmsComposeMode Mode { get; private set; } = SmsComposeMode.Template;
     public MessageTemplateDto? SelectedTemplate { get; private set; }
     public string Content { get; private set; } = string.Empty;
     public int CharacterCount => Content.Length;
-    public bool IsConfirmationVisible { get; private set; }
     public bool IsInFlight { get; private set; }
     public bool IsQueued { get; private set; }
+
+    /// <summary>
+    /// True while the content is byte-identical to the template it came from.
+    /// Only then does the request carry a template id — an edited body is a
+    /// free-text message that happens to have started from a template.
+    /// </summary>
+    public bool IsTemplateBound => _contentMatchesTemplate && SelectedTemplate is not null;
 
     public SmsComposeValidation Validation
     {
         get
         {
-            if (Mode == SmsComposeMode.Template && SelectedTemplate is null)
-                return SmsComposeValidation.TemplateRequired;
             if (string.IsNullOrWhiteSpace(Content))
                 return SmsComposeValidation.ContentRequired;
             if (CharacterCount > MaxContentLength)
@@ -61,16 +58,6 @@ public sealed class SmsComposeState
 
     public bool CanSend => !IsInFlight && !IsQueued && Validation == SmsComposeValidation.None;
 
-    public void SwitchMode(SmsComposeMode mode)
-    {
-        EnsureEditable();
-        if (Mode == mode)
-            return;
-
-        Mode = mode;
-        InvalidatePendingRequest();
-    }
-
     public void SelectTemplate(MessageTemplateDto template)
     {
         ArgumentNullException.ThrowIfNull(template);
@@ -78,14 +65,26 @@ public sealed class SmsComposeState
             throw new ArgumentException("A compose-ready template must contain text.", nameof(template));
 
         EnsureEditable();
-        var changed = Mode != SmsComposeMode.Template ||
+        var changed = !IsTemplateBound ||
                       SelectedTemplate?.Id != template.Id ||
                       !string.Equals(Content, template.Content, StringComparison.Ordinal);
-        Mode = SmsComposeMode.Template;
         SelectedTemplate = template;
         Content = template.Content;
+        _contentMatchesTemplate = true;
         if (changed)
             InvalidatePendingRequest();
+    }
+
+    /// <summary>Drops the template without touching the text the operator already has.</summary>
+    public void ClearTemplate()
+    {
+        EnsureEditable();
+        if (SelectedTemplate is null)
+            return;
+
+        SelectedTemplate = null;
+        _contentMatchesTemplate = false;
+        InvalidatePendingRequest();
     }
 
     public void EditContent(string? content)
@@ -96,28 +95,14 @@ public sealed class SmsComposeState
             return;
 
         Content = content;
+        _contentMatchesTemplate = false;
         InvalidatePendingRequest();
-    }
-
-    public bool RequestConfirmation()
-    {
-        if (!CanSend)
-            return false;
-
-        IsConfirmationVisible = true;
-        return true;
-    }
-
-    public void CancelConfirmation()
-    {
-        if (!IsInFlight)
-            IsConfirmationVisible = false;
     }
 
     public bool TryBeginSend(out SendCallSmsRequest? request)
     {
         request = null;
-        if (!IsConfirmationVisible || !CanSend)
+        if (!CanSend)
             return false;
 
         _requestId ??= Guid.NewGuid();
@@ -125,7 +110,7 @@ public sealed class SmsComposeState
             _requestId.Value,
             Source,
             Content,
-            Mode == SmsComposeMode.Template ? SelectedTemplate?.Id : null);
+            IsTemplateBound ? SelectedTemplate!.Id : null);
         IsInFlight = true;
         return true;
     }
@@ -144,7 +129,6 @@ public sealed class SmsComposeState
             return;
 
         IsInFlight = false;
-        IsConfirmationVisible = false;
         IsQueued = true;
         _requestId = null;
     }
@@ -157,11 +141,7 @@ public sealed class SmsComposeState
             throw new InvalidOperationException("A queued SMS compose state cannot be edited.");
     }
 
-    private void InvalidatePendingRequest()
-    {
-        _requestId = null;
-        IsConfirmationVisible = false;
-    }
+    private void InvalidatePendingRequest() => _requestId = null;
 }
 
 /// <summary>One cancellable send attempt owned by <see cref="SmsComposeSendSession"/>.</summary>

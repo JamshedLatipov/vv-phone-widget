@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Net;
 using System.IO;
@@ -30,10 +30,19 @@ namespace OrbitalSIP.Services
         private GainAudioEndPoint?           _audioEndPoint;
         private SipSettings                  _settings = new();
 
+        /// <summary>
+        /// Backing field for <see cref="State"/>. Volatile because the transition is
+        /// written under <see cref="_lock"/> but read all over the place without it —
+        /// including by SIPSorcery's own callback threads, which is exactly where the
+        /// double-teardown guard in <see cref="OnCallEnded"/> lives. A plain auto-property
+        /// gave no guarantee those threads would ever see the Idle write.
+        /// </summary>
+        private volatile CallState _state = CallState.Idle;
+
         // ── Public state ──────────────────────────────────────────────
         public RegistrationState RegistrationStatus { get; private set; } = RegistrationState.Unregistered;
         public string    LastRegistrationError { get; private set; } = "";
-        public CallState State              { get; private set; } = CallState.Idle;
+        public CallState State => _state;
         public DateTime? ActiveCallStartedAt  { get; private set; }
         public string    ActiveCallerId     { get; private set; } = "";
         public SipSettings CurrentSettings => _settings;
@@ -66,6 +75,34 @@ namespace OrbitalSIP.Services
         {
             _settings = settings;
             Log($"Start requested. Server={settings.Server}, Port={settings.Port}, User={settings.Username}, Transport={settings.Transport}.");
+
+            // Saving from Settings lands here mid-call — the button is reachable from the
+            // active-call view. Rebuilding _transport under a live dialog stranded that
+            // dialog on a transport about to be disposed: the BYE never went out (the
+            // remote side hung until its own RTP timeout), the audio endpoint leaked, and
+            // State stayed Active for the rest of the session. End the call first, while
+            // the transport that carries it is still up.
+            if (State != CallState.Idle)
+            {
+                Log($"Start requested while State={State}. Ending the current call before rebuilding the stack.");
+                Hangup();
+
+                // Hangup's active-call branch returns early and leaves the teardown to the
+                // OnCallHungup that SIPSorcery raises from inside ua.Hangup(). Verify
+                // rather than trust it: anything still standing here is about to lose its
+                // transport regardless, so it has to come down now.
+                //
+                // Through RollbackToIdle, not an inline teardown: it claims Idle BEFORE
+                // CleanupMedia, and CleanupMedia's Close() raises OnRtpClosed synchronously
+                // straight back into OnCallEnded. Tearing down while still Active let that
+                // re-entry claim the transition first and announce Idle, and this method
+                // then announced it a second time.
+                if (State != CallState.Idle)
+                {
+                    Log("Call did not reach Idle from Hangup(). Forcing teardown.");
+                    RollbackToIdle();
+                }
+            }
 
             // Set to unregistered until we actually start the agent
             SetRegistrationStatus(RegistrationState.Unregistered);
@@ -180,18 +217,38 @@ namespace OrbitalSIP.Services
         // ── Outbound call ─────────────────────────────────────────────
         public async Task<bool> CallAsync(string destination)
         {
-            if (State != CallState.Idle || _transport == null) return false;
+            // Claim Idle -> Ringing inside the lock. The old code tested State here and
+            // assigned it a dozen lines later without any lock, so an INVITE arriving in
+            // that window passed its own `State == Idle` test and overwrote _activeCall —
+            // two calls sharing one field. Claiming up front means the INVITE handler
+            // sees Ringing and declines to set up a second leg.
+            SIPTransport transport;
+            lock (_lock)
+            {
+                if (_state != CallState.Idle || _transport == null) return false;
+                transport      = _transport;
+                _state         = CallState.Ringing;
+                ActiveCallerId = destination;
+            }
+            AnnounceState(CallState.Ringing);
 
-            var ua = new SIPUserAgent(_transport, null);
+            var ua = new SIPUserAgent(transport, null);
             ua.ClientCallTrying += (_, resp) => Log($"Call trying: {resp.ShortDescription}");
             ua.ClientCallRinging += (_, resp) => Log($"Call ringing: {resp.ShortDescription}");
             ua.ClientCallAnswered += (_, resp) => Log($"Call answered: {resp.ShortDescription}");
             ua.ClientCallFailed += (_, error, resp) => Log($"Call failed: {error}; response={resp?.ShortDescription}");
-            if (!TryCreateAudio()) return false;
 
-            _activeCall    = ua;
-            ActiveCallerId = destination;
-            SetState(CallState.Ringing);
+            if (!TryCreateAudio())
+            {
+                Log("Outbound call aborted: audio initialisation failed.");
+                RollbackToIdle();
+                return false;
+            }
+
+            // Published before the hangup handlers are wired, never after: OnCallEnded
+            // nulls _activeCall, and an assignment sequenced after it would put a dead
+            // agent straight back into the field.
+            lock (_lock) { _activeCall = ua; }
 
             // Subscribe BEFORE ua.Call() — the remote can hang up during the
             // INVITE exchange and OnCallHungup fires on SIPSorcery's thread
@@ -220,24 +277,61 @@ namespace OrbitalSIP.Services
 
             if (ok)
             {
+                // The remote can answer and hang up again inside that await; OnCallEnded
+                // has then already claimed Idle, and announcing Active over it would leave
+                // the UI in a call that no longer exists.
+                lock (_lock)
+                {
+                    if (_state == CallState.Idle)
+                    {
+                        Log("CallAsync: the call ended while Call() was still awaiting. Not transitioning to Active.");
+                        return false;
+                    }
+                    _state = CallState.Active;
+                    ActiveCallStartedAt = DateTime.Now;
+                }
+
                 Debug.WriteLine("[SipService] Call connected — audio active.");
-                Debug.WriteLine($"[SipService] Remote SDP:\n{_mediaSession?.RemoteDescription}");
                 Log($"Call connected. Remote SDP: {SanitizeSdp(_mediaSession?.RemoteDescription?.ToString())}");
-                ActiveCallStartedAt = DateTime.Now;
-                SetState(CallState.Active);
+                AnnounceState(CallState.Active);
             }
             else
             {
                 Debug.WriteLine("[SipService] Call failed / rejected.");
                 Log("Call failed or rejected.");
-                // Set Idle BEFORE CleanupMedia so that the OnRtpClosed callback
-                // (which fires synchronously inside mediaSession.Close) sees
-                // State == Idle and the OnCallEnded guard skips the duplicate transition.
-                _activeCall = null;
-                SetState(CallState.Idle);
-                CleanupMedia();
+                RollbackToIdle();
             }
             return ok;
+        }
+
+        /// <summary>
+        /// Returns to Idle from a call that never came up.
+        ///
+        /// The Idle write happens before <see cref="CleanupMedia"/> on purpose:
+        /// <c>mediaSession.Close()</c> raises OnRtpClosed synchronously on the calling
+        /// thread, and that handler routes into <see cref="OnCallEnded"/> — which has to
+        /// find Idle already claimed so it bows out instead of announcing a second
+        /// transition to a UI that has only just been told about the first.
+        /// </summary>
+        private void RollbackToIdle()
+        {
+            SIPServerUserAgent? strandedUas;
+            lock (_lock)
+            {
+                _activeCall = null;
+                strandedUas = _pendingUas;
+                _pendingUas = null;
+                _state      = CallState.Idle;
+            }
+
+            // Same debt as in OnCallEnded: an unanswered incoming leg dropped here has
+            // nothing left that can answer it. TryRejectPending is a no-op once the leg
+            // has been answered or already rejected, so the paths that handled it
+            // themselves are unaffected.
+            TryRejectPending(strandedUas, "the call was torn down before it was answered");
+
+            CleanupMedia();
+            AnnounceState(CallState.Idle);
         }
 
         // ── Incoming call ─────────────────────────────────────────────
@@ -258,6 +352,28 @@ namespace OrbitalSIP.Services
             if (req.Method == SIPMethodsEnum.BYE)
             {
                 Log($"Incoming BYE from {remoteEP}. Request-URI={req.URI}");
+
+                // A BYE used to end the call unconditionally, whoever it was for. On UDP
+                // that is trivially spoofable, and a retransmitted BYE from a call that
+                // already ended would tear down the NEXT one. Only a BYE that names the
+                // dialog we are actually on may end it; anything else gets the 481 the
+                // RFC asks for and leaves the live call alone.
+                SIPUserAgent? activeUa;
+                lock (_lock) { activeUa = _activeCall; }
+
+                var byeCallId    = req.Header?.CallId;
+                var activeCallId = activeUa?.Dialogue?.CallId;
+
+                if (activeCallId != null && byeCallId != null &&
+                    !string.Equals(activeCallId, byeCallId, StringComparison.Ordinal))
+                {
+                    Log($"Ignoring BYE for an unknown dialog. Call-ID={byeCallId}; active={activeCallId}.");
+                    return _transport != null
+                        ? _transport.SendResponseAsync(SIPResponse.GetResponse(
+                            req, SIPResponseStatusCodesEnum.CallLegTransactionDoesNotExist, null))
+                        : Task.CompletedTask;
+                }
+
                 OnCallEnded();
 
                 if (_transport != null)
@@ -322,10 +438,13 @@ namespace OrbitalSIP.Services
 
             if (!TryCreateAudio())
             {
-                ua.Hangup();
+                // ua.Hangup() was the old response, and it does nothing for a leg that was
+                // never answered: the UAS had already been taken out of _pendingUas, so
+                // nothing else could reject it either and the caller heard ringback until
+                // their own timeout. Reject it explicitly.
                 Log("Answer failed because audio initialisation failed.");
-                _activeCall = null;
-                SetState(CallState.Idle);
+                TryRejectPending(uas, "audio initialisation failed");
+                RollbackToIdle();
                 return;
             }
 
@@ -342,36 +461,64 @@ namespace OrbitalSIP.Services
             {
                 Debug.WriteLine($"[SipService] AnswerAsync failed: {ex.Message}");
                 Log($"AnswerAsync exception: {ex}");
-                CleanupMedia();
-                _activeCall = null;
-                SetState(CallState.Idle);
+
+                // Answer() can throw either side of actually answering, so cover both: a
+                // leg it never answered is rejected, one it did is hung up.
+                TryRejectPending(uas, "Answer() threw");
+                if (uas.IsUASAnswered) { try { ua.Hangup(); } catch (Exception hangupEx) { Log($"Hangup after failed answer threw: {hangupEx.Message}"); } }
+
+                RollbackToIdle();
                 return;
             }
 
             // Guard: caller may have hung up while we were awaiting Answer().
-            // OnCallHungup → OnCallEnded() already set State = Idle in that case.
+            // OnCallHungup → OnCallEnded() already claimed Idle in that case, and the
+            // transition to Active has to be claimed under the same lock to stay ordered
+            // against it.
             lock (_lock)
             {
-                if (State == CallState.Idle)
+                if (_state == CallState.Idle)
                 {
                     Log("AnswerAsync: call was hung up during Answer(). Aborting state transition to Active.");
                     return;
                 }
+                _state = CallState.Active;
+                ActiveCallStartedAt = DateTime.Now;
             }
 
-            ActiveCallStartedAt = DateTime.Now;
-            SetState(CallState.Active);
+            AnnounceState(CallState.Active);
             Debug.WriteLine($"[SipService] Answered. Remote SDP:\n{_mediaSession?.RemoteDescription}");
             Log($"Incoming call answered. Remote SDP: {SanitizeSdp(_mediaSession?.RemoteDescription?.ToString())}");
+        }
+
+        /// <summary>
+        /// Sends the 480 an unanswered incoming leg is owed. Once the UAS has been taken
+        /// out of <c>_pendingUas</c> nothing else in this class can reject it, so every
+        /// abort path between there and a successful Answer() has to come through here or
+        /// the caller is left listening to ringback until their own timeout.
+        /// </summary>
+        private void TryRejectPending(SIPServerUserAgent? uas, string reason)
+        {
+            if (uas == null || uas.IsUASAnswered) return;
+
+            try
+            {
+                uas.Reject(SIPResponseStatusCodesEnum.TemporarilyUnavailable, null, null);
+                Log($"Rejected the pending incoming call ({reason}).");
+            }
+            catch (Exception ex)
+            {
+                Log($"Rejecting the pending incoming call threw: {ex.Message}");
+            }
         }
 
         public void Decline()
         {
             SIPServerUserAgent? uas;
-            lock (_lock) { uas = _pendingUas; _pendingUas = null; _activeCall = null; }
+            lock (_lock) { uas = _pendingUas; _pendingUas = null; }
             uas?.Reject(SIPResponseStatusCodesEnum.BusyHere, null, null);
             Log("Incoming call declined.");
-            SetState(CallState.Idle);
+            RollbackToIdle();
         }
 
         public void Hangup()
@@ -403,6 +550,10 @@ namespace OrbitalSIP.Services
                 {
                     Debug.WriteLine("[SipService] Rejecting pending incoming call from hangup action.");
                     Log("Hangup requested for pending incoming call. Sending reject.");
+
+                    // Taken out of the field BEFORE rejecting, so the RollbackToIdle below
+                    // does not find it and send a second final response to the same INVITE.
+                    lock (_lock) { if (ReferenceEquals(_pendingUas, uas)) _pendingUas = null; }
                     uas.Reject(SIPResponseStatusCodesEnum.BusyHere, null, null);
                 }
                 else
@@ -417,19 +568,19 @@ namespace OrbitalSIP.Services
                 Log($"Hangup exception: {ex}");
             }
 
-            CleanupMedia();
-            lock (_lock)
-            {
-                _pendingUas = null;
-                _activeCall = null;
-            }
-            SetState(CallState.Idle);
+            RollbackToIdle();
         }
 
         // ── In-call controls ──────────────────────────────────────────
         public async Task SendDtmfAsync(char digit)
         {
-            if (_mediaSession == null || State != CallState.Active) return;
+            // Snapshot rather than null-check the field: CleanupMedia nulls _mediaSession
+            // from a SIP callback thread, so the old `if (_mediaSession == null) return;`
+            // followed by `_mediaSession.SendDtmf(...)` could still dereference null
+            // between the two.
+            VoIPMediaSession? session;
+            lock (_lock) { session = _mediaSession; }
+            if (session == null || _state != CallState.Active) return;
 
             byte code = digit switch
             {
@@ -440,7 +591,7 @@ namespace OrbitalSIP.Services
                 _   => 255
             };
             if (code != 255)
-                await _mediaSession.SendDtmf(code, CancellationToken.None);
+                await session.SendDtmf(code, CancellationToken.None);
         }
 
         // Tracks whether we have already called PauseAudio so we never call
@@ -492,23 +643,42 @@ namespace OrbitalSIP.Services
         public void ToggleHold()
         {
             SIPUserAgent? ua;
-            lock (_lock) { ua = _activeCall; }
-            if (ua == null || (State != CallState.Active && State != CallState.OnHold)) return;
+            CallState from, to;
+            bool goingOnHold;
 
-            if (IsOnHold)
+            lock (_lock)
             {
-                ua.TakeOffHold();
-                IsOnHold = false;
-                SetState(CallState.Active);
-                Log("Call taken off hold.");
+                ua = _activeCall;
+                if (ua == null || (_state != CallState.Active && _state != CallState.OnHold)) return;
+
+                from        = _state;
+                goingOnHold = !IsOnHold;
+                to          = goingOnHold ? CallState.OnHold : CallState.Active;
+
+                // Claimed inside the lock. Hold is reachable from the panel, the mini
+                // widget and a global hotkey at once, and reading IsOnHold outside it let
+                // two toggles both see the pre-toggle value and fire opposing re-INVITEs.
+                IsOnHold = goingOnHold;
+                _state   = to;
             }
-            else
+
+            // The re-INVITE goes out unlocked — it is network I/O, and the SIP callbacks
+            // it can wake up contend on this same lock.
+            try
             {
-                ua.PutOnHold();
-                IsOnHold = true;
-                SetState(CallState.OnHold);
-                Log("Call put on hold.");
+                if (goingOnHold) ua.PutOnHold();
+                else             ua.TakeOffHold();
             }
+            catch (Exception ex)
+            {
+                Log($"ToggleHold failed ({(goingOnHold ? "PutOnHold" : "TakeOffHold")}): {ex.Message}");
+                lock (_lock) { IsOnHold = !goingOnHold; _state = from; }
+                AnnounceState(from);
+                return;
+            }
+
+            Log(goingOnHold ? "Call put on hold." : "Call taken off hold.");
+            AnnounceState(to);
         }
 
         public async Task<bool> BlindTransferAsync(string destination)
@@ -676,37 +846,87 @@ namespace OrbitalSIP.Services
         }
 
         // ── Internals ─────────────────────────────────────────────────
+        /// <summary>
+        /// Ends the call exactly once, no matter how many callbacks report it.
+        ///
+        /// OnCallHungup, OnRtpClosed and an incoming BYE all land here, from three
+        /// different SIPSorcery threads, for the same hangup. The old guard read State
+        /// under the lock and then released it before doing the teardown, so two threads
+        /// could both see «not Idle» and both proceed — into a CleanupMedia that closed
+        /// the same media session twice. Claiming the transition inside the lock is what
+        /// makes the loser return instead.
+        /// </summary>
         private void OnCallEnded()
         {
-            // Guard against double-fire (OnCallHungup + OnRtpClosed can both arrive).
+            SIPServerUserAgent? strandedUas;
             lock (_lock)
             {
-                if (State == CallState.Idle) return;
+                if (_state == CallState.Idle) return;
+                _state = CallState.Idle;
+                _activeCall = null;
+                strandedUas = _pendingUas;
+                _pendingUas = null;
             }
+
+            // An incoming leg that was still ringing when this fired is owed a final
+            // response. Clearing _pendingUas without one left nothing in this class able
+            // to send it, and the caller heard ringback until their own timeout.
+            TryRejectPending(strandedUas, "the call ended before it was answered");
+
             Log("Call ended callback fired.");
             CleanupMedia();
-            _activeCall = null;
-            SetState(CallState.Idle);
+            AnnounceState(CallState.Idle);
         }
 
+        /// <summary>
+        /// Idempotent: takes the media objects out under the lock and closes its own local
+        /// copies, so a second caller finds nulls and closes nothing. Closing is done
+        /// outside the lock — CloseAudio drives NAudio device teardown, which is slow and
+        /// can throw, and neither belongs under a lock the SIP callbacks contend on.
+        /// </summary>
         private void CleanupMedia()
         {
+            GainAudioEndPoint? endPoint;
+            VoIPMediaSession?  session;
+            lock (_lock)
+            {
+                endPoint       = _audioEndPoint;
+                session        = _mediaSession;
+                _audioEndPoint = null;
+                _mediaSession  = null;
+                _audioPaused   = false; // reset so next call starts fresh
+            }
+
             ActiveCallStartedAt = null;
+            if (endPoint == null && session == null) return;
+
             Log("Cleaning up media resources.");
-            _audioEndPoint?.CloseAudio();
-            _audioEndPoint?.CloseAudioSink();
-            _mediaSession?.Close("ended");
-            // Closing is not releasing — without this the winmm handles from every call
-            // stay open for the life of the process.
-            _audioEndPoint?.Dispose();
-            _audioEndPoint = null;
-            _mediaSession  = null;
-            _audioPaused   = false; // reset so next call starts fresh
+            try { endPoint?.CloseAudio(); }     catch (Exception ex) { Log($"CloseAudio threw: {ex.Message}"); }
+            try { endPoint?.CloseAudioSink(); } catch (Exception ex) { Log($"CloseAudioSink threw: {ex.Message}"); }
+            try { session?.Close("ended"); }    catch (Exception ex) { Log($"MediaSession.Close threw: {ex.Message}"); }
+
+            // Closing is not releasing: WaveOutEvent.Stop issues waveOutReset and leaves the
+            // winmm handle open, only Dispose issues waveOutClose. Without this the handle
+            // from every call stays open for the life of the process, and once waveOutOpen
+            // starts refusing them the operator hears nobody — while RTP keeps arriving and
+            // the PBX keeps recording a perfectly two-sided call.
+            try { endPoint?.Dispose(); }        catch (Exception ex) { Log($"Audio endpoint dispose threw: {ex.Message}"); }
         }
 
         private void SetState(CallState s)
         {
-            State = s;
+            _state = s;
+            AnnounceState(s);
+        }
+
+        /// <summary>
+        /// Raises <see cref="CallStateChanged"/> for a transition already written to
+        /// <see cref="_state"/>. Split out so a caller that has to claim the transition
+        /// atomically (under <see cref="_lock"/>) can still raise the event outside the
+        /// lock — subscribers marshal to the UI thread and must never run under it.
+        /// </summary>
+        private void AnnounceState(CallState s)
+        {
             Log($"Call state changed to {s}.");
             CallStateChanged?.Invoke(s);
         }

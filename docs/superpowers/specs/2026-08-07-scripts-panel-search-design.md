@@ -198,6 +198,11 @@
 `ScriptsRecent`, `ScriptsFrequent`, `ScriptsAllScripts`, `ScriptsFoundCount`,
 `ScriptsResultsTruncated`, `ScriptsStaleData`, `Refresh`, `ClearSearch`.
 
+Плюс три ключа для подписи сниппета внутри строки результата — `ScriptStepInline`
+(«Шаг»), `ScriptQuestionInline`, `ScriptTipInline`. Существующие `ScriptSteps` и
+соседние переиспользовать нельзя: это заголовки секций в верхнем регистре
+(«ШАГИ»), внутри фразы они читаются неправильно.
+
 Существующие переиспользуются: `CallScripts`, `SearchScripts`, `AllCategories`,
 `Cancel`, `Save`, `Retry`, `ScriptsLoading`, `ScriptsEmpty`, `ScriptsLoadError`.
 

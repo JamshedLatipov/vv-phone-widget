@@ -50,7 +50,7 @@ namespace OrbitalSIP.Services
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
                 request.Content = JsonContent.Create(lead);
 
-                var response = await _httpClient.SendAsync(request);
+                using var response = await _httpClient.SendAsync(request);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -59,20 +59,22 @@ namespace OrbitalSIP.Services
                 else
                 {
                     var errorBody = await response.Content.ReadAsStringAsync();
-                    AppLogger.Log("LeadService", $"Create lead failed. Status: {response.StatusCode}. Body: {errorBody}");
 
                     if (response.StatusCode == HttpStatusCode.Conflict)
                     {
                         var duplicate = ParseAlreadyOpenConflict(errorBody);
                         if (duplicate != null)
                         {
-                            // No error banner: the panel renders the existing lead,
-                            // which is a better answer than a raw-JSON toast. Still
-                            // logged above.
+                            // No error banner: the panel renders the existing lead, which
+                            // is a better answer than a raw-JSON toast. Logged here rather
+                            // than through NotifyHttpError, which this path skips.
+                            AppLogger.Log("LeadService",
+                                $"Create lead: 409, caller already has an open lead (id={duplicate.ExistingLeadId?.ToString() ?? "?"}).");
                             return duplicate;
                         }
                     }
 
+                    // Logs the URL and body itself; no separate line here.
                     HttpErrorNotifier.NotifyHttpError("LeadService", url, response.StatusCode, errorBody);
                     return CreateLeadResult.Failed();
                 }
@@ -195,13 +197,14 @@ namespace OrbitalSIP.Services
                 }
 
                 var url = $"{backendUrl}/api/leads/call-context?phone={Uri.EscapeDataString(phone)}";
-                AppLogger.Log("LeadService", $"Requesting: GET {url}");
+                // Masked: this ran on every answered call and wrote the caller's full
+                // number to a plain-text file, several times per call.
+                AppLogger.Log("LeadService", $"Requesting call context for {LogRedaction.Phone(phone)}.");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
 
-                var response = await _httpClient.SendAsync(request);
-                AppLogger.Log("LeadService", $"Call context response status: {(int)response.StatusCode} {response.StatusCode}");
+                using var response = await _httpClient.SendAsync(request);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -228,7 +231,7 @@ namespace OrbitalSIP.Services
                 else
                 {
                     var errorBody = await response.Content.ReadAsStringAsync();
-                    AppLogger.Log("LeadService", $"Call context failed. Status: {response.StatusCode}. Body: {errorBody}");
+                    AppLogger.Log("LeadService", $"Call context failed. Status: {(int)response.StatusCode}. Body: {errorBody}");
                     // Deliberately NOT notified. This lookup fires automatically on
                     // every answered call, so a standing failure — an operator whose
                     // role lacks `lead-call:read`, say — would raise a banner on every
@@ -270,13 +273,12 @@ namespace OrbitalSIP.Services
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
                 request.Content = JsonContent.Create(payload, options: _writeOptions);
 
-                var response = await _httpClient.SendAsync(request);
+                using var response = await _httpClient.SendAsync(request);
 
                 if (response.IsSuccessStatusCode)
                     return true;
 
                 var errorBody = await response.Content.ReadAsStringAsync();
-                AppLogger.Log("LeadService", $"Add call comment failed. Status: {response.StatusCode}. Body: {errorBody}");
                 HttpErrorNotifier.NotifyHttpError("LeadService", url, response.StatusCode, errorBody);
                 return false;
             }
