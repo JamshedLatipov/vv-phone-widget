@@ -45,6 +45,13 @@ namespace OrbitalSIP.Services
         /// <summary>Incoming speaker gain as a percent. 0..200. 100 = unity.</summary>
         public int SpeakerGainPercent { get; set; } = 100;
 
+        /// <summary>
+        /// Percentage the widget's layout is scaled by, or <see cref="WidgetScale.Auto"/>
+        /// (0) to pick it from the screen. See <see cref="WidgetScale"/> for why the fixed
+        /// view sizes need this at all.
+        /// </summary>
+        public int WidgetScalePercent { get; set; } = WidgetScale.Auto;
+
         // ── Hotkeys ──────────────────────────────────────────────────
         public string HotkeyMute   { get; set; } = "Alt+M";
         public string HotkeyHold   { get; set; } = "Alt+H";

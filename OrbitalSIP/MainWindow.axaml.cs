@@ -16,12 +16,29 @@ namespace OrbitalSIP
     {
         private enum PreferredMode { Widget, Panel }
 
-        private const double WidgetSize     = 96;
-        private const double ExpandedWidth  = 320;
-        private const double ExpandedHeight = 600;
-        private const double IncomingWidth  = 436;
-        private const double IncomingHeight = 132;
-        private const double AnimDurationMs = 280;
+        // Designed sizes, as laid out by the views themselves. Nothing reads these
+        // directly — the scaled properties below are what the geometry is built from.
+        private const double BaseWidgetSize     = 96;
+        private const double BaseExpandedWidth  = 320;
+        private const double BaseExpandedHeight = 600;
+        private const double BaseIncomingWidth  = 436;
+        private const double BaseIncomingHeight = 132;
+        private const double AnimDurationMs     = 280;
+
+        /// <summary>
+        /// Factor the window geometry and the content transform are both built from. The
+        /// two have to move together: the transform decides how large the views are drawn,
+        /// and the window has to be exactly that large or the operator gets a widget with
+        /// empty transparent margin, or one clipped at the edge. Resolved by
+        /// <see cref="WidgetScale"/> from the saved setting and the screen.
+        /// </summary>
+        private double _uiScale = 1.0;
+
+        private double WidgetSize     => BaseWidgetSize     * _uiScale;
+        private double ExpandedWidth  => BaseExpandedWidth  * _uiScale;
+        private double ExpandedHeight => BaseExpandedHeight * _uiScale;
+        private double IncomingWidth  => BaseIncomingWidth  * _uiScale;
+        private double IncomingHeight => BaseIncomingHeight * _uiScale;
 
         private PreferredMode _preferredMode = PreferredMode.Widget;
 
@@ -60,6 +77,11 @@ namespace OrbitalSIP
             HttpErrorNotifier.ErrorOccurred += OnHttpErrorOccurred;
             BackendAuth.SessionExpired += OnSessionExpired;
 
+            // Read before any geometry below: the widget scale comes out of the same file
+            // and every size on this screen is derived from it.
+            var settings = SipSettings.Load();
+            RefreshUiScale(settings.WidgetScalePercent, Screens?.Primary);
+
             var workArea = Screens?.Primary?.WorkingArea ?? new PixelRect(0, 0, 1920, 1080);
 
             // Wire SIP events
@@ -83,7 +105,6 @@ namespace OrbitalSIP
             App.GlobalHotkeys.AnswerPressed        += (_, __) => DispatchHotkey(null, iv => iv.TriggerAnswer());
 
             // Initial view
-            var settings = SipSettings.Load();
             if (string.IsNullOrEmpty(sip.CurrentSettings.Username) || string.IsNullOrEmpty(sip.CurrentSettings.Password))
             {
                 // Show Login centered
@@ -476,6 +497,11 @@ namespace OrbitalSIP
                 if (!string.IsNullOrEmpty(current.Username))
                     settings.CopySessionFrom(current);
 
+                // Before the view swap below: the screens that follow are all sized from
+                // _uiScale, so changing it afterwards would leave them in a window built
+                // for the old scale until the next expand or collapse.
+                RescaleWindow(settings.WidgetScalePercent);
+
                 if (isFromLogin) ShowLogin();
                 else
                 {
@@ -682,6 +708,78 @@ namespace OrbitalSIP
                 if (host?.Content is Views.ActiveCallView av) { av.MarkConnected(); av.SetStatus(isOnHold); }
                 else if (host?.Content is Views.ActiveCallWidgetView awv) awv.SetStatus(isOnHold);
             }
+        }
+
+        // ── Widget scale ──────────────────────────────────────────────
+
+        /// <summary>
+        /// Resolves the layout scale from the saved setting and the screen, applies it to
+        /// the content transform, and reports whether it moved.
+        ///
+        /// The caller is left to deal with the window geometry: at startup it is about to
+        /// place the window from scratch, and after a settings change it has an existing
+        /// window to resize in place — two different jobs that should not be guessed at
+        /// from here.
+        /// </summary>
+        private bool RefreshUiScale(int percent, Screen? screen)
+        {
+            var area    = screen?.WorkingArea ?? new PixelRect(0, 0, 1920, 1080);
+            var scaling = screen is { Scaling: > 0 } ? screen.Scaling : 1.0;
+
+            // Logical units, not physical pixels: a screen Windows already scales for DPI
+            // hands Avalonia sizes in those units, and scaling it a second time is exactly
+            // the oversized widget this feature exists to fix.
+            var factor = WidgetScale.Resolve(percent, area.Width / scaling, area.Height / scaling);
+
+            if (Math.Abs(factor - _uiScale) < 0.001) return false;
+
+            _uiScale = factor;
+            if (this.FindControl<LayoutTransformControl>("ScaleHost") is { } host)
+                host.LayoutTransform = new Avalonia.Media.ScaleTransform(_uiScale, _uiScale);
+
+            return true;
+        }
+
+        /// <summary>
+        /// Re-resolves the scale and resizes the open window to match, holding the corner
+        /// the operator parked it by.
+        ///
+        /// Bottom-right, the same corner <see cref="StartAnimation"/> anchors on — the
+        /// widget lives against the bottom-right of the screen, so growing from the
+        /// top-left would walk it off the edge. The result is clamped back into the working
+        /// area anyway, because a scale that grew the panel can still push it past the top
+        /// of the screen, and this window has no title bar the OS would let you drag back.
+        /// </summary>
+        private void RescaleWindow(int percent)
+        {
+            var previous = _uiScale;
+            if (!RefreshUiScale(percent, Screens?.ScreenFromWindow(this) ?? Screens?.Primary))
+                return;
+
+            var ratio = _uiScale / previous;
+            var width  = Width  * ratio;
+            var height = Height * ratio;
+
+            _anchorX = Position.X + (int)Width;
+            _anchorY = Position.Y + (int)Height;
+
+            var position = new PixelPoint(
+                (int)Math.Round(_anchorX - width),
+                (int)Math.Round(_anchorY - height));
+
+            var screen = Screens?.ScreenFromWindow(this) ?? Screens?.Primary;
+            if (screen != null)
+            {
+                var size = PixelSize.FromSize(new Size(width, height), screen.Scaling);
+                position = WindowPlacement.ClampToWorkingArea(
+                    new PixelRect(position, size), screen.WorkingArea);
+            }
+
+            Width    = width;
+            Height   = height;
+            Position = position;
+            _anchorX = position.X + (int)width;
+            _anchorY = position.Y + (int)height;
         }
 
         // ── Resize animation ──────────────────────────────────────────

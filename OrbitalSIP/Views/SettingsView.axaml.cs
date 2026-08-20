@@ -91,6 +91,10 @@ namespace OrbitalSIP.Views
                 };
             }
 
+            var scaleBox = this.FindControl<ComboBox>("WidgetScaleBox");
+            if (scaleBox != null)
+                scaleBox.SelectedIndex = WidgetScale.ListPosition(_settings.WidgetScalePercent);
+
             PopulateAudioDevices();
             PopulateHotkeyFields();
         }
@@ -359,6 +363,10 @@ namespace OrbitalSIP.Views
                 2 => "TLS",
                 _ => "UDP"
             };
+
+            var scaleBox = this.FindControl<ComboBox>("WidgetScaleBox");
+            if (scaleBox != null)
+                _settings.WidgetScalePercent = WidgetScale.FromListPosition(scaleBox.SelectedIndex);
 
             // Audio device indices. The "device is absent right now" row resolves back to
             // whatever is already stored, so saving the screen for an unrelated reason

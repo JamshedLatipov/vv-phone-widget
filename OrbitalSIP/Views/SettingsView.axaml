@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:Views="clr-namespace:OrbitalSIP.Views"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:i18n="clr-namespace:OrbitalSIP.Services"
@@ -72,6 +72,24 @@
               <ComboBoxItem Content="O'zbekcha" Tag="uz" />
               <ComboBoxItem Content="Қазақша" Tag="kk" />
               <ComboBoxItem Content="Тоҷикӣ" Tag="tg" />
+            </ComboBox>
+          </StackPanel>
+
+          <!-- Widget size. Auto reads the screen; the fixed steps are for operators
+               whose screen size is not what their eyes want. -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="{i18n:I18n WidgetSize}" FontSize="11" Foreground="#5F7A96" />
+            <ComboBox Name="WidgetScaleBox"
+                      Background="#1E293B" Foreground="#FFFFFF"
+                      BorderThickness="1" BorderBrush="#334155"
+                      CornerRadius="8"
+                      Padding="12,10"
+                      HorizontalAlignment="Stretch">
+              <ComboBoxItem Content="{i18n:I18n WidgetSizeAuto}" />
+              <ComboBoxItem Content="75%" />
+              <ComboBoxItem Content="100%" />
+              <ComboBoxItem Content="125%" />
+              <ComboBoxItem Content="150%" />
             </ComboBox>
           </StackPanel>
 

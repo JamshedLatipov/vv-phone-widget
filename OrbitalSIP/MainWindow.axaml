@@ -12,19 +12,34 @@
   Background="Transparent">
 
   <Grid>
-    <ContentControl Name="Host">
-      <Views:WidgetView />
-    </ContentControl>
-    <ContentControl Name="PopupHost"
-                    Opacity="0"
-                    IsVisible="False"
-                    IsHitTestVisible="False"
-                    ZIndex="100" />
-    <ContentControl Name="OverlayHost"
-                    Opacity="0"
-                    IsVisible="False"
-                    IsHitTestVisible="False" />
+    <!-- Every view is laid out at its designed size and scaled as a whole, so a
+         low-resolution screen does not get a widget that swallows it and a 4K one does
+         not get a stamp. MainWindow keeps the window geometry in step; the scale itself
+         comes from Services/WidgetScale.cs. -->
+    <LayoutTransformControl Name="ScaleHost">
+      <Grid>
+        <ContentControl Name="Host">
+          <Views:WidgetView />
+        </ContentControl>
+        <ContentControl Name="PopupHost"
+                        Opacity="0"
+                        IsVisible="False"
+                        IsHitTestVisible="False"
+                        ZIndex="100" />
+        <ContentControl Name="OverlayHost"
+                        Opacity="0"
+                        IsVisible="False"
+                        IsHitTestVisible="False" />
+      </Grid>
+    </LayoutTransformControl>
 
+    <!-- Outside the transform on purpose. LayoutTransformControl arranges its child at
+         the child's own desired size whenever that is the larger of the two, and
+         WidgetView deliberately wants more room than the 96 px window so its glow can
+         spill past the edge. Scaled along with it, this banner would be positioned
+         against that oversized box and land outside the window — an HTTP error the
+         operator never sees. It is a transient toast at a fixed 12 px, so leaving it
+         unscaled costs nothing. -->
     <Border Name="HttpErrorBanner"
             IsVisible="False"
             HorizontalAlignment="Stretch"
