@@ -1,4 +1,4 @@
-# OrbitalSIP — Code Review
+﻿# OrbitalSIP — Code Review
 
 **Обзор от 10 августа 2026.** Заменяет обзор от 27 июня: его находки закрыты, кроме двух архитектурных и одной, требующей изменений вне этого репозитория. Одна была неверно оценена — см. «Транспорт».
 
@@ -328,9 +328,9 @@ git for-each-ref --format='%(refname:short)|%(upstream:short)' refs/heads \
 | ⚪ Корневой `obj/` в индексе, `test.py` | — | Живо |
 | ⚪ Avalonia приколочена к 11.0.0 | [OrbitalSIP.csproj:53](OrbitalSIP/OrbitalSIP.csproj:53) | Живо |
 
-**Перепроверено — закрыто:**
+**Перепроверено — частично закрыто:**
 
-- ⚪ 5× CS8618 в `GainAudioEndPoint`. Поля переведены в nullable (`_waveOutEvent?`, `_waveProvider?`, `_waveInEvent?`), сборка печатает **0** CS8618. В прошлом обзоре записано как «оставлено намеренно» — с тех пор сделано.
+- ⚪ 5× CS8618 в `GainAudioEndPoint`. Три поля переведены в nullable (`_waveOutEvent?`, `_waveProvider?`, `_waveInEvent?`); `_waveSinkFormat` и `_waveSourceFormat` оставались non-nullable, и чистая сборка печатала **2×** CS8618. ⚠️ В первой редакции здесь было «сборка печатает 0 CS8618» — неверно, цифра снята с инкрементальной сборки. См. «Поправка к первой редакции этого дополнения» ниже.
 
 **Статус неизвестен (не проверял):**
 
@@ -367,3 +367,104 @@ git for-each-ref --format='%(refname:short)|%(upstream:short)' refs/heads \
 5. Настройки открыть/закрыть 50 раз, снять дамп памяти, посчитать живые `BottomNavControl`/`SettingsView`.
 6. Отключить USB-гарнитуру → настройки → сохранить → воткнуть обратно → проверить, куда пошёл звук.
 7. Набор номера с удержанным Enter — посмотреть на таймер звонка.
+
+---
+
+# Что исправлено (тот же день, ветка `fix/audit-2026-08-20-views`)
+
+Сборка: **0 ошибок, 0 предупреждений** (было 6: 4× NU1903 + 2× CS8618).
+Тесты: **484 зелёных** (было 439), из них 45 новых.
+
+Порядок работы: модели, которые можно покрыть чисто, писались тест-первым — модель
+сначала создавалась с текущим (сломанным) поведением, тест наблюдался красным на самом
+дефекте, и только потом чинился. Проводка, для которой честного красного теста нет
+(SIP-колбэки, жизненный цикл Avalonia), помечена ниже отдельно.
+
+## 🔴 Закрыто
+
+| Что | Где | Как |
+|---|---|---|
+| Отменённый входящий не освобождал аудиоустройства | [SipService.cs:400](OrbitalSIP/Services/SipService.cs:400) | Обработчик `ServerCallCancelled` идёт через `OnCallEnded()`. `_pendingUas` снимается до вызова, чтобы `TryRejectPending` не отправил второй финальный ответ на INVITE, который CANCEL уже завершил. **Теста нет** — до этого пути не дотянуться без живого стека SIPSorcery |
+
+## 🟠 Закрыто
+
+| Что | Где | Как | Тест |
+|---|---|---|---|
+| Кнопка Hold показывала обратное состоянию | [ActiveCallView.axaml.cs:94](OrbitalSIP/Views/ActiveCallView.axaml.cs:94), [MainWindow.axaml.cs:611](OrbitalSIP/MainWindow.axaml.cs:611) | Конструктор принимает `isMuted`/`isOnHold`; `SetStatus` перерисовывает кнопку, поэтому вид ресинхронизируется на каждом переходе Active/OnHold; добавлен `SipService.SetHold(bool)`, и `MainWindow` просит состояние, а не переключение | Нет (проводка вида) |
+| Утечка дерева view на каждую навигацию | [BottomNavControl.axaml.cs](OrbitalSIP/Views/BottomNavControl.axaml.cs), [SettingsView.axaml.cs](OrbitalSIP/Views/SettingsView.axaml.cs) | `OnDetachedFromVisualTree` с отпиской в обоих; лямбда на `UpdateAvailable` вынесена в поле, иначе её нечем отписать. У `BottomNavControl` заодно `OnAttachedToVisualTree` — анимация смены экрана делает detach+attach, и контрол должен пережить его | Нет (проводка вида) |
+| UTC-дата как местный рабочий день | [CallHistoryWindow.cs](OrbitalSIP/Models/CallHistoryWindow.cs), [RecentsView.axaml.cs:96](OrbitalSIP/Views/RecentsView.axaml.cs:96) | Границы считаются от местной полуночи и переводятся в UTC | ✔ 11 тестов, тест-первым |
+| BYE рвал звонок на всём окне набора | [ByeAuthorization.cs](OrbitalSIP/Models/ByeAuthorization.cs), [SipService.cs:366](OrbitalSIP/Services/SipService.cs:366) | Принимается только BYE, называющий **установленный** диалог. RFC 3261 §15: до установления диалога BYE не определён, отказ от набора — это CANCEL | ✔ 9 тестов, тест-первым |
+| Гонка входящего INVITE с `CallAsync` | [SipService.cs:388](OrbitalSIP/Services/SipService.cs:388) | Переход `Idle → IncomingRinging` захватывается под `_lock`; при сбое `AcceptCall` захват возвращается. Занятому INVITE по-прежнему не отвечаем — re-INVITE живого диалога приходит сюда же и принадлежит агенту SIPSorcery | Нет (SIP-колбэк) |
+| Двойной Enter = два параллельных логина | [LoginView.axaml.cs:57](OrbitalSIP/Views/LoginView.axaml.cs:57) | `SingleWindowGuard` как флаг single-flight (уже покрыт своими тестами) + `e.Handled = true` | ✔ через существующие `SingleWindowGuardTests` |
+| SIPSorcery 10.0.13 с двумя high-уязвимостями | [OrbitalSIP.csproj:58](OrbitalSIP/OrbitalSIP.csproj:58) | 10.0.16, оба NU1903 ушли, API не менялся | Сборка + весь прогон |
+| Регресс-тесты на утечку аудио ничего не проверяли | [RequiresPlaybackDeviceFactAttribute.cs](OrbitalSIP.Tests/RequiresPlaybackDeviceFactAttribute.cs), [WaveOutDevicesTests.cs](OrbitalSIP.Tests/WaveOutDevicesTests.cs) | Тесты, которым нужно реальное устройство, скипаются вслух вместо зелёного `false == false`; вырожденные `Count >= 0` заменены на границу, которую реально использует `PlaybackDevice.IsUsable` | ✔ и проверено мутацией — см. ниже |
+| Обновление убивало звонок, начавшийся во время загрузки | [UpdateService.cs:296](OrbitalSIP/Services/UpdateService.cs:296) | Состояние перепроверяется непосредственно перед запуском инсталлятора; скачанный файл сохраняется | Нет |
+
+## 🟡 Закрыто
+
+- [OperatorStatsControl.axaml.cs:59](OrbitalSIP/Views/OperatorStatsControl.axaml.cs:59) — `OnAttachedToVisualTree` перезапускает таймер, который убивала входная анимация.
+- [AudioDeviceChoice.cs](OrbitalSIP/Models/AudioDeviceChoice.cs) + [SettingsView.axaml.cs:90](OrbitalSIP/Views/SettingsView.axaml.cs:90) — отсутствующее устройство получает собственную строку списка, сохранение её не затирает. ✔ 13 тестов, тест-первым.
+- [ActiveCallView.CallInfo.cs:50](OrbitalSIP/Views/ActiveCallView.CallInfo.cs:50) — `_callInfoLoaded` ставится только при непустом ответе.
+- [IconFlash.cs](OrbitalSIP/Views/IconFlash.cs) — четыре копии вспышки-галочки заменены одной, которая не может залипнуть; повторный клик во время вспышки игнорируется, а не захватывает галочку как «оригинал».
+- [ActiveCallView.axaml.cs:975](OrbitalSIP/Views/ActiveCallView.axaml.cs:975) — `try/finally` вокруг `SubmitTaskAsync`.
+- [SipService.cs:735](OrbitalSIP/Services/SipService.cs:735) — `_audioEndPoint` и `_mediaSession` публикуются одним `lock` в конце `TryCreateAudio`; `catch` освобождает то, что успел построить (иначе перенос публикации в конец сам стал бы третьей редакцией утечки winmm).
+- [GainAudioEndPoint.cs:290](OrbitalSIP/Services/Audio/GainAudioEndPoint.cs:290) — весь обмен устройства идёт под `_renderLock`, устройство/буфер/формат публикуются вместе; `InitPlaybackDevice` отказывается открывать устройство после `Dispose`/`CloseAudioSink`. Сообщения об ошибке поднимаются уже вне лока — они уходят в UI.
+- [SipService.cs:906](OrbitalSIP/Services/SipService.cs:906) — `CleanupMedia` сбрасывает `IsMuted`/`IsOnHold`.
+- [SipService.cs:637](OrbitalSIP/Services/SipService.cs:637) — `ApplyAudioState` больше не помечает переход достигнутым внутри `catch`.
+- [LoginView.axaml.cs:120](OrbitalSIP/Views/LoginView.axaml.cs:120) и [:147](OrbitalSIP/Views/LoginView.axaml.cs:147) — тела ответов `/api/auth/login` и `/api/auth/sip-credentials` в лог не пишутся. [StatusService.cs:222](OrbitalSIP/Services/StatusService.cs:222) — тело на успешном пути тоже убрано.
+- [MainWindow.axaml.cs:497](OrbitalSIP/MainWindow.axaml.cs:497) — `StartOutgoingCall` проверяет `State != Idle`.
+
+## ⚪ Закрыто
+
+- [BreakCountdown.cs](OrbitalSIP/Models/BreakCountdown.cs) — `TotalMinutes` вместо `Minutes`, истёкший перерыв даёт `00:00`, а не отрицательные цифры. ✔ 8 тестов, тест-первым.
+- [SipSettings.cs:130](OrbitalSIP/Services/SipSettings.cs:130) — `Flush(flushToDisk: true)` до переименования.
+- `"Unmute"/"Mute"` больше не захардкожены; ключи `Mute`, `Unmute`, `AudioDeviceUnavailable` добавлены в `ru.json`.
+- 2× CS8618 закрыты: `_waveSinkFormat`/`_waveSourceFormat` стали nullable — заодно проверка `_waveSinkFormat != null` в `GotEncodedMediaFrame`, которая до этого была мёртвой, стала осмысленной.
+- Корневой `obj/` (16 файлов) и `test.py` убраны из индекса.
+- `if (bottomNav != null) if (bottomNav != null)` в `ExpandedView`.
+
+## Поправка к первой редакции этого дополнения
+
+В разделе «Перепроверено — закрыто» было написано, что 5× CS8618 в `GainAudioEndPoint`
+закрыты и «сборка печатает **0** CS8618». **Это неверно.** Цифра была снята с
+инкрементальной сборки, которая ничего не компилировала (1,01 с). Чистая сборка
+(`--no-incremental`) на `10.0.13` даёт **6** предупреждений: 4× NU1903 и 2× CS8618
+(`_waveSinkFormat`, `_waveSourceFormat`). То есть на момент аудита было закрыто три из
+пяти, а не пять. Оставшиеся два закрыты этим заходом.
+
+Урок ровно тот же, что и у прошлого прохода: цифру, которая идёт в отчёт как
+«перепроверено», надо снимать с чистой сборки.
+
+## Проверка мутацией
+
+Усиленный `RepeatedCreateAndDispose_KeepsOpeningTheDevice` прогнан мутацией: тело
+`GainAudioEndPoint.Dispose()` закомментировано, прогон повторён.
+
+**Результат честнее, чем хотелось:** красными стали `Dispose_ClosesThePlaybackDevice` и
+`GotAudioSample_AfterDispose_IsANoOp`, а сам цикл на 64 итерации **остался зелёным** —
+64 повисших хэндла не исчерпывают драйвер настольной Windows. Комментарий в тесте это
+теперь и говорит: цикл — smoke-тест на повторное открытие, а ловят утечку две прямые
+проверки. Мутация откачена редактированием файла.
+
+## Осталось открытым
+
+| Severity | Что | Почему не в этом заходе |
+|---|---|---|
+| 🔴 | Транспорт без шифрования | Вне репозитория: нужен https на бэкенде и TLS/SRTP на SIP |
+| 🟠 | DTMF не отправляется (`SendDtmfAsync` без вызывающих) | Отложено сознательно: нужна тональная клавиатура в панели звонка, то есть решение по UI, а не правка |
+| 🟠 | Инсталлятор не подписан | Пайплайн сборки; `build.ps1`/`OrbitalSIP.iss` в этом заходе не открывались — **статус неизвестен** |
+| 🟠 | `RegisterHotKey` выключен по умолчанию | Осознанно; нужен ручной прогон четырёх хоткеев на живой машине |
+| 🟡 | «Сохранить» в настройках кладёт активный звонок | Продуктовое решение: прятать кнопку при активном звонке или спрашивать подтверждение |
+| ⚪ | 14 захардкоженных русских строк в `SurveyDialog` | Отдельная задача на i18n |
+| ⚪ | 11 ключей (теперь 12) отсутствуют в `kk`/`tg`/`uz` | Нужны переводы, не код. `AudioDeviceUnavailable` добавлен только в `ru.json` — счёт вырос на один |
+| ⚪ | Сырой JSON вердикта в `SurveyDialog` | Нужно решить, что оператору вообще показывать |
+| ⚪ | `async void` мимо `SafeHandler` в шести видах | Латентно: все сервисы сегодня ловят исключения внутри |
+| ⚪ | `ReadLine` без ограничения длины и ACL named pipe | Нужна проверка на многопользовательской машине |
+| ⚪ | Avalonia приколочена к 11.0.0 | Апгрейд снимет три обхода багов `AutoCompleteBox` и, возможно, сломает их — планировать отдельно |
+
+## Чего эти правки НЕ доказывают
+
+Ни одна не прогонялась на живом стенде. Сборка и 484 юнит-теста — это всё, что за ними
+стоит. Ручной прогон из предыдущего раздела остаётся обязательным, и первым пунктом —
+отмена входящего в момент ответа, ради которой всё затевалось. Отдельно: бамп SIPSorcery
+проверен только сборкой и тестами, регресс по реальным звонкам на нём не делался.
