@@ -23,7 +23,7 @@ public sealed class NavBadgeState
     public int OpenTasks { get; private set; }
 
     /// <summary>True when at least one open task is past its due date.</summary>
-    public bool TasksAlert { get; private set; }
+    public bool HasOverdueTasks { get; private set; }
 
     /// <summary>Missed calls the operator has not looked at since last opening Recents.</summary>
     public int NewMissed => Math.Max(0, _missedCalls - _seenMissed);
@@ -31,20 +31,29 @@ public sealed class NavBadgeState
     public void SetTasks(int pending, int inProgress, int overdue)
     {
         OpenTasks = Math.Max(0, pending) + Math.Max(0, inProgress);
-        TasksAlert = overdue > 0;
+        HasOverdueTasks = overdue > 0;
     }
 
     /// <summary>
     /// Records the backend's "missed today" total.
     ///
-    /// A total below the watermark means the day rolled over and the counter restarted,
-    /// not that calls were un-missed. Re-seating the watermark there is what keeps the
-    /// first missed call after midnight visible instead of silently absorbed.
+    /// A total below the previous one means the backend's counter restarted at midnight,
+    /// not that calls were un-missed. The watermark is re-seated to zero, not to the new
+    /// total, because doing the latter would swallow every call missed between the
+    /// rollover and the poll that catches it — the interval is two minutes, so that gap
+    /// is routine, not a corner case.
     /// </summary>
     public void SetMissed(int missedCalls)
     {
         var value = Math.Max(0, missedCalls);
-        if (value < _seenMissed) _seenMissed = value;
+
+        // A total below the previous one can only mean the backend's "missed today"
+        // counter restarted at midnight — calls are never un-missed. Everything it
+        // reports after a restart is therefore unseen, which is why the watermark goes
+        // to zero and not to the new total: reseating it to the total would swallow any
+        // call missed between the rollover and this poll.
+        if (value < _missedCalls) _seenMissed = 0;
+
         _missedCalls = value;
     }
 

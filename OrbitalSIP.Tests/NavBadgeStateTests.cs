@@ -32,7 +32,7 @@ public class NavBadgeStateTests
         state.SetTasks(pending: 3, inProgress: 2, overdue: 2);
 
         Assert.Equal(5, state.OpenTasks);
-        Assert.True(state.TasksAlert);
+        Assert.True(state.HasOverdueTasks);
     }
 
     [Fact]
@@ -42,7 +42,38 @@ public class NavBadgeStateTests
 
         state.SetTasks(pending: 4, inProgress: 0, overdue: 0);
 
-        Assert.False(state.TasksAlert);
+        Assert.False(state.HasOverdueTasks);
+    }
+
+    /// <summary>
+    /// Guards the shape of the arithmetic rather than a caller: nothing in this codebase
+    /// sends a negative task count today, but one field going negative should not
+    /// subtract from the other bucket and put a wrong number on the badge.
+    /// </summary>
+    [Fact]
+    public void NegativeTaskCountsClampToZeroInsteadOfSubtracting()
+    {
+        var state = new NavBadgeState();
+
+        state.SetTasks(pending: -3, inProgress: 5, overdue: 0);
+
+        Assert.Equal(5, state.OpenTasks);
+    }
+
+    /// <summary>
+    /// NavBadgeState is a single mutable cache the poller overwrites each cycle, not a
+    /// running total — a lower second reading must lower the badge, not add to it.
+    /// </summary>
+    [Fact]
+    public void CallingSetTasksAgainReplacesRatherThanAccumulates()
+    {
+        var state = new NavBadgeState();
+        state.SetTasks(pending: 3, inProgress: 2, overdue: 2);
+
+        state.SetTasks(pending: 1, inProgress: 1, overdue: 0);
+
+        Assert.Equal(2, state.OpenTasks);
+        Assert.False(state.HasOverdueTasks);
     }
 
     [Fact]
@@ -98,16 +129,39 @@ public class NavBadgeStateTests
         Assert.Equal(1, state.NewMissed);
     }
 
+    /// <summary>
+    /// The rollover is rarely caught at exactly zero: the counter restarts at midnight
+    /// and the next poll two minutes later already reports the calls missed since. Those
+    /// are unseen, and reseating the watermark to the new total instead of to zero would
+    /// hide every one of them.
+    /// </summary>
     [Fact]
-    public void MissedCountNeverGoesNegative()
+    public void CounterRestartingBelowTheWatermarkTreatsTheRemainderAsUnseen()
     {
         var state = new NavBadgeState();
-        state.SetMissed(4);
+        state.SetMissed(10);
         state.MarkRecentsSeen();
 
-        state.SetMissed(2);
+        state.SetMissed(3);
 
-        Assert.Equal(0, state.NewMissed);
+        Assert.Equal(3, state.NewMissed);
+    }
+
+    /// <summary>
+    /// Guards the shape of the arithmetic rather than a caller: nothing sends a negative
+    /// "missed today" total today, but an unclamped negative would get copied into the
+    /// seen watermark by MarkRecentsSeen and inflate every count that follows it.
+    /// </summary>
+    [Fact]
+    public void NegativeMissedCountClampsToZeroInsteadOfCorruptingTheWatermark()
+    {
+        var state = new NavBadgeState();
+        state.SetMissed(-4);
+        state.MarkRecentsSeen();
+
+        state.SetMissed(3);
+
+        Assert.Equal(3, state.NewMissed);
     }
 
     [Theory]
@@ -129,6 +183,6 @@ public class NavBadgeStateTests
 
         Assert.Equal(0, state.OpenTasks);
         Assert.Equal(0, state.NewMissed);
-        Assert.False(state.TasksAlert);
+        Assert.False(state.HasOverdueTasks);
     }
 }
