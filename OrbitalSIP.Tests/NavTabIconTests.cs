@@ -39,4 +39,21 @@ public class NavTabIconTests
         Assert.Equal(MaterialIconKind.ArrowLeft,
             NavTabIcon.ForDialerTab(loginMode: true, inCall: true));
     }
+
+    /// <summary>
+    /// The tooltip is worded from the glyph rather than from the flags a second time, so
+    /// these go through both calls the way the control does. The point is not the mapping
+    /// on its own but that the wording cannot drift from the arrow it hangs on — a back
+    /// arrow tooltipped "Dialer" was the state this replaced.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, "Dialer")]
+    [InlineData(false, true, "NavInCall")]
+    [InlineData(true, false, "Back")]
+    [InlineData(true, true, "Back")]
+    public void TooltipWordingFollowsTheGlyph(bool loginMode, bool inCall, string expectedKey)
+    {
+        Assert.Equal(expectedKey,
+            NavTabIcon.TooltipKeyFor(NavTabIcon.ForDialerTab(loginMode, inCall)));
+    }
 }

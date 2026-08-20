@@ -154,14 +154,17 @@ namespace OrbitalSIP.Views
             // them into one would each be a lie on its own.
             var inCall = _inCall && !_loginMode;
 
+            var kind = NavTabIcon.ForDialerTab(_loginMode, _inCall);
+
             dialerBtn.Classes.Set("in-call", inCall);
             if (icon != null)
-                icon.Kind = NavTabIcon.ForDialerTab(_loginMode, _inCall);
+                icon.Kind = kind;
 
-            // NavInCall, not the InCall the status line uses: that one is an all-caps
-            // status label, which reads as a shout in a tooltip. Set here rather than bound
-            // in the markup — see the comment on DialerBtn.
-            ToolTip.SetTip(dialerBtn, I18nService.Instance.Get(inCall ? "NavInCall" : "Dialer"));
+            // Worded from the glyph, so the two agree by construction: a back arrow reads
+            // "Back", never "Dialer". The in-call wording is NavInCall and not the InCall
+            // the status line uses — that one is an all-caps status label, which reads as a
+            // shout in a tooltip. Assigned rather than bound; see the comment on DialerBtn.
+            ToolTip.SetTip(dialerBtn, I18nService.Instance.Get(NavTabIcon.TooltipKeyFor(kind)));
 
             SetPulse(dialerBtn, NavPulse.ShouldPulse(inCall, _activeTab));
         }

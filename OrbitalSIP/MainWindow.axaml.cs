@@ -923,6 +923,14 @@ namespace OrbitalSIP
             // taking hangup, mute and hold with it.
             //
             // Above both returns below, or the screens with no bar stop updating either one.
+            // Null is not one of those screens: it means the animation carried no content
+            // and Host kept whatever it already had, so there is nothing here to describe.
+            // Deriving from it would silently reset both — some dialer screen, no login
+            // mode — with no failure to trace it by. Today's two no-content animations both
+            // run after IncomingView has already replaced the screen, so it would be
+            // harmless; that is their statement order, not a property of this method.
+            if (content is null) return;
+
             _settingsFromLogin &= content is Views.SettingsView;
             _currentTab = content switch
             {
