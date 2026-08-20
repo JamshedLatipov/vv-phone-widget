@@ -550,6 +550,27 @@ UI, тестами не покрывается — проверяется сбо
       <Setter Property="Opacity" Value="0.28" />
     </Style>
 
+    <!-- Breathes the tab while a call runs off-screen. A looping animation has to be
+         declared on a style rather than started from code: Avalonia 11's
+         Animation.RunAsync rejects IterationCount.Infinite outright, and Animation.Apply
+         — the call the style system makes here — is internal. The class is the switch,
+         and removing it is what stops the animation; see BottomNavControl.SetPulse. -->
+    <Style Selector="Button.nav-tab.pulse">
+      <Style.Animations>
+        <Animation Duration="0:0:1.4" IterationCount="INFINITE" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="1.0" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="Opacity" Value="0.45" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1.0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
     <Style Selector="Button.nav-tab materialIcons|MaterialIcon">
       <Setter Property="Foreground" Value="#8AA0B8" />
     </Style>
@@ -627,15 +648,11 @@ UI, тестами не покрывается — проверяется сбо
 `OrbitalSIP/Views/BottomNavControl.axaml.cs` целиком:
 
 ```csharp
-using Avalonia.Animation;
-using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Markup.Xaml;
-using Avalonia.Styling;
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using Material.Icons;
 using Material.Icons.Avalonia;
 using OrbitalSIP.Models;
@@ -660,7 +677,6 @@ namespace OrbitalSIP.Views
         private readonly Dictionary<NavTab, Button> _buttons = new();
         private NavTab _activeTab = NavTab.Dialer;
         private bool _inCall;
-        private CancellationTokenSource? _pulseCts;
 
         public BottomNavControl()
         {
@@ -686,10 +702,6 @@ namespace OrbitalSIP.Views
         protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
         {
             App.Updater.UpdateAvailable -= OnUpdateAvailable;
-            // The pulse outlives the control otherwise: an infinite Animation holds the
-            // button it animates, and the button holds this whole tree.
-            _pulseCts?.Cancel();
-            _pulseCts = null;
             base.OnDetachedFromVisualTree(e);
         }
 
@@ -765,7 +777,7 @@ namespace OrbitalSIP.Views
             if (icon != null)
                 icon.Kind = _inCall ? MaterialIconKind.PhoneInTalk : MaterialIconKind.Dialpad;
 
-            ToolTip.SetTip(dialerBtn, I18nService.Instance.Get(_inCall ? "InCall" : "Dialer"));
+            ToolTip.SetTip(dialerBtn, I18nService.Instance.Get(_inCall ? "NavInCall" : "Dialer"));
 
             SetPulse(dialerBtn, NavPulse.ShouldPulse(_inCall, _activeTab));
         }
@@ -774,38 +786,19 @@ namespace OrbitalSIP.Views
         /// Breathes the tab while a call runs off-screen.
         ///
         /// A Transition would be wrong here: it animates a value that changes, and this
-        /// value does not. It takes an Animation with an infinite iteration count, and it
-        /// takes cancelling that animation to stop — left running, it keeps the compositor
-        /// busy on a window that is otherwise perfectly still.
+        /// value does not. It takes an Animation with an infinite iteration count, and in
+        /// Avalonia 11 only a style can start one of those — Animation.RunAsync throws on
+        /// IterationCount.Infinite ("Looping animations must not use the Run method") and
+        /// Animation.Apply, the call the style system makes on its behalf, is internal.
+        ///
+        /// So the class is the switch, and clearing it is what stops the animation: left
+        /// running it keeps the compositor busy on a window that is otherwise perfectly
+        /// still. The resting opacity comes back from the styles rather than from an
+        /// assignment here, which is why a local Opacity is never written — one would
+        /// outrank .active, :disabled and :pointerover for the rest of this control's life.
         /// </summary>
-        private void SetPulse(Button button, bool pulse)
-        {
-            _pulseCts?.Cancel();
-            _pulseCts = null;
-
-            if (!pulse)
-            {
-                button.Opacity = button.Classes.Contains("active") ? 1.0 : 0.65;
-                return;
-            }
-
-            var cts = new CancellationTokenSource();
-            _pulseCts = cts;
-            _ = PulseAnimation.RunAsync(button, cts.Token);
-        }
-
-        private static readonly Animation PulseAnimation = new()
-        {
-            Duration = TimeSpan.FromMilliseconds(1400),
-            IterationCount = IterationCount.Infinite,
-            Easing = new SineEaseInOut(),
-            Children =
-            {
-                new KeyFrame { Cue = new Cue(0d),    Setters = { new Setter(OpacityProperty, 1.0) } },
-                new KeyFrame { Cue = new Cue(0.5d),  Setters = { new Setter(OpacityProperty, 0.45) } },
-                new KeyFrame { Cue = new Cue(1d),    Setters = { new Setter(OpacityProperty, 1.0) } },
-            },
-        };
+        private static void SetPulse(Button button, bool pulse) =>
+            button.Classes.Set("pulse", pulse);
 
         /// <summary>
         /// Disables what a signed-out operator cannot reach.
@@ -818,6 +811,11 @@ namespace OrbitalSIP.Views
         {
             if (_buttons.TryGetValue(NavTab.Recents, out var recents)) recents.IsEnabled = !loginMode;
             if (_buttons.TryGetValue(NavTab.Tasks, out var tasks)) tasks.IsEnabled = !loginMode;
+
+            // RefreshInCallVisuals owns the icon, so leaving login mode restores whichever
+            // of Dialpad/PhoneInTalk is right. Setting the arrow here and nothing there
+            // would leave the icon depending on the order AttachNav happens to call these.
+            RefreshInCallVisuals();
 
             var icon = this.FindControl<MaterialIcon>("DialerIcon");
             if (icon != null && loginMode) icon.Kind = MaterialIconKind.ArrowLeft;
@@ -863,7 +861,7 @@ namespace OrbitalSIP.Views
   "Recents": "История",
   "Tasks": "Задачи",
   "Settings": "Настройки",
-  "InCall": "Идёт разговор",
+  "NavInCall": "Идёт разговор",
 ```
 
 `uz.json`:
@@ -871,7 +869,7 @@ namespace OrbitalSIP.Views
   "Recents": "Tarix",
   "Tasks": "Vazifalar",
   "Settings": "Sozlamalar",
-  "InCall": "Suhbat davom etmoqda",
+  "NavInCall": "Suhbat davom etmoqda",
 ```
 
 `kk.json`:
@@ -879,7 +877,7 @@ namespace OrbitalSIP.Views
   "Recents": "Тарих",
   "Tasks": "Тапсырмалар",
   "Settings": "Параметрлер",
-  "InCall": "Сөйлесу жүріп жатыр",
+  "NavInCall": "Сөйлесу жүріп жатыр",
 ```
 
 `tg.json`:
@@ -887,13 +885,13 @@ namespace OrbitalSIP.Views
   "Recents": "Таърих",
   "Tasks": "Вазифаҳо",
   "Settings": "Танзимот",
-  "InCall": "Сӯҳбат идома дорад",
+  "NavInCall": "Сӯҳбат идома дорад",
 ```
 
-Если ключ `Settings` в каком-то файле уже есть — не дублировать, `Dictionary<string,string>` на дубликате бросит при десериализации, и `I18nService.LoadLanguage` молча свалится в catch, оставив язык вообще без переводов. Проверить:
+Ключ называется `NavInCall`, а не `InCall`: `InCall` уже занят во всех четырёх файлах под подпись статуса активного звонка («В РАЗГОВОРЕ»). Дубликат не падает — `JsonSerializer.Deserialize<Dictionary<string,string>>` берёт последнее значение молча, — поэтому переиспользование ключа не сломалось бы с ошибкой, а тихо переименовало бы ту подпись. Перед добавлением любого ключа проверить, что его ещё нет:
 
 ```bash
-grep -n '"Settings"\|"Recents"\|"Tasks"\|"InCall"' OrbitalSIP/Assets/i18n/*.json
+grep -n '"Settings"\|"Recents"\|"Tasks"\|"NavInCall"' OrbitalSIP/Assets/i18n/*.json
 ```
 
 - [ ] **Step 4: Собрать — ожидаются ошибки в четырёх экранах**
@@ -1056,7 +1054,7 @@ using OrbitalSIP.Models;
         private void AttachNav(object? content)
         {
             if (content is not Control control) return;
-            var nav = control.FindDescendantOfType<Views.BottomNavControl>();
+            var nav = control.FindLogicalDescendantOfType<Views.BottomNavControl>();
             if (nav == null) return;      // Widget, Login and Incoming have no bottom bar
 
             nav.TabSelected += OnNavTabSelected;
@@ -1064,6 +1062,25 @@ using OrbitalSIP.Models;
             nav.SetInCall(App.SipService.State is CallState.Active or CallState.OnHold);
             nav.SetLoginMode(_settingsFromLogin);
         }
+
+        /// <summary>
+        /// The bottom bar of whatever is on screen, or null for the screens that have none
+        /// (Widget, Login, Incoming).
+        /// </summary>
+        private Views.BottomNavControl? CurrentNav() =>
+            (this.FindControl<ContentControl>("Host")?.Content as Control)
+                ?.FindLogicalDescendantOfType<Views.BottomNavControl>();
+
+        /// <summary>
+        /// Re-tells the bar whether a call is up.
+        ///
+        /// AttachNav answers that question once, when a screen is built. Settings is the
+        /// screen that outlives the answer: OnCallStateChanged deliberately leaves it in
+        /// place when a call ends, so without this the tab kept advertising a call that was
+        /// over — and kept an infinite animation running on an idle window.
+        /// </summary>
+        private void RefreshNavCallState() =>
+            CurrentNav()?.SetInCall(App.SipService.State is CallState.Active or CallState.OnHold);
 
         private void OnNavTabSelected(object? sender, NavTab tab) => NavigateTo(tab);
 
@@ -1240,6 +1257,19 @@ using OrbitalSIP.Models;
 ```csharp
             _currentTab = NavTab.Dialer;
 ```
+
+`ExpandWidget` и `ReturnToPreferredMode` — то же самое. Обе открывают диалер напрямую через
+`StartAnimation(..., CreateDialerView())`, минуя `ShowDialer`, поэтому без этой строки
+свернуть виджет из «Истории» и развернуть обратно означало подсветить «Историю» над
+диалпадом.
+
+`CollapseWidget` — сбросить `_settingsFromLogin`. Иначе «свернуть» из настроек,
+открытых до логина, и развернуть обратно даёт рабочий диалпад, у которого «История» и
+«Задачи» погашены, вместо иконки набора стрелка назад, а любое нажатие уводит на логин.
+
+`OnCallStateChanged` — вызвать `RefreshNavCallState()` при **любой** смене состояния, после
+раннего выхода по истёкшей сессии. Не только в ветке `Idle`: экран настроек переживает и
+начало звонка тоже, и без этого таб не позеленеет.
 
 - [ ] **Step 8: Добавить заглушку `ShowTasks`**
 
@@ -2276,8 +2306,7 @@ namespace OrbitalSIP.Services
 ```csharp
             App.NavBadges.Changed += () =>
             {
-                var nav = (this.FindControl<ContentControl>("Host")?.Content as Control)
-                    ?.FindDescendantOfType<Views.BottomNavControl>();
+                var nav = CurrentNav();
                 if (nav != null) App.NavBadges.ApplyTo(nav);
             };
 ```
