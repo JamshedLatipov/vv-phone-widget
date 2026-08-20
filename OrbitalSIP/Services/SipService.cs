@@ -690,7 +690,20 @@ namespace OrbitalSIP.Services
 
         public bool IsOnHold { get; private set; }
 
-        public void ToggleHold()
+        public void ToggleHold() => ApplyHold(desired: null);
+
+        /// <summary>
+        /// Puts the call into the requested hold state, or does nothing if it is already
+        /// there.
+        ///
+        /// The panel used to ask for a flip, which is only correct while the view and the
+        /// service agree about the current state — and a panel rebuilt mid-call (every
+        /// collapse/expand builds a new one) started from its field defaults, so they did
+        /// not. Asking for a state instead means a disagreement costs at most a no-op.
+        /// </summary>
+        public void SetHold(bool onHold) => ApplyHold(desired: onHold);
+
+        private void ApplyHold(bool? desired)
         {
             SIPUserAgent? ua;
             CallState from, to;
@@ -702,7 +715,13 @@ namespace OrbitalSIP.Services
                 if (ua == null || (_state != CallState.Active && _state != CallState.OnHold)) return;
 
                 from        = _state;
-                goingOnHold = !IsOnHold;
+                goingOnHold = desired ?? !IsOnHold;
+
+                // Already where the caller wants it. Checked inside the lock with everything
+                // else, so a redundant request cannot fire a re-INVITE against a state that
+                // another thread is in the middle of changing.
+                if (goingOnHold == IsOnHold) return;
+
                 to          = goingOnHold ? CallState.OnHold : CallState.Active;
 
                 // Claimed inside the lock. Hold is reachable from the panel, the mini

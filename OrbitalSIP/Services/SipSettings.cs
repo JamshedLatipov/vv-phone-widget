@@ -1,4 +1,5 @@
-using System.IO;
+﻿using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -123,7 +124,21 @@ namespace OrbitalSIP.Services
             var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
 
             var tempPath = FilePath + ".tmp";
-            File.WriteAllText(tempPath, json);
+
+            // Flushed to the device before the rename, not merely handed to the OS cache.
+            // The rename is atomic on NTFS, but that is a metadata guarantee: without this
+            // a power cut could land the new directory entry while the bytes behind it were
+            // still buffered, leaving exactly the truncated file this method exists to
+            // prevent — and Load() answers a truncated file with silent defaults, so the
+            // operator comes back to a softphone with no SIP server and no audio devices.
+            using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+            {
+                writer.Write(json);
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
+            }
+
             File.Move(tempPath, FilePath, overwrite: true);
         }
     }

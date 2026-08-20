@@ -1,10 +1,11 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using NAudio.Wave;
+using OrbitalSIP.Models;
 using OrbitalSIP.Services;
 
 namespace OrbitalSIP.Views
@@ -26,6 +27,27 @@ namespace OrbitalSIP.Views
             // Show registration errors inline while this view is visible
             App.SipService.RegistrationError += OnRegistrationError;
         }
+
+        /// <summary>
+        /// Releases the subscriptions this screen takes out on process-lifetime singletons.
+        /// MainWindow builds a new SettingsView on every visit, so without this each visit
+        /// left a dead one attached: the next registration failure walked N of them, each
+        /// posting to the dispatcher to write into its own detached StatusLabel.
+        /// </summary>
+        protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            App.SipService.RegistrationError -= OnRegistrationError;
+            if (_updateAvailableHandler != null)
+            {
+                App.Updater.UpdateAvailable -= _updateAvailableHandler;
+                _updateAvailableHandler = null;
+            }
+
+            base.OnDetachedFromVisualTree(e);
+        }
+
+        /// <summary>Kept in a field so the closure below can be unsubscribed by identity.</summary>
+        private System.Action? _updateAvailableHandler;
 
         private void OnRegistrationError(string reason)
         {
@@ -82,25 +104,41 @@ namespace OrbitalSIP.Views
             // Build output device list  (-1 = system default)
             // WaveOutDevices rather than NAudio's WaveOut: the same winmm enumeration in
             // the same order, but without pulling in NAudio.WinForms.
+            var outCount = Services.Audio.WaveOutDevices.Count;
             var outItems = new List<string> { "System Default" };
-            for (int i = 0; i < Services.Audio.WaveOutDevices.Count; i++)
+            for (int i = 0; i < outCount; i++)
                 outItems.Add(Services.Audio.WaveOutDevices.ProductName(i));
-            speakerBox.ItemsSource  = outItems;
-            // Saved index -1 → list position 0; index N → list position N+1
-            speakerBox.SelectedIndex = _settings.AudioOutDeviceIndex + 1;
-            if (speakerBox.SelectedIndex < 0) speakerBox.SelectedIndex = 0;
+            AppendMissingDeviceRow(outItems, _settings.AudioOutDeviceIndex, outCount);
+            speakerBox.ItemsSource   = outItems;
+            speakerBox.SelectedIndex = AudioDeviceChoice.ListPosition(_settings.AudioOutDeviceIndex, outCount);
 
             // Build input device list  (-1 = system default)
+            var inCount = WaveInEvent.DeviceCount;
             var inItems = new List<string> { "System Default" };
-            for (int i = 0; i < WaveInEvent.DeviceCount; i++)
+            for (int i = 0; i < inCount; i++)
                 inItems.Add(WaveInEvent.GetCapabilities(i).ProductName);
+            AppendMissingDeviceRow(inItems, _settings.AudioInDeviceIndex, inCount);
             micBox.ItemsSource   = inItems;
-            micBox.SelectedIndex = _settings.AudioInDeviceIndex + 1;
-            if (micBox.SelectedIndex < 0) micBox.SelectedIndex = 0;
+            micBox.SelectedIndex = AudioDeviceChoice.ListPosition(_settings.AudioInDeviceIndex, inCount);
 
             // Gain sliders — snap to 50% ticks; the value label tracks the slider live.
             InitGainSlider("MicGainSlider", "MicGainValue", _settings.MicGainPercent);
             InitGainSlider("SpeakerGainSlider", "SpeakerGainValue", _settings.SpeakerGainPercent);
+        }
+
+        /// <summary>
+        /// Gives a saved-but-absent device a row of its own at the end of the list, so the
+        /// operator can see what is configured and saving the screen does not quietly reset
+        /// it. Without the row the stale index addressed nothing, the combo fell back to
+        /// System Default, and the next save made that permanent.
+        /// </summary>
+        private static void AppendMissingDeviceRow(List<string> items, int savedIndex, int deviceCount)
+        {
+            if (!AudioDeviceChoice.IsMissing(savedIndex, deviceCount)) return;
+
+            items.Add(string.Format(
+                I18nService.Instance.Get("AudioDeviceUnavailable", "Устройство {0} — сейчас недоступно"),
+                savedIndex));
         }
 
         private void InitGainSlider(string sliderName, string valueName, int percent)
@@ -220,8 +258,12 @@ namespace OrbitalSIP.Views
                 RefreshUpdateBtnText(updateBtn);
 
                 // If the silent check fires while Settings is open, update the button live.
-                App.Updater.UpdateAvailable += () =>
+                // Held in a field so OnDetachedFromVisualTree can take it off again — a
+                // bare lambda cannot be unsubscribed, so every visit to this screen used to
+                // leave one more of them attached to App.Updater for good.
+                _updateAvailableHandler = () =>
                     Dispatcher.UIThread.InvokeAsync(() => RefreshUpdateBtnText(updateBtn));
+                App.Updater.UpdateAvailable += _updateAvailableHandler;
 
                 updateBtn.Click += async (_, __) =>
                 {
@@ -318,14 +360,18 @@ namespace OrbitalSIP.Views
                 _ => "UDP"
             };
 
-            // Audio device indices: list position 0 → device -1 (default), N+1 → device N
+            // Audio device indices. The "device is absent right now" row resolves back to
+            // whatever is already stored, so saving the screen for an unrelated reason
+            // cannot drop the operator's headset.
             var speakerBox = this.FindControl<ComboBox>("SpeakerBox");
             if (speakerBox != null)
-                _settings.AudioOutDeviceIndex = (speakerBox.SelectedIndex <= 0 ? -1 : speakerBox.SelectedIndex - 1);
+                _settings.AudioOutDeviceIndex = AudioDeviceChoice.SavedIndex(
+                    speakerBox.SelectedIndex, Services.Audio.WaveOutDevices.Count, _settings.AudioOutDeviceIndex);
 
             var micBox = this.FindControl<ComboBox>("MicBox");
             if (micBox != null)
-                _settings.AudioInDeviceIndex = (micBox.SelectedIndex <= 0 ? -1 : micBox.SelectedIndex - 1);
+                _settings.AudioInDeviceIndex = AudioDeviceChoice.SavedIndex(
+                    micBox.SelectedIndex, WaveInEvent.DeviceCount, _settings.AudioInDeviceIndex);
 
             var micGainSlider = this.FindControl<Slider>("MicGainSlider");
             if (micGainSlider != null)

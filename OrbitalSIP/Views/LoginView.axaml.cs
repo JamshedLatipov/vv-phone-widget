@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
@@ -14,6 +14,19 @@ namespace OrbitalSIP.Views
     public partial class LoginView : UserControl
     {
         private static readonly HttpClient _httpClient = Services.BackendHttp.Client;
+
+        /// <summary>
+        /// One sign-in attempt at a time.
+        ///
+        /// Enter in either field ran AttemptLogin from an async void handler, and SetBusy
+        /// only disables the button — the text boxes stay live. Key autorepeat, or simply a
+        /// quick second Enter, fired two concurrent POSTs to /api/auth/login. Whichever
+        /// continuation wrote settings.RefreshToken last won, so on a backend that rotates
+        /// refresh tokens per login the session could be left holding a revoked one and die
+        /// mid-shift; SipService.Start also ran twice, rebuilding the transport underneath
+        /// itself.
+        /// </summary>
+        private readonly Models.SingleWindowGuard _loginInFlight = new();
 
         public LoginView()
         {
@@ -35,14 +48,28 @@ namespace OrbitalSIP.Views
 
             var userBox = this.FindControl<TextBox>("UsernameBox");
             if (userBox != null)
-                userBox.KeyDown += async (s, e) => { if (e.Key == Key.Enter) await AttemptLogin(); };
+                userBox.KeyDown += async (s, e) => { if (e.Key == Key.Enter) { e.Handled = true; await AttemptLogin(); } };
 
             var passBox = this.FindControl<TextBox>("PasswordBox");
             if (passBox != null)
-                passBox.KeyDown += async (s, e) => { if (e.Key == Key.Enter) await AttemptLogin(); };
+                passBox.KeyDown += async (s, e) => { if (e.Key == Key.Enter) { e.Handled = true; await AttemptLogin(); } };
         }
 
         private async Task AttemptLogin()
+        {
+            // Claimed before anything else and released in the finally at the bottom.
+            if (!_loginInFlight.TryBegin()) return;
+            try
+            {
+                await AttemptLoginOnceAsync();
+            }
+            finally
+            {
+                _loginInFlight.Complete();
+            }
+        }
+
+        private async Task AttemptLoginOnceAsync()
         {
             var username = this.FindControl<TextBox>("UsernameBox")?.Text?.Trim();
             // Deliberately not trimmed: leading and trailing whitespace are legal password
@@ -106,9 +133,11 @@ namespace OrbitalSIP.Views
 
                     if (!sipResponse.IsSuccessStatusCode)
                     {
-                        var sipError = await sipResponse.Content.ReadAsStringAsync();
-                        AppLogger.Log("LoginView", $"SIP credentials fetch failed. Status: {sipResponse.StatusCode}. Body: {sipError}");
-                        HttpErrorNotifier.NotifyHttpError("LoginView", $"{baseUrl}/api/auth/sip-credentials", sipResponse.StatusCode, sipError);
+                        // The body is NOT logged. This endpoint answers with the SIP password
+                        // on the success path, and its error shapes have been known to echo the
+                        // request back; app.log is world-readable under %APPDATA%.
+                        AppLogger.Log("LoginView", $"SIP credentials fetch failed. Status: {(int)sipResponse.StatusCode} {sipResponse.StatusCode}.");
+                        HttpErrorNotifier.NotifyHttpError("LoginView", $"{baseUrl}/api/auth/sip-credentials", sipResponse.StatusCode);
                         ShowError($"{Services.I18nService.Instance.Get("ErrorFailed")}: could not fetch SIP credentials.");
                         return;
                     }
@@ -130,11 +159,12 @@ namespace OrbitalSIP.Views
                 }
                 else
                 {
-                    var errorBody = await response.Content.ReadAsStringAsync();
                     var reason = string.IsNullOrWhiteSpace(response.ReasonPhrase) ? "Unknown error" : response.ReasonPhrase;
                     ShowError($"{Services.I18nService.Instance.Get("ErrorFailed")}: {reason}");
-                    AppLogger.Log("LoginView", $"Login failed. Status: {response.StatusCode}. Body: {errorBody}");
-                    HttpErrorNotifier.NotifyHttpError("LoginView", $"{baseUrl}/api/auth/login", response.StatusCode, errorBody);
+                    // Same rule as above: the login endpoint's request and response bodies
+                    // carry the operator's credentials, so only the status reaches the log.
+                    AppLogger.Log("LoginView", $"Login failed. Status: {(int)response.StatusCode} {response.StatusCode}.");
+                    HttpErrorNotifier.NotifyHttpError("LoginView", $"{baseUrl}/api/auth/login", response.StatusCode);
                 }
             }
             catch (Exception ex)

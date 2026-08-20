@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using NAudio.Wave;
 using OrbitalSIP.Services.Audio;
@@ -13,10 +13,18 @@ namespace OrbitalSIP.Tests
     /// </summary>
     public class WaveOutDevicesTests
     {
+        /// <summary>
+        /// Count is unsigned at the winmm boundary and falls back to 0, so "never negative"
+        /// could not fail and proved nothing. What PlaybackDevice.IsUsable actually relies on
+        /// is that Count is one past the last addressable index — so that is what is pinned.
+        /// </summary>
         [Fact]
-        public void Count_IsNeverNegative()
+        public void CountIsOnePastTheLastAddressableDevice()
         {
-            Assert.True(WaveOutDevices.Count >= 0);
+            var count = WaveOutDevices.Count;
+
+            Assert.Equal(string.Empty, WaveOutDevices.ProductName(count));
+            Assert.Equal(string.Empty, WaveOutDevices.ProductName(count + 1));
         }
 
         [Fact]
@@ -63,7 +71,13 @@ namespace OrbitalSIP.Tests
             // Not an equality check — the two device lists are unrelated. This pins that
             // our playback enumeration answers in the same units as NAudio's capture one,
             // i.e. a plain count of addressable device indices.
-            Assert.True(WaveOutDevices.Count >= 0 && WaveInEvent.DeviceCount >= 0);
+            //
+            // The old first assertion here was `Count >= 0 && DeviceCount >= 0`, which both
+            // sides satisfy by construction; it could not fail. Every index below the count
+            // naming a real device is the property that carries the meaning.
+            for (int i = 0; i < WaveOutDevices.Count; i++)
+                Assert.False(string.IsNullOrWhiteSpace(WaveOutDevices.ProductName(i)),
+                    $"Device {i} is within Count but has no name, so Count and the index space disagree.");
 
             var lastValid = WaveOutDevices.Count - 1;
             if (lastValid >= 0)

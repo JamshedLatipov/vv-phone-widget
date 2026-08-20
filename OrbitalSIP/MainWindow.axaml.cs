@@ -1,4 +1,4 @@
-using Avalonia.Controls.ApplicationLifetimes;
+﻿using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
 using Avalonia.VisualTree;
 using Avalonia;
@@ -492,6 +492,17 @@ namespace OrbitalSIP
             var host = this.FindControl<ContentControl>("Host");
             if (host == null) return;
 
+            // HandleProtocolDial has always checked this; the dial pad never did. Holding
+            // Enter in the number box autorepeats KeyDown, and every repeat rebuilt the call
+            // view and restarted the entry animation — so the operator watched the call
+            // timer reset to 00:00 over and over while CallAsync silently refused each
+            // duplicate. Keyboard entry is the common path, so the guard belongs here too.
+            if (App.SipService.State != CallState.Idle)
+            {
+                AppLogger.Log("MainWindow", $"Ignoring an outgoing call request while State={App.SipService.State}.");
+                return;
+            }
+
             if (_preferredMode == PreferredMode.Widget)
             {
                 ShowActiveCallWidgetView(number, TimeSpan.Zero);
@@ -600,15 +611,21 @@ namespace OrbitalSIP
                 App.SipService.Hangup();
                 ReturnToPreferredMode();
             };
-            widget.OnMuteToggled += (_, muted) => App.SipService.SetMuted(muted);
-            widget.OnHoldToggled += (_, __) => App.SipService.ToggleHold();
+            widget.OnMuteToggled += (_, muted)  => App.SipService.SetMuted(muted);
+            widget.OnHoldToggled += (_, onHold) => App.SipService.SetHold(onHold);
             widget.OnTransferRequested += (_, __) => ShowActiveCallView(App.SipService.ActiveCallerId, widget.Elapsed);
             widget.OnExpandRequested += (_, __) => ShowActiveCallView(App.SipService.ActiveCallerId, widget.Elapsed);
         }
 
         private void ShowActiveCallView(string callerId, TimeSpan? elapsed = null)
         {
-            var callView = new Views.ActiveCallView(callerId, initialElapsed: elapsed);
+            // Seeded from the service, exactly as ShowActiveCallWidgetView already does for
+            // the mini widget. Without it a panel rebuilt mid-call started from false/false.
+            var callView = new Views.ActiveCallView(
+                callerId,
+                initialElapsed: elapsed,
+                isMuted:  App.SipService.IsMuted,
+                isOnHold: App.SipService.IsOnHold);
             WireActiveCallView(callView);
 
             if (Math.Abs(Width - ExpandedWidth) > 1 || Math.Abs(Height - ExpandedHeight) > 1)
@@ -629,8 +646,9 @@ namespace OrbitalSIP
             };
             callView.OnMinimizeRequested += (_, __) => ShowActiveCallWidgetView(App.SipService.ActiveCallerId, callView.Elapsed);
             callView.OnExitAppRequested += (_, __) => ShutdownApp();
-            callView.OnMuteToggled += (_, muted) => App.SipService.SetMuted(muted);
-            callView.OnHoldToggled += (_, __) => App.SipService.ToggleHold();
+            callView.OnMuteToggled += (_, muted)  => App.SipService.SetMuted(muted);
+            // The state the view asked for, not a blind flip — see SipService.SetHold.
+            callView.OnHoldToggled += (_, onHold) => App.SipService.SetHold(onHold);
             callView.OnTransferRequested += async (_, dest) => await App.SipService.BlindTransferAsync(dest);
             callView.OnKeypadRequested += (_, __) => ShowDialer();
             callView.OnSettingsRequested += (_, __) => ShowSettings();

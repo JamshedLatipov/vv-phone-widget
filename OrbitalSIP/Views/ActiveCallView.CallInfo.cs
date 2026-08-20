@@ -1,4 +1,4 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -45,7 +45,12 @@ namespace OrbitalSIP.Views
             var response = await App.CallInfoService.GetCallInfoAsync(callerNumber);
             AppLogger.Log("CallInfo", $"Response: {(response == null ? "null" : $"{response.Sections.Count} sections")}");
 
-            _callInfoLoaded = true;
+            // Only a response that actually arrived counts as loaded. This used to latch
+            // unconditionally, so a single network blip left the panel showing «пусто» and
+            // ToggleCallInfoPanel never retried — there is no retry button here, unlike the
+            // lead panel, so the operator had no way to see the caller's accounts again for
+            // the rest of the call.
+            if (response != null) _callInfoLoaded = true;
 
             await Dispatcher.UIThread.InvokeAsync(() => RenderCallInfo(response));
         }
@@ -200,9 +205,7 @@ namespace OrbitalSIP.Views
                 var topLevel = TopLevel.GetTopLevel(this);
                 if (topLevel?.Clipboard == null) return;
                 await topLevel.Clipboard.SetTextAsync(capturedValue);
-                capturedIcon.Kind = MaterialIconKind.Check;
-                await Task.Delay(1000);
-                capturedIcon.Kind = MaterialIconKind.ContentCopy;
+                await IconFlash.ConfirmAsync(capturedIcon, System.TimeSpan.FromMilliseconds(1000));
             };
 
             return rowStack;

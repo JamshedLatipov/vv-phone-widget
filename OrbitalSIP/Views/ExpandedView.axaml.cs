@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
@@ -131,19 +131,7 @@ namespace OrbitalSIP.Views
 
             await topLevel.Clipboard.SetTextAsync(text);
 
-            var button = this.FindControl<Button>("CopyBtn");
-            if (button == null)
-            {
-                return;
-            }
-
-            if (button.Content is MaterialIcon icon)
-            {
-                var originalKind = icon.Kind;
-                icon.Kind = MaterialIconKind.Check;
-                await Task.Delay(1200);
-                icon.Kind = originalKind;
-            }
+            await IconFlash.ConfirmAsync(this.FindControl<Button>("CopyBtn")?.Content);
         }
 
         // ── Events ────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading;
@@ -220,7 +220,6 @@ namespace OrbitalSIP.Services
                     AppLogger.Log("StatusService", "State successfully updated on server.");
 
                     var content = await response.Content.ReadAsStringAsync();
-                    AppLogger.Log("StatusService", $"Set state response body: {content}");
 
                     // Trust the server's returned shape (it enforces supervisor-pause).
                     var data = JsonSerializer.Deserialize<StatusState>(content);

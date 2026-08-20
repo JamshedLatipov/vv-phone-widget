@@ -1,4 +1,4 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using System.Threading.Tasks;
 using Material.Icons;
@@ -51,22 +51,8 @@ namespace OrbitalSIP.Views
             await FlashCopyButtonAsync("CopyCallerBtn");
         }
 
-        private async Task FlashCopyButtonAsync(string buttonName)
-        {
-            var button = this.FindControl<Button>(buttonName);
-            if (button == null)
-            {
-                return;
-            }
-
-            if (button.Content is MaterialIcon icon)
-            {
-                var originalKind = icon.Kind;
-                icon.Kind = MaterialIconKind.Check;
-                await Task.Delay(1200);
-                icon.Kind = originalKind;
-            }
-        }
+        private Task FlashCopyButtonAsync(string buttonName) =>
+            IconFlash.ConfirmAsync(this.FindControl<Button>(buttonName)?.Content);
 
         public event System.EventHandler? OnAnswer;
         public event System.EventHandler? OnDecline;
