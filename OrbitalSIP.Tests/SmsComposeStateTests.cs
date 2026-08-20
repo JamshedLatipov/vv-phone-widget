@@ -12,6 +12,16 @@ public class SmsComposeStateTests
         "Напоминание",
         "Перезвоните, пожалуйста");
 
+    private static readonly MessageTemplateDto OfficeTemplate = new(
+        Guid.Parse("33333333-3333-3333-3333-333333333333"),
+        "Адрес офиса",
+        "Мы находимся по адресу…");
+
+    private static readonly MessageTemplateDto DuplicateWordingTemplate = new(
+        Guid.Parse("44444444-4444-4444-4444-444444444444"),
+        "Напоминание (копия)",
+        "Перезвоните, пожалуйста");
+
     [Fact]
     public void Constructor_LocksSourceAndDisplayRecipient()
     {
@@ -19,32 +29,125 @@ public class SmsComposeStateTests
 
         Assert.Same(ActiveSource, state.Source);
         Assert.Equal("+992 ** *** 12 34", state.Recipient);
-        Assert.Equal(SmsComposeMode.Template, state.Mode);
+        Assert.Null(state.SelectedTemplate);
+        Assert.False(state.IsTemplateBound);
     }
 
     [Fact]
-    public void SwitchMode_ToFreeText_AllowsContentWithoutTemplate()
+    public void EditContent_WithoutTemplate_IsSendable()
     {
         var state = NewState();
 
-        state.SwitchMode(SmsComposeMode.FreeText);
         state.EditContent("Свободный текст");
 
-        Assert.Equal(SmsComposeMode.FreeText, state.Mode);
         Assert.True(state.CanSend);
+        Assert.Equal(SmsComposeValidation.None, state.Validation);
     }
 
     [Fact]
-    public void SelectTemplate_CopiesTextButKeepsFinalContentEditable()
+    public void SelectTemplate_CopiesTextAndKeepsBinding()
     {
         var state = NewState();
 
         state.SelectTemplate(ReminderTemplate);
+
+        Assert.Same(ReminderTemplate, state.SelectedTemplate);
+        Assert.Equal("Перезвоните, пожалуйста", state.Content);
+        Assert.True(state.IsTemplateBound);
+        Assert.True(state.TryBeginSend(out var request));
+        Assert.Equal(ReminderTemplate.Id, request!.TemplateId);
+    }
+
+    [Fact]
+    public void EditContent_AfterTemplate_DropsTemplateIdFromRequest()
+    {
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+
         state.EditContent("Уточнённый текст");
 
         Assert.Same(ReminderTemplate, state.SelectedTemplate);
-        Assert.Equal("Уточнённый текст", state.Content);
-        Assert.True(state.CanSend);
+        Assert.False(state.IsTemplateBound);
+        Assert.True(state.TryBeginSend(out var request));
+        Assert.Equal("Уточнённый текст", request!.Content);
+        Assert.Null(request.TemplateId);
+    }
+
+    [Fact]
+    public void SelectTemplate_AfterEdit_RestoresBindingAndText()
+    {
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+        state.EditContent("Уточнённый текст");
+
+        state.SelectTemplate(ReminderTemplate);
+
+        Assert.Equal("Перезвоните, пожалуйста", state.Content);
+        Assert.True(state.IsTemplateBound);
+        Assert.True(state.TryBeginSend(out var request));
+        Assert.Equal(ReminderTemplate.Id, request!.TemplateId);
+    }
+
+    [Fact]
+    public void ClearTemplate_KeepsContentAndDropsTemplateId()
+    {
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+
+        state.ClearTemplate();
+
+        Assert.Null(state.SelectedTemplate);
+        Assert.False(state.IsTemplateBound);
+        Assert.Equal("Перезвоните, пожалуйста", state.Content);
+        Assert.True(state.TryBeginSend(out var request));
+        Assert.Null(request!.TemplateId);
+    }
+
+    [Fact]
+    public void SelectTemplate_SwitchingTemplates_RegeneratesRequestIdAndRebinds()
+    {
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+        Assert.True(state.TryBeginSend(out var first));
+        state.FinishSendFailure();
+
+        state.SelectTemplate(OfficeTemplate);
+
+        Assert.Same(OfficeTemplate, state.SelectedTemplate);
+        Assert.Equal("Мы находимся по адресу…", state.Content);
+        Assert.True(state.TryBeginSend(out var second));
+        Assert.NotEqual(first!.RequestId, second!.RequestId);
+        Assert.Equal(OfficeTemplate.Id, second.TemplateId);
+    }
+
+    [Fact]
+    public void SelectTemplate_DifferentTemplateWithIdenticalText_RegeneratesRequestId()
+    {
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+        Assert.True(state.TryBeginSend(out var first));
+        state.FinishSendFailure();
+
+        state.SelectTemplate(DuplicateWordingTemplate);
+
+        Assert.True(state.TryBeginSend(out var second));
+        Assert.NotEqual(first!.RequestId, second!.RequestId);
+        Assert.Equal(DuplicateWordingTemplate.Id, second!.TemplateId);
+    }
+
+    [Fact]
+    public void EditContent_RetypingTemplateTextDoesNotRestoreBinding()
+    {
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+        state.EditContent("Другой текст");
+
+        state.EditContent("Перезвоните, пожалуйста");
+
+        Assert.Equal("Перезвоните, пожалуйста", state.Content);
+        Assert.False(state.IsTemplateBound);
+        Assert.True(state.TryBeginSend(out var request));
+        Assert.Null(request!.TemplateId);
     }
 
     [Theory]
@@ -52,7 +155,7 @@ public class SmsComposeStateTests
     [InlineData("   ")]
     public void CanSend_RejectsBlankContent(string content)
     {
-        var state = NewFreeTextState();
+        var state = NewState();
 
         state.EditContent(content);
 
@@ -63,7 +166,7 @@ public class SmsComposeStateTests
     [Fact]
     public void CanSend_RejectsContentOverOneThousandCharactersAndReportsCount()
     {
-        var state = NewFreeTextState();
+        var state = NewState();
 
         state.EditContent(new string('x', 1001));
 
@@ -75,7 +178,7 @@ public class SmsComposeStateTests
     [Fact]
     public void CanSend_AllowsExactlyOneThousandCharacters()
     {
-        var state = NewFreeTextState();
+        var state = NewState();
 
         state.EditContent(new string('x', 1000));
 
@@ -85,39 +188,11 @@ public class SmsComposeStateTests
     }
 
     [Fact]
-    public void CanSend_RequiresTemplateInTemplateMode()
+    public void TryBeginSend_NeedsNoConfirmationAndGuardsDoubleClick()
     {
         var state = NewState();
-
-        state.EditContent("Текст без выбранного шаблона");
-
-        Assert.False(state.CanSend);
-        Assert.Equal(SmsComposeValidation.TemplateRequired, state.Validation);
-    }
-
-    [Fact]
-    public void RequestConfirmation_ShowsLockedRecipientAndFinalTextWithoutStartingRequest()
-    {
-        var state = NewFreeTextState();
         state.EditContent("Итоговый текст");
 
-        var shown = state.RequestConfirmation();
-
-        Assert.True(shown);
-        Assert.True(state.IsConfirmationVisible);
-        Assert.Equal("+992 ** *** 12 34", state.Recipient);
-        Assert.Equal("Итоговый текст", state.Content);
-        Assert.False(state.IsInFlight);
-    }
-
-    [Fact]
-    public void TryBeginSend_RequiresConfirmationAndGuardsDoubleClick()
-    {
-        var state = NewFreeTextState();
-        state.EditContent("Итоговый текст");
-
-        Assert.False(state.TryBeginSend(out _));
-        Assert.True(state.RequestConfirmation());
         Assert.True(state.TryBeginSend(out var request));
         Assert.False(state.TryBeginSend(out _));
         Assert.True(state.IsInFlight);
@@ -128,11 +203,10 @@ public class SmsComposeStateTests
     }
 
     [Fact]
-    public void FinishSendFailure_ReusesRequestIdOnConfirmedRetry()
+    public void FinishSendFailure_ReusesRequestIdOnRetry()
     {
-        var state = NewFreeTextState();
+        var state = NewState();
         state.EditContent("Повторяемый текст");
-        state.RequestConfirmation();
         Assert.True(state.TryBeginSend(out var first));
 
         state.FinishSendFailure();
@@ -142,11 +216,54 @@ public class SmsComposeStateTests
     }
 
     [Fact]
-    public void CancelCurrentSend_CancelsAttemptAndKeepsConfirmationRetryableWithSameRequestId()
+    public void FinishSendFailure_KeepsTemplateIdOnRetry()
     {
-        var state = NewFreeTextState();
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+        Assert.True(state.TryBeginSend(out var first));
+
+        state.FinishSendFailure();
+        Assert.True(state.TryBeginSend(out var retry));
+
+        Assert.Equal(first!.RequestId, retry!.RequestId);
+        Assert.Equal(ReminderTemplate.Id, retry.TemplateId);
+    }
+
+    [Fact]
+    public void CancelCurrentSend_KeepsTemplateBindingForRetry()
+    {
+        var state = NewState();
+        state.SelectTemplate(ReminderTemplate);
+        using var session = new SmsComposeSendSession(state);
+        Assert.True(session.TryBeginSend(out var attempt));
+
+        Assert.True(session.CancelCurrentSend());
+
+        Assert.True(state.IsTemplateBound);
+        Assert.True(session.TryBeginSend(out var retry));
+        Assert.Equal(attempt!.Request.RequestId, retry!.Request.RequestId);
+        Assert.Equal(ReminderTemplate.Id, retry.Request.TemplateId);
+    }
+
+    [Fact]
+    public void EditContent_AfterFailureRegeneratesRequestId()
+    {
+        var state = NewState();
+        state.EditContent("Первый текст");
+        Assert.True(state.TryBeginSend(out var first));
+        state.FinishSendFailure();
+
+        state.EditContent("Изменённый текст");
+
+        Assert.True(state.TryBeginSend(out var changed));
+        Assert.NotEqual(first!.RequestId, changed!.RequestId);
+    }
+
+    [Fact]
+    public void CancelCurrentSend_CancelsAttemptAndKeepsRetryableRequestId()
+    {
+        var state = NewState();
         state.EditContent("Отменяемый текст");
-        state.RequestConfirmation();
         using var session = new SmsComposeSendSession(state);
         Assert.True(session.TryBeginSend(out var attempt));
 
@@ -155,7 +272,6 @@ public class SmsComposeStateTests
 
         Assert.True(attempt!.CancellationToken.IsCancellationRequested);
         Assert.False(state.IsInFlight);
-        Assert.True(state.IsConfirmationVisible);
         Assert.Equal("SmsCancelled", session.StatusMessageKey);
         Assert.True(session.TryBeginSend(out var retry));
         Assert.Equal(attempt.Request.RequestId, retry!.Request.RequestId);
@@ -164,9 +280,8 @@ public class SmsComposeStateTests
     [Fact]
     public void CancelCurrentSend_RejectsStaleSuccessFromCancelledAttempt()
     {
-        var state = NewFreeTextState();
+        var state = NewState();
         state.EditContent("Отменяемый текст");
-        state.RequestConfirmation();
         using var session = new SmsComposeSendSession(state);
         Assert.True(session.TryBeginSend(out var attempt));
 
@@ -176,39 +291,18 @@ public class SmsComposeStateTests
         Assert.False(accepted);
         Assert.False(state.IsQueued);
         Assert.False(state.IsInFlight);
-        Assert.True(state.IsConfirmationVisible);
         Assert.Equal("SmsCancelled", session.StatusMessageKey);
-    }
-
-    [Fact]
-    public void EditContent_AfterFailureHidesConfirmationAndRegeneratesRequestId()
-    {
-        var state = NewFreeTextState();
-        state.EditContent("Первый текст");
-        state.RequestConfirmation();
-        Assert.True(state.TryBeginSend(out var first));
-        state.FinishSendFailure();
-
-        state.EditContent("Изменённый текст");
-
-        Assert.False(state.IsConfirmationVisible);
-        Assert.True(state.RequestConfirmation());
-        Assert.True(state.TryBeginSend(out var changed));
-        Assert.NotEqual(first!.RequestId, changed!.RequestId);
     }
 
     [Fact]
     public void NewSourceState_UsesDifferentRequestIdForSameContent()
     {
-        var firstState = NewFreeTextState();
+        var firstState = NewState();
         firstState.EditContent("Тот же текст");
-        firstState.RequestConfirmation();
         Assert.True(firstState.TryBeginSend(out var first));
 
         var secondState = new SmsComposeState(new SmsCallSource("history", "cdr-id"), "+992 ** *** 12 34");
-        secondState.SwitchMode(SmsComposeMode.FreeText);
         secondState.EditContent("Тот же текст");
-        secondState.RequestConfirmation();
         Assert.True(secondState.TryBeginSend(out var second));
 
         Assert.NotEqual(first!.RequestId, second!.RequestId);
@@ -217,26 +311,28 @@ public class SmsComposeStateTests
     [Fact]
     public void FinishSendSuccess_MarksQueuedAndPreventsAnotherSend()
     {
-        var state = NewFreeTextState();
+        var state = NewState();
         state.EditContent("Текст");
-        state.RequestConfirmation();
         Assert.True(state.TryBeginSend(out _));
 
         state.FinishSendSuccess();
 
         Assert.True(state.IsQueued);
         Assert.False(state.IsInFlight);
-        Assert.False(state.IsConfirmationVisible);
         Assert.False(state.CanSend);
-        Assert.False(state.RequestConfirmation());
+        Assert.False(state.TryBeginSend(out _));
+    }
+
+    [Fact]
+    public void EditContent_AfterQueuedThrows()
+    {
+        var state = NewState();
+        state.EditContent("Текст");
+        Assert.True(state.TryBeginSend(out _));
+        state.FinishSendSuccess();
+
+        Assert.Throws<InvalidOperationException>(() => state.EditContent("Ещё текст"));
     }
 
     private static SmsComposeState NewState() => new(ActiveSource, "+992 ** *** 12 34");
-
-    private static SmsComposeState NewFreeTextState()
-    {
-        var state = NewState();
-        state.SwitchMode(SmsComposeMode.FreeText);
-        return state;
-    }
 }

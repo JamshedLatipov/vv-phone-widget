@@ -40,17 +40,27 @@ namespace OrbitalSIP
 
         public override void OnFrameworkInitializationCompleted()
         {
+            var startupSettings = SipSettings.Load();
             var initI18n = Services.I18nService.Instance;
-            initI18n.LoadLanguage(SipSettings.Load().Language);
+            initI18n.LoadLanguage(startupSettings.Language);
+            BackendHttp.WarnIfInsecure(startupSettings.BackendUrl);
 
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 // Forward call-state changes to the sound service.
                 SipService.CallStateChanged += SoundService.OnStateChanged;
 
+                // The lead panel's per-call cache has to survive a collapse/expand but not
+                // the call itself — see ActiveCallView.ForgetCachedCall.
+                SipService.CallStateChanged += state =>
+                {
+                    if (state == CallState.Idle) Views.ActiveCallView.ForgetCachedCall();
+                };
+                BackendAuth.SessionExpired += Views.ActiveCallView.ForgetCachedCall;
+
                 desktop.MainWindow = new MainWindow();
-                App.GlobalHotkeys.ApplySettings(SipSettings.Load());
-                App.GlobalHotkeys.Start();
+                App.GlobalHotkeys.ApplySettings(startupSettings);
+                App.GlobalHotkeys.Start(startupSettings);
 
                 // Silent one-shot update check — shows a dot on the Settings button if
                 // a newer release is available. Fire-and-forget; errors are swallowed inside.

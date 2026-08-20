@@ -23,8 +23,23 @@ namespace OrbitalSIP.Services
         /// </summary>
         private DispatcherTimer? _breakTimer;
 
+        /// <summary>Poll interval while the backend is answering.</summary>
+        private static readonly TimeSpan HealthyPollInterval = TimeSpan.FromSeconds(20);
+
+        /// <summary>Ceiling for the backed-off interval while it is not.</summary>
+        private static readonly TimeSpan MaxPollInterval = TimeSpan.FromMinutes(5);
+
         private DateTime? _breakEndTime;
         private bool _isFetching;
+
+        /// <summary>
+        /// Length of the current failure streak. A backend that is down — or a session
+        /// that has expired — used to produce an error banner on every single poll, three
+        /// a minute for the rest of the shift, all saying the same thing. Only the first
+        /// failure of a streak is reported now, and the interval backs off so the widget
+        /// stops hammering a host that is not answering.
+        /// </summary>
+        private int _consecutiveFailures;
 
         public event Action<StatusState>? StateChanged;
 
@@ -52,6 +67,36 @@ namespace OrbitalSIP.Services
         {
             _ = FetchStateAsync();
             _pollTimer?.Start();
+        }
+
+        /// <summary>
+        /// Stops polling — used when the session ends, so the login screen is not sitting
+        /// behind a stream of 401s from a widget that has not noticed it is signed out.
+        /// </summary>
+        public void StopPolling()
+        {
+            _pollTimer?.Stop();
+            _breakTimer?.Stop();
+            ResetBackoff();
+        }
+
+        /// <summary>Reports the first failure of a streak only, and stretches the interval.</summary>
+        private bool ShouldReportFailure()
+        {
+            _consecutiveFailures++;
+
+            if (_pollTimer != null)
+                _pollTimer.Interval = PollBackoff.Next(_consecutiveFailures, HealthyPollInterval, MaxPollInterval);
+
+            return _consecutiveFailures == 1;
+        }
+
+        private void ResetBackoff()
+        {
+            if (_consecutiveFailures == 0) return;
+
+            _consecutiveFailures = 0;
+            if (_pollTimer != null) _pollTimer.Interval = HealthyPollInterval;
         }
 
         private async void OnPollTick(object? sender, EventArgs e) => await FetchStateAsync();
@@ -87,20 +132,28 @@ namespace OrbitalSIP.Services
                     return;
 
                 var url = $"{backendUrl}/api/presence/me";
-                AppLogger.Log("StatusService", $"Fetching state from: {url}");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
 
-                var response = await _httpClient.SendAsync(request);
-                AppLogger.Log("StatusService", $"Fetch response status code: {response.StatusCode}");
+                // Only failures are logged from here on. This runs three times a minute for
+                // the whole shift, and logging the URL, the status and the full response
+                // body each time pushed everything else out of a log that rotates at 4 MB —
+                // while writing the operator's presence payload to disk over and over.
+                using var response = await _httpClient.SendAsync(request);
 
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync();
-                    AppLogger.Log("StatusService", $"Fetch response body: {content}");
-
                     var data = JsonSerializer.Deserialize<StatusState>(content);
+
+                    // Reset only once the response has actually been understood. Resetting
+                    // on the status code alone meant a 200 carrying a body this client
+                    // cannot parse threw into the catch below, reported a failure, and had
+                    // its backoff wiped again on the very next poll — defeating both the
+                    // backoff and the once-per-streak banner this exists to provide.
+                    ResetBackoff();
+
                     if (data != null)
                     {
                         CurrentState = data;
@@ -110,8 +163,9 @@ namespace OrbitalSIP.Services
                 else
                 {
                     var errBody = await response.Content.ReadAsStringAsync();
-                    AppLogger.Log("StatusService", $"Fetch state failed. Body: {errBody}");
-                    HttpErrorNotifier.NotifyHttpError("StatusService", url, response.StatusCode, errBody);
+                    AppLogger.Log("StatusService", $"Fetch state failed. Status: {(int)response.StatusCode}. Body: {errBody}");
+                    if (ShouldReportFailure())
+                        HttpErrorNotifier.NotifyHttpError("StatusService", url, response.StatusCode, errBody);
                 }
             }
             catch (Exception ex)
@@ -121,7 +175,8 @@ namespace OrbitalSIP.Services
                     details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
                 details += $" | StackTrace: {ex.StackTrace}";
                 AppLogger.Log("StatusService", details);
-                HttpErrorNotifier.NotifyException("StatusService", ex);
+                if (ShouldReportFailure())
+                    HttpErrorNotifier.NotifyException("StatusService", ex);
             }
             finally
             {
@@ -157,7 +212,7 @@ namespace OrbitalSIP.Services
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
                 request.Content = JsonContent.Create(body);
 
-                var response = await _httpClient.SendAsync(request);
+                using var response = await _httpClient.SendAsync(request);
                 AppLogger.Log("StatusService", $"Set state response status code: {response.StatusCode}");
 
                 if (response.IsSuccessStatusCode)
@@ -214,10 +269,6 @@ namespace OrbitalSIP.Services
             return false;
         }
 
-        public void Dispose()
-        {
-            _pollTimer?.Stop();
-            _breakTimer?.Stop();
-        }
+        public void Dispose() => StopPolling();
     }
 }

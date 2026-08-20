@@ -144,8 +144,15 @@ namespace OrbitalSIP
                         server.WaitForConnection();
                         using var reader = new StreamReader(server, Encoding.UTF8);
                         var num = reader.ReadLine();
-                        if (!string.IsNullOrWhiteSpace(num))
-                            DialRequested?.Invoke(num!.Trim());
+
+                        // Normalised the same way the command-line path is, which this one
+                        // skipped. Whatever arrives here goes on to StartOutgoingCall, and
+                        // SipService treats a destination containing '@' as a complete SIP
+                        // URI — so an un-normalised line was an INVITE to an arbitrary host
+                        // rather than a call placed through the configured PBX.
+                        var dialable = string.IsNullOrWhiteSpace(num) ? null : NormalizeNumber(num!);
+                        if (!string.IsNullOrEmpty(dialable))
+                            DialRequested?.Invoke(dialable!);
                     }
                     catch (Exception ex)
                     {

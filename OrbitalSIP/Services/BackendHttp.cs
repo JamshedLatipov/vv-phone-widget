@@ -1,6 +1,6 @@
 using System;
 using System.Net.Http;
-using System.Net.Security;
+using System.Threading;
 
 namespace OrbitalSIP.Services;
 
@@ -26,24 +26,60 @@ public static class BackendHttp
     /// </summary>
     private static readonly TimeSpan ConnectionLifetime = TimeSpan.FromMinutes(5);
 
-    private static readonly SocketsHttpHandler Handler = new()
+    /// <summary>
+    /// The socket pool. Carries no SslOptions: the callback that used to sit here
+    /// accepted every certificate unconditionally, and it was never doing any work
+    /// anyway — the deployed BackendUrl is plain http://, so no handshake ever reached
+    /// it. Leaving it in place meant the day the backend moved to https, it would have
+    /// silently downgraded that to no protection at all. Default validation now applies,
+    /// and <see cref="WarnIfInsecure"/> covers the http:// case that is live today.
+    /// </summary>
+    private static readonly SocketsHttpHandler Transport = new()
     {
         PooledConnectionLifetime = ConnectionLifetime,
-        SslOptions = new SslClientAuthenticationOptions
-        {
-            // Unchanged from what every one of the nine call sites did on its own.
-            // It is wrong, and it is now wrong in exactly one place instead of nine.
-            RemoteCertificateValidationCallback = (_, _, _, _) => true
-        }
     };
 
+    /// <summary>
+    /// Bypasses <see cref="AuthRefreshHandler"/>. The token refresh POST has to go out
+    /// over something that will not turn around and ask for a token refresh.
+    /// </summary>
+    internal static HttpClient RawClient { get; } = new(Transport, disposeHandler: false);
+
+    /// <summary>Shared by every client below, so one refresh serves all of them.</summary>
+    private static readonly AuthRefreshHandler AuthHandler = new(Transport);
+
     /// <summary>Shared client for backend calls that are happy with the default timeout.</summary>
-    public static HttpClient Client { get; } = new(Handler, disposeHandler: false);
+    public static HttpClient Client { get; } = new(AuthHandler, disposeHandler: false);
 
     /// <summary>
     /// A client with its own timeout, over the shared pool. Disposing it releases the
     /// client only — the handler and its sockets stay up for everyone else.
     /// </summary>
     public static HttpClient CreateClient(TimeSpan timeout) =>
-        new(Handler, disposeHandler: false) { Timeout = timeout };
+        new(AuthHandler, disposeHandler: false) { Timeout = timeout };
+
+    private static int _insecureWarned;
+
+    /// <summary>True when the backend is configured over plain HTTP.</summary>
+    public static bool IsInsecure(string? backendUrl) =>
+        !string.IsNullOrWhiteSpace(backendUrl) &&
+        backendUrl.TrimStart().StartsWith("http://", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Records, once per run, that everything this pool carries — the login POST, the
+    /// SIP password from /api/auth/sip-credentials, the bearer token on every later
+    /// request, and caller PII — is travelling in cleartext. Nothing the client can do
+    /// fixes that; it takes an https listener on the backend. The log line is so the
+    /// fact stays visible instead of living only in a review document.
+    /// </summary>
+    public static void WarnIfInsecure(string? backendUrl)
+    {
+        if (!IsInsecure(backendUrl)) return;
+        if (Interlocked.Exchange(ref _insecureWarned, 1) != 0) return;
+
+        AppLogger.Log("BackendHttp",
+            $"INSECURE TRANSPORT: BackendUrl is '{backendUrl}'. Credentials, the SIP password and the " +
+            "bearer token are sent unencrypted and are readable by anything on the network path. " +
+            "Move the backend to https://.");
+    }
 }

@@ -116,10 +116,10 @@ namespace OrbitalSIP.Services
 
                 AppLogger.Log("update", $"Update available: {CurrentVersion} → {remoteVer}.");
 
-                var installerUrl = FindInstallerUrl(root);
-                if (string.IsNullOrEmpty(installerUrl))
+                var installer = FindInstaller(root);
+                if (installer == null)
                 {
-                    AppLogger.Log("update", "No .exe asset found in release.");
+                    AppLogger.Log("update", "No usable .exe asset found in release.");
                     onStatus(i18n.Get("UpdateError"));
                     return;
                 }
@@ -132,7 +132,7 @@ namespace OrbitalSIP.Services
                 }
 
                 onStatus($"{i18n.Get("UpdateDownloading")} {remoteVer}...");
-                await DownloadAndInstallAsync(remoteVer, installerUrl, onStatus, ct);
+                await DownloadAndInstallAsync(remoteVer, installer.Value, onStatus, ct);
             }
             catch (OperationCanceledException)
             {
@@ -190,36 +190,109 @@ namespace OrbitalSIP.Services
 
         // ── Internals ─────────────────────────────────────────────────────────────
 
-        private static string? FindInstallerUrl(JsonElement releaseRoot)
+        /// <summary>The release asset this app will download and run.</summary>
+        private readonly record struct InstallerAsset(string Url, long Size);
+
+        /// <summary>
+        /// Picks the installer out of the release, rejecting any asset whose download URL
+        /// does not point at GitHub. The release JSON already arrives over a validated TLS
+        /// connection to api.github.com, so this is belt-and-braces — but the one field
+        /// here that becomes an executable on the operator's machine is worth not taking
+        /// on trust from a parsed document.
+        /// </summary>
+        private static InstallerAsset? FindInstaller(JsonElement releaseRoot)
         {
             if (!releaseRoot.TryGetProperty("assets", out var assets)) return null;
+
             foreach (var asset in assets.EnumerateArray())
             {
                 var name = asset.TryGetProperty("name", out var n) ? n.GetString() : null;
-                if (name != null && name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-                    if (asset.TryGetProperty("browser_download_url", out var url))
-                        return url.GetString();
+                if (name == null || !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
+
+                if (!asset.TryGetProperty("browser_download_url", out var urlElement)) continue;
+                var url = urlElement.GetString();
+                if (!IsGitHubDownload(url))
+                {
+                    AppLogger.Log("update", $"Ignoring release asset '{name}': download URL is not on GitHub.");
+                    continue;
+                }
+
+                var size = asset.TryGetProperty("size", out var s) && s.ValueKind == JsonValueKind.Number
+                    ? s.GetInt64()
+                    : 0;
+
+                return new InstallerAsset(url!, size);
             }
+
             return null;
         }
 
+        private static bool IsGitHubDownload(string? url) =>
+            Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+            uri.Scheme == Uri.UriSchemeHttps &&
+            (uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) ||
+             uri.Host.EndsWith(".github.com", StringComparison.OrdinalIgnoreCase) ||
+             uri.Host.EndsWith(".githubusercontent.com", StringComparison.OrdinalIgnoreCase));
+
         private static async Task DownloadAndInstallAsync(
-            Version remoteVer, string url, Action<string> onStatus, CancellationToken ct)
+            Version remoteVer, InstallerAsset installer, Action<string> onStatus, CancellationToken ct)
         {
-            var tempPath = Path.Combine(Path.GetTempPath(), $"OrbitalSIP-Setup-{remoteVer}.exe");
-            AppLogger.Log("update", $"Downloading installer → {tempPath}");
+            // A fresh directory with an unguessable name. The old path was
+            // %TEMP%\OrbitalSIP-Setup-{version}.exe — entirely predictable, so anything
+            // running as this user could sit on that name and swap the file between the
+            // write and Process.Start, and the app would launch it through an installer
+            // manifest that asks for elevation.
+            var stagingDir = Path.Combine(Path.GetTempPath(), StagingPrefix + Path.GetRandomFileName());
+            var tempPath   = Path.Combine(stagingDir, $"OrbitalSIP-Setup-{remoteVer}.exe");
+
+            // The successful path cannot delete its own staging directory — the installer
+            // is running out of it when this process is closed — so previous ones are
+            // swept here instead. Without this every completed update left ~90 MB in %TEMP%
+            // forever.
+            SweepOldStagingDirectories(stagingDir);
 
             try
             {
-                var bytes = await _httpDownload.GetByteArrayAsync(url, ct);
-                await File.WriteAllBytesAsync(tempPath, bytes, ct);
+                Directory.CreateDirectory(stagingDir);
+                AppLogger.Log("update", $"Downloading installer → {tempPath}");
+
+                // Streamed, not GetByteArrayAsync: the installer is around 90 MB and
+                // buffering it whole put every byte on the large object heap first.
+                using (var response = await _httpDownload
+                           .GetAsync(installer.Url, HttpCompletionOption.ResponseHeadersRead, ct))
+                {
+                    response.EnsureSuccessStatusCode();
+
+                    await using var source = await response.Content.ReadAsStreamAsync(ct);
+                    // CreateNew, FileShare.None: fails outright rather than writing into a
+                    // file something else got there first, or that anything can open while
+                    // it is being written.
+                    await using var target = new FileStream(
+                        tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+
+                    await source.CopyToAsync(target, ct);
+                }
             }
             catch (Exception ex)
             {
                 AppLogger.Log("update", $"Download failed: {ex.Message}");
                 onStatus(I18nService.Instance.Get("UpdateError"));
+                TryCleanup(stagingDir);
                 return;
             }
+
+            // The release told us how big the asset is; a file that is not that size is
+            // truncated or is not the file GitHub is serving.
+            var actualSize = new FileInfo(tempPath).Length;
+            if (installer.Size > 0 && actualSize != installer.Size)
+            {
+                AppLogger.Log("update", $"Refusing to run the installer: expected {installer.Size} bytes, got {actualSize}.");
+                onStatus(I18nService.Instance.Get("UpdateError"));
+                TryCleanup(stagingDir);
+                return;
+            }
+
+            LogAuthenticode(tempPath);
 
             AppLogger.Log("update", "Download complete. Launching installer.");
             onStatus(I18nService.Instance.Get("UpdateInstalling"));
@@ -237,7 +310,64 @@ namespace OrbitalSIP.Services
             {
                 AppLogger.Log("update", $"Failed to launch installer: {ex.Message}");
                 onStatus(I18nService.Instance.Get("UpdateError"));
+                TryCleanup(stagingDir);
             }
+        }
+
+        /// <summary>
+        /// Records who signed the installer, or that nobody did.
+        ///
+        /// Deliberately does NOT refuse to run an unsigned build: this project does not
+        /// code-sign its installer today (there is no signtool step in build.ps1 or the
+        /// Inno script), so enforcing a signature would simply break every update. The
+        /// real integrity control here is a signing step in the build pipeline; until
+        /// that exists, this line is what makes its absence visible in the log rather
+        /// than only in a review document.
+        /// </summary>
+        private static void LogAuthenticode(string path)
+        {
+            try
+            {
+                var certificate = System.Security.Cryptography.X509Certificates
+                    .X509Certificate.CreateFromSignedFile(path);
+                AppLogger.Log("update", $"Installer is Authenticode-signed by: {certificate.Subject}");
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("update",
+                    $"Installer carries NO usable Authenticode signature ({ex.GetType().Name}). " +
+                    "Running it anyway — this build is not signed. Add a signing step to the build to fix this properly.");
+            }
+        }
+
+        private const string StagingPrefix = "OrbitalSIP-update-";
+
+        /// <summary>
+        /// Deletes staging directories left by earlier updates. Best effort throughout: one
+        /// still holding a running installer simply refuses to go and is tried again next
+        /// time.
+        /// </summary>
+        private static void SweepOldStagingDirectories(string keep)
+        {
+            try
+            {
+                foreach (var directory in Directory.EnumerateDirectories(Path.GetTempPath(), StagingPrefix + "*"))
+                {
+                    if (string.Equals(directory, keep, StringComparison.OrdinalIgnoreCase)) continue;
+                    try { Directory.Delete(directory, recursive: true); }
+                    catch { /* in use, or not ours to delete */ }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("update", $"Could not sweep old staging directories: {ex.Message}");
+            }
+        }
+
+        private static void TryCleanup(string directory)
+        {
+            try { if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true); }
+            catch (Exception ex) { AppLogger.Log("update", $"Could not clean up '{directory}': {ex.Message}"); }
         }
     }
 }

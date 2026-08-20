@@ -28,7 +28,7 @@ namespace OrbitalSIP.Services
                 var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
                 var backendUrl = settings.BackendUrl?.TrimEnd('/');
 
-                AppLogger.Log("CallInfoService", $"GetCallInfoAsync called. Phone='{phoneNumber}' BackendUrl='{backendUrl}' HasToken={!string.IsNullOrEmpty(settings.AccessToken)}");
+                AppLogger.Log("CallInfoService", $"GetCallInfoAsync called. Phone={Models.LogRedaction.Phone(phoneNumber)} HasBackendUrl={!string.IsNullOrEmpty(backendUrl)} HasToken={!string.IsNullOrEmpty(settings.AccessToken)}");
 
                 if (string.IsNullOrEmpty(backendUrl))
                 {
@@ -43,18 +43,18 @@ namespace OrbitalSIP.Services
                 }
 
                 var url = $"{backendUrl}/api/integrations/call-info/{Uri.EscapeDataString(phoneNumber)}";
-                AppLogger.Log("CallInfoService", $"Requesting: GET {url}");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
 
-                var response = await _httpClient.SendAsync(request);
-                AppLogger.Log("CallInfoService", $"Response status: {(int)response.StatusCode} {response.StatusCode}");
+                using var response = await _httpClient.SendAsync(request);
 
                 if (response.IsSuccessStatusCode)
                 {
+                    // The body is the caller's whole CRM profile. It used to be written to
+                    // app.log verbatim on every answered call, along with the URL that
+                    // carries their number — the single largest source of PII on disk.
                     var rawBody = await response.Content.ReadAsStringAsync();
-                    AppLogger.Log("CallInfoService", $"Raw response body: {rawBody}");
 
                     try
                     {

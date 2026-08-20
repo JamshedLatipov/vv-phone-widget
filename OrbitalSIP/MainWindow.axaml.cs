@@ -1,3 +1,4 @@
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
 using Avalonia.VisualTree;
 using Avalonia;
@@ -57,6 +58,7 @@ namespace OrbitalSIP
             };
             _httpErrorHideTimer.Tick += (_, __) => HideHttpError();
             HttpErrorNotifier.ErrorOccurred += OnHttpErrorOccurred;
+            BackendAuth.SessionExpired += OnSessionExpired;
 
             var workArea = Screens?.Primary?.WorkingArea ?? new PixelRect(0, 0, 1920, 1080);
 
@@ -151,6 +153,7 @@ namespace OrbitalSIP
         {
             Program.DialRequested -= OnProtocolDialRequested;
             HttpErrorNotifier.ErrorOccurred -= OnHttpErrorOccurred;
+            BackendAuth.SessionExpired -= OnSessionExpired;
             _httpErrorHideTimer.Stop();
             base.OnClosed(e);
         }
@@ -158,6 +161,68 @@ namespace OrbitalSIP
         private void OnHttpErrorOccurred(string message)
         {
             Dispatcher.UIThread.Post(() => ShowHttpError(message));
+        }
+
+        /// <summary>
+        /// Set when the session dies mid-call. The login screen has to wait for the call
+        /// to end — replacing the active-call view with it would take the hangup, mute and
+        /// hold buttons away from an operator who is still talking to someone.
+        /// </summary>
+        private bool _sessionExpiredPending;
+
+        /// <summary>
+        /// The session can no longer be renewed: the refresh token is spent, revoked, or
+        /// the account was disabled. Everything behind this window is failing, so put the
+        /// login screen back rather than leave the operator with a banner and no way
+        /// forward short of restarting the app.
+        /// </summary>
+        private void OnSessionExpired() => Dispatcher.UIThread.Post(() =>
+        {
+            ShowHttpError(Services.I18nService.Instance.Get(
+                "SessionExpired", "Сессия истекла. Войдите заново."));
+
+            App.StatusService.StopPolling();
+
+            if (App.SipService.State != CallState.Idle)
+            {
+                _sessionExpiredPending = true;
+                return;
+            }
+
+            ShowLoginAfterSessionExpiry();
+        });
+
+        private void ShowLoginAfterSessionExpiry()
+        {
+            _sessionExpiredPending = false;
+
+            var host = this.FindControl<ContentControl>("Host");
+            if (host?.Content is Views.LoginView) return;
+
+            if (!IsVisible) Show();
+            Activate();
+
+            // A resize animation may still be running — the deferred path gets here from a
+            // call ending, which is exactly when one starts. Its next tick would overwrite
+            // the geometry set below and leave the login screen at widget size.
+            _animTimer?.Stop();
+            _animTimer = null;
+            _animStopwatch = null;
+
+            // Same geometry the constructor uses for a cold start with no credentials.
+            var workArea = Screens?.Primary?.WorkingArea ?? new PixelRect(0, 0, 1920, 1080);
+            var left = workArea.X + (workArea.Width - (int)ExpandedWidth) / 2;
+            var top  = workArea.Y + (workArea.Height - (int)ExpandedHeight) / 2;
+
+            _isExpanded    = true;
+            _preferredMode = PreferredMode.Widget;
+            Position = new PixelPoint(left, top);
+            Width    = ExpandedWidth;
+            Height   = ExpandedHeight;
+            _anchorX = left + (int)ExpandedWidth;
+            _anchorY = top  + (int)ExpandedHeight;
+
+            ShowLogin();
         }
 
         private void ShowHttpError(string message)
@@ -406,13 +471,10 @@ namespace OrbitalSIP
             {
                 var settings = SipSettings.Load();
                 var current = App.SipService.CurrentSettings;
+                // Every session-scoped field, not a hand-maintained subset of them — the
+                // inline list this replaced had already gone stale against RefreshToken.
                 if (!string.IsNullOrEmpty(current.Username))
-                {
-                    settings.Username = current.Username;
-                    settings.Password = current.Password;
-                    settings.AccessToken = current.AccessToken;
-                    settings.DecodedToken = current.DecodedToken;
-                }
+                    settings.CopySessionFrom(current);
 
                 if (isFromLogin) ShowLogin();
                 else
@@ -579,6 +641,14 @@ namespace OrbitalSIP
         // ── SIP state changes ─────────────────────────────────────────
         private void OnCallStateChanged(CallState state)
         {
+            if (state == CallState.Idle && _sessionExpiredPending)
+            {
+                // The session died during the call; the login screen was held back until
+                // the operator was off it.
+                ShowLoginAfterSessionExpiry();
+                return;
+            }
+
             if (state == CallState.Idle && _isExpanded)
             {
                 var host = this.FindControl<ContentControl>("Host");
@@ -689,7 +759,27 @@ namespace OrbitalSIP
             _pendingContent = null;
         }
 
-        private void ShutdownApp() => System.Environment.Exit(0);
+        /// <summary>
+        /// Exits through the lifetime, which is what raises <c>desktop.Exit</c> — the
+        /// only place <see cref="SipService.Dispose"/> runs. The old
+        /// <c>Environment.Exit(0)</c> skipped it entirely, so quitting left the operator
+        /// REGISTERED on the PBX (the PBX kept ringing a client that was gone), an active
+        /// call without its BYE, and the global keyboard hook still installed.
+        ///
+        /// <c>Shutdown()</c>, not <c>TryShutdown()</c>: this window's Closing handler
+        /// cancels the close and hides instead (that is what the tray icon relies on), and
+        /// only the forcing overload closes past it. Same call the tray's Exit item makes.
+        /// </summary>
+        private void ShutdownApp()
+        {
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                desktop.Shutdown();
+                return;
+            }
+
+            System.Environment.Exit(0);
+        }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
     }
