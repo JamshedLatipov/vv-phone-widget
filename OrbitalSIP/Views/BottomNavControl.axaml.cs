@@ -40,15 +40,20 @@ namespace OrbitalSIP.Views
 
             // Show dot if the update is discovered while this control is on screen.
             App.Updater.UpdateAvailable += OnUpdateAvailable;
+
+            // The Dialer tooltip is the one text on this bar that is assigned rather than
+            // bound, so it is the one that does not refresh itself. Settings changes the
+            // language in place, with this bar on screen, so that is not hypothetical.
+            I18nService.Instance.LanguageChanged += OnLanguageChanged;
         }
 
         /// <summary>
-        /// Releases the subscription above. App.Updater lives for the whole process, and
-        /// MainWindow builds a fresh view — and therefore a fresh one of these — on every
-        /// screen change, so without this each navigation pinned an entire control tree to
-        /// a static event for the rest of the shift. That is hundreds over a shift, and the
-        /// active-call panel among them holds the caller's lead, name and number in its own
-        /// fields, which ForgetCachedCall does not reach.
+        /// Releases the two subscriptions above. App.Updater and I18nService.Instance both
+        /// live for the whole process, and MainWindow builds a fresh view — and therefore a
+        /// fresh one of these — on every screen change, so without this each navigation
+        /// pinned an entire control tree to a static event for the rest of the shift. That
+        /// is hundreds over a shift, and the active-call panel among them holds the caller's
+        /// lead, name and number in its own fields, which ForgetCachedCall does not reach.
         ///
         /// The pulse needs no such release: it belongs to a style, and leaving the tree
         /// detaches the styles with everything they are running.
@@ -56,6 +61,7 @@ namespace OrbitalSIP.Views
         protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
         {
             App.Updater.UpdateAvailable -= OnUpdateAvailable;
+            I18nService.Instance.LanguageChanged -= OnLanguageChanged;
             base.OnDetachedFromVisualTree(e);
         }
 
@@ -70,6 +76,8 @@ namespace OrbitalSIP.Views
             base.OnAttachedToVisualTree(e);
             App.Updater.UpdateAvailable -= OnUpdateAvailable;
             App.Updater.UpdateAvailable += OnUpdateAvailable;
+            I18nService.Instance.LanguageChanged -= OnLanguageChanged;
+            I18nService.Instance.LanguageChanged += OnLanguageChanged;
             if (App.Updater.HasUpdate) ShowUpdateDot(true);
         }
 
@@ -77,6 +85,9 @@ namespace OrbitalSIP.Views
         {
             Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => ShowUpdateDot(true));
         }
+
+        /// <summary>Re-renders the one tooltip on this bar that markup cannot keep current.</summary>
+        private void OnLanguageChanged() => RefreshTabVisuals();
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
@@ -105,7 +116,7 @@ namespace OrbitalSIP.Views
                 _activeTab = value;
                 foreach (var (tab, button) in _buttons)
                     button.Classes.Set("active", tab == value);
-                RefreshInCallVisuals();
+                RefreshTabVisuals();
             }
         }
 
@@ -119,7 +130,7 @@ namespace OrbitalSIP.Views
         public void SetInCall(bool inCall)
         {
             _inCall = inCall;
-            RefreshInCallVisuals();
+            RefreshTabVisuals();
         }
 
         /// <summary>
@@ -128,24 +139,31 @@ namespace OrbitalSIP.Views
         /// ran last. The icon in particular used to be left wherever the previous caller
         /// put it, which made leaving login mode depend on the order MainWindow happened
         /// to call them in.
+        ///
+        /// Named for the tab rather than the call because login mode is decided here too;
+        /// nobody would look inside a RefreshInCallVisuals for it.
         /// </summary>
-        private void RefreshInCallVisuals()
+        private void RefreshTabVisuals()
         {
             if (!_buttons.TryGetValue(NavTab.Dialer, out var dialerBtn)) return;
             var icon = this.FindControl<MaterialIcon>("DialerIcon");
 
-            dialerBtn.Classes.Set("in-call", _inCall);
+            // Login mode wins over the call state in all four decisions below, not just on
+            // the icon. A signed-out operator has no call to be taken back to, so a back
+            // arrow tinted call-green, tooltipped as a conversation, or breathing to invite
+            // them into one would each be a lie on its own.
+            var inCall = _inCall && !_loginMode;
+
+            dialerBtn.Classes.Set("in-call", inCall);
             if (icon != null)
-                icon.Kind = _loginMode ? MaterialIconKind.ArrowLeft
-                          : _inCall    ? MaterialIconKind.PhoneInTalk
-                                       : MaterialIconKind.Dialpad;
+                icon.Kind = NavTabIcon.ForDialerTab(_loginMode, _inCall);
 
             // NavInCall, not the InCall the status line uses: that one is an all-caps
             // status label, which reads as a shout in a tooltip. Set here rather than bound
             // in the markup — see the comment on DialerBtn.
-            ToolTip.SetTip(dialerBtn, I18nService.Instance.Get(_inCall ? "NavInCall" : "Dialer"));
+            ToolTip.SetTip(dialerBtn, I18nService.Instance.Get(inCall ? "NavInCall" : "Dialer"));
 
-            SetPulse(dialerBtn, NavPulse.ShouldPulse(_inCall, _activeTab));
+            SetPulse(dialerBtn, NavPulse.ShouldPulse(inCall, _activeTab));
         }
 
         /// <summary>
@@ -180,7 +198,7 @@ namespace OrbitalSIP.Views
             if (_buttons.TryGetValue(NavTab.Recents, out var recents)) recents.IsEnabled = !loginMode;
             if (_buttons.TryGetValue(NavTab.Tasks, out var tasks)) tasks.IsEnabled = !loginMode;
 
-            RefreshInCallVisuals();
+            RefreshTabVisuals();
         }
 
         /// <summary>Shows the count pill on a tab. Zero or less hides it.</summary>
