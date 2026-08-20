@@ -50,6 +50,16 @@ public class TaskItemPresenterTests
         Assert.False(TaskItemPresenter.IsOverdue(Task(due: null), Now));
     }
 
+    /// <summary>
+    /// Older rows can have a null status. NULL is not "done" or "completed", so the
+    /// task is still open — this must not throw, and must not be misread as finished.
+    /// </summary>
+    [Fact]
+    public void TaskWithNullStatusPastItsDueDateIsStillOverdue()
+    {
+        Assert.True(TaskItemPresenter.IsOverdue(Task(status: null, due: Now.AddDays(-1)), Now));
+    }
+
     [Fact]
     public void MissingDeadlineHasNoBucket()
     {
