@@ -28,7 +28,7 @@ namespace OrbitalSIP.Views
             var topBar = this.FindControl<TopBarControl>("TopBar");
             if (topBar != null) { topBar.OnMinimizeRequested += (_, __) => OnCloseRequested?.Invoke(this, EventArgs.Empty); topBar.OnAvatarClicked += (_, __) => OnAvatarClicked?.Invoke(this, EventArgs.Empty); topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, EventArgs.Empty); }
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
-            if (bottomNav != null) if (bottomNav != null) bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
+            if (bottomNav != null) bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
             if (bottomNav != null) bottomNav.OnRecentsRequested += (_, __) => OnRecentsRequested?.Invoke(this, EventArgs.Empty);
             bottomNav?.SetActiveTab("Dialer");
             BindAsync("CopyBtn", CopyDisplayedNumberAsync);

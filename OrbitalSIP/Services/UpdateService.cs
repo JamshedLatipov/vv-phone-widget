@@ -294,6 +294,20 @@ namespace OrbitalSIP.Services
 
             LogAuthenticode(tempPath);
 
+            // Re-checked here, not only before the download. The installer runs with
+            // /CLOSEAPPLICATIONS, so launching it kills the softphone — and the gate at the
+            // top of CheckAndUpdateAsync was minutes and a ~90 MB download ago. An update
+            // started while the operator was idle would otherwise drop a call that began
+            // during the transfer. The download is kept: the staged file is still good, and
+            // the operator can install it once they are off the phone.
+            if (App.SipService.State != CallState.Idle)
+            {
+                AppLogger.Log("update", $"Download finished but State={App.SipService.State}. Not launching the installer.");
+                onStatus(I18nService.Instance.Get("UpdatePostponed"));
+                TryCleanup(stagingDir);
+                return;
+            }
+
             AppLogger.Log("update", "Download complete. Launching installer.");
             onStatus(I18nService.Instance.Get("UpdateInstalling"));
 
