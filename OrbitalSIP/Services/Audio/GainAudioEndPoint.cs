@@ -291,6 +291,29 @@ namespace OrbitalSIP.Services.Audio
             // handles accumulated for the life of the process until waveOutOpen started failing.
             DisposePlaybackDevice();
 
+            int deviceCount = WaveOutDevices.Count;
+            int deviceNumber = audioOutDeviceIndex;
+
+            // WAVE_MAPPER resolves on any machine that owns a playback device at all, so
+            // failing this check means there is nothing left to fall back to.
+            if (!PlaybackDevice.IsUsable(AUDIO_OUTPUTDEVICE_INDEX, deviceCount))
+            {
+                ReportSinkFailure("No audio playback devices are available.");
+                return;
+            }
+
+            if (!PlaybackDevice.IsUsable(deviceNumber, deviceCount))
+            {
+                // The saved index outlived the device it named: a headset unplugged, a dock
+                // detached, a driver renumbering the list. The capture side has always checked
+                // this, while the render side let the stale index reach waveOutOpen and throw.
+                // Detecting it is not enough — falling back is what keeps the operator on a
+                // call they can actually hear.
+                ReportSinkFailure(
+                    $"Playback device index {deviceNumber} is not among the {deviceCount} device(s) present; falling back to the system default.");
+                deviceNumber = AUDIO_OUTPUTDEVICE_INDEX;
+            }
+
             try
             {
                 _waveSinkFormat = new WaveFormat(
@@ -301,7 +324,7 @@ namespace OrbitalSIP.Services.Audio
                 // Playback device. Built locally and only published once Init has actually
                 // opened the device, so a failure cannot leave a half-live render path behind.
                 var waveOut = new WaveOutEvent();
-                waveOut.DeviceNumber = audioOutDeviceIndex;
+                waveOut.DeviceNumber = deviceNumber;
                 var provider = new BufferedWaveProvider(_waveSinkFormat);
                 // NAudio defaults this to 5 seconds. That is the worst case the operator
                 // can end up hearing, since the backlog never drains on its own — active
@@ -334,6 +357,18 @@ namespace OrbitalSIP.Services.Audio
         /// Never throws — it runs on call teardown, where an MmException would take the
         /// teardown with it.
         /// </summary>
+        /// <summary>
+        /// Reports a render-side failure the same way the catch below does. The constructor runs
+        /// before anything can subscribe to <see cref="OnAudioSinkError"/>, so the log line is the
+        /// part that always survives; <see cref="IsPlaybackDeviceOpen"/> is what callers read back.
+        /// </summary>
+        private void ReportSinkFailure(string message)
+        {
+            logger.LogWarning(message);
+            AppLogger.Log("Audio", message);
+            OnAudioSinkError?.Invoke(message);
+        }
+
         private void DisposePlaybackDevice()
         {
             var waveOut = _waveOutEvent;
