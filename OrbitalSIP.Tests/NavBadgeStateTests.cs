@@ -47,17 +47,33 @@ public class NavBadgeStateTests
 
     /// <summary>
     /// Guards the shape of the arithmetic rather than a caller: nothing in this codebase
-    /// sends a negative task count today, but one field going negative should not
-    /// subtract from the other bucket and put a wrong number on the badge.
+    /// sends a negative task count today, but pending going negative should not subtract
+    /// from inProgress and put a wrong number on the badge.
     /// </summary>
     [Fact]
-    public void NegativeTaskCountsClampToZeroInsteadOfSubtracting()
+    public void NegativePendingCountClampsToZeroInsteadOfSubtracting()
     {
         var state = new NavBadgeState();
 
         state.SetTasks(pending: -3, inProgress: 5, overdue: 0);
 
         Assert.Equal(5, state.OpenTasks);
+    }
+
+    /// <summary>
+    /// The other field, clamped independently: pending and inProgress are two separate
+    /// guards in the source, so each needs its own negative case. Review caught this one
+    /// missing by mutating away the inProgress clamp alone and watching the full suite
+    /// stay green.
+    /// </summary>
+    [Fact]
+    public void NegativeInProgressCountClampsToZeroInsteadOfSubtracting()
+    {
+        var state = new NavBadgeState();
+
+        state.SetTasks(pending: 1, inProgress: -5, overdue: 0);
+
+        Assert.Equal(1, state.OpenTasks);
     }
 
     /// <summary>
