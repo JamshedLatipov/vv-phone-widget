@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Net;
 using System.IO;
@@ -711,6 +711,16 @@ namespace OrbitalSIP.Services
         }
 
         // ── Audio helpers ─────────────────────────────────────────────
+
+        /// <summary>Banner for "no speakers", worded the same as the startup probe in AudioDeviceCheck.</summary>
+        private static void NotifySpeakerFailure()
+        {
+            var i18n = I18nService.Instance;
+            HttpErrorNotifier.Notify(
+                i18n.Get("audio.problemHead", "Проблема со звуком")
+                + ": " + i18n.Get("audio.spkFail", "Не удаётся открыть динамики"));
+        }
+
         private bool TryCreateAudio()
         {
             try
@@ -737,6 +747,24 @@ namespace OrbitalSIP.Services
                     Debug.WriteLine($"[SipService] Audio source error: {err}");
                     Log($"Audio source error: {err}");
                 };
+
+                // A render device that fails to open is the one fault nothing else reveals:
+                // RTP keeps arriving, the PBX keeps recording both directions, and the operator
+                // sits through a silent call with no error anywhere. Surface it.
+                _audioEndPoint.OnAudioSinkError += err =>
+                {
+                    Debug.WriteLine($"[SipService] Audio sink error: {err}");
+                    Log($"Audio sink error: {err}");
+                    NotifySpeakerFailure();
+                };
+
+                // The constructor opens playback before anything can subscribe above, so the
+                // failure that matters most — the one at call setup — has to be read back.
+                if (!_audioEndPoint.IsPlaybackDeviceOpen)
+                {
+                    Log("Playback device is not open after audio init — the operator will hear nothing.");
+                    NotifySpeakerFailure();
+                }
 
                 _audioEndPoint.SourceGain = _settings.MicGainPercent / 100f;
                 _audioEndPoint.SinkGain   = _settings.SpeakerGainPercent / 100f;
@@ -873,8 +901,16 @@ namespace OrbitalSIP.Services
             if (endPoint == null && session == null) return;
 
             Log("Cleaning up media resources.");
-            try { endPoint?.CloseAudio(); }    catch (Exception ex) { Log($"CloseAudio threw: {ex.Message}"); }
-            try { session?.Close("ended"); }   catch (Exception ex) { Log($"MediaSession.Close threw: {ex.Message}"); }
+            try { endPoint?.CloseAudio(); }     catch (Exception ex) { Log($"CloseAudio threw: {ex.Message}"); }
+            try { endPoint?.CloseAudioSink(); } catch (Exception ex) { Log($"CloseAudioSink threw: {ex.Message}"); }
+            try { session?.Close("ended"); }    catch (Exception ex) { Log($"MediaSession.Close threw: {ex.Message}"); }
+
+            // Closing is not releasing: WaveOutEvent.Stop issues waveOutReset and leaves the
+            // winmm handle open, only Dispose issues waveOutClose. Without this the handle
+            // from every call stays open for the life of the process, and once waveOutOpen
+            // starts refusing them the operator hears nobody — while RTP keeps arriving and
+            // the PBX keeps recording a perfectly two-sided call.
+            try { endPoint?.Dispose(); }        catch (Exception ex) { Log($"Audio endpoint dispose threw: {ex.Message}"); }
         }
 
         private void SetState(CallState s)

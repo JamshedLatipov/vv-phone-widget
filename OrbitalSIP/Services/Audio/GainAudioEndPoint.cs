@@ -28,7 +28,7 @@ using SIPSorceryMedia.Abstractions;
 
 namespace OrbitalSIP.Services.Audio
 {
-    public class GainAudioEndPoint : IAudioSource, IAudioSink
+    public class GainAudioEndPoint : IAudioSource, IAudioSink, IDisposable
     {
         private const int DEVICE_BITS_PER_SAMPLE = 16;
         private const int DEVICE_CHANNELS = 1;
@@ -50,19 +50,21 @@ namespace OrbitalSIP.Services.Audio
         private WaveFormat _waveSourceFormat;
 
         /// <summary>
-        /// Audio render device.
+        /// Audio render device. Null whenever no device is open — before initialisation, after a
+        /// failed open, and after close/dispose. The render path treats null as "drop the audio".
         /// </summary>
-        private WaveOutEvent _waveOutEvent;
+        private WaveOutEvent? _waveOutEvent;
 
         /// <summary>
-        /// Buffer for audio samples to be rendered.
+        /// Buffer for audio samples to be rendered. Published only alongside a live
+        /// <see cref="_waveOutEvent"/>, so it is never a buffer that nothing drains.
         /// </summary>
-        private BufferedWaveProvider _waveProvider;
+        private BufferedWaveProvider? _waveProvider;
 
         /// <summary>
-        /// Audio capture device.
+        /// Audio capture device. Null whenever no device is open.
         /// </summary>
-        private WaveInEvent _waveInEvent;
+        private WaveInEvent? _waveInEvent;
 
         private IAudioEncoder _audioEncoder;
         private MediaFormatManager<AudioFormat> _audioFormatManager;
@@ -78,6 +80,17 @@ namespace OrbitalSIP.Services.Audio
         protected bool _isAudioSinkPaused;
         protected bool _isAudioSourceClosed;
         protected bool _isAudioSinkClosed;
+
+        /// <summary>Set once <see cref="Dispose"/> has run, so a repeat close is a no-op.</summary>
+        private bool _disposed;
+
+        /// <summary>
+        /// Whether a render device is actually open. The constructor initialises playback before
+        /// any caller can subscribe to <see cref="OnAudioSinkError"/>, so the failure that matters
+        /// most — the one at call setup — is only visible by reading this back afterwards.
+        /// False also while the sink is closed or disposed.
+        /// </summary>
+        public bool IsPlaybackDeviceOpen => _waveOutEvent != null;
 
         /// <summary>Outgoing (mic) gain factor. 1.0 = unity. Written on the UI thread, read on the audio thread; volatile for timely cross-thread visibility (float writes are already atomic).</summary>
         public volatile float SourceGain = 1f;
@@ -251,12 +264,7 @@ namespace OrbitalSIP.Services.Audio
             if (!_isAudioSourceClosed)
             {
                 _isAudioSourceClosed = true;
-
-                if (_waveInEvent != null)
-                {
-                    _waveInEvent.DataAvailable -= LocalAudioSampleAvailable;
-                    _waveInEvent.StopRecording();
-                }
+                DisposeCaptureDevice();
             }
 
             return Task.CompletedTask;
@@ -278,30 +286,94 @@ namespace OrbitalSIP.Services.Audio
 
         private void InitPlaybackDevice(int audioOutDeviceIndex, int audioSinkSampleRate)
         {
+            // Stop() only issues waveOutReset — the winmm handle stays open until Dispose().
+            // Every re-init used to stack a fresh WaveOutEvent on top of the old one, so the
+            // handles accumulated for the life of the process until waveOutOpen started failing.
+            DisposePlaybackDevice();
+
             try
             {
-                _waveOutEvent?.Stop();
-
                 _waveSinkFormat = new WaveFormat(
                     audioSinkSampleRate,
                     DEVICE_BITS_PER_SAMPLE,
                     DEVICE_CHANNELS);
 
-                // Playback device.
-                _waveOutEvent = new WaveOutEvent();
-                _waveOutEvent.DeviceNumber = audioOutDeviceIndex;
-                _waveProvider = new BufferedWaveProvider(_waveSinkFormat);
+                // Playback device. Built locally and only published once Init has actually
+                // opened the device, so a failure cannot leave a half-live render path behind.
+                var waveOut = new WaveOutEvent();
+                waveOut.DeviceNumber = audioOutDeviceIndex;
+                var provider = new BufferedWaveProvider(_waveSinkFormat);
                 // NAudio defaults this to 5 seconds. That is the worst case the operator
                 // can end up hearing, since the backlog never drains on its own — active
                 // trimming keeps it near the target and this is only the backstop.
-                _waveProvider.BufferDuration = PlaybackBufferCeiling;
-                _waveProvider.DiscardOnBufferOverflow = true;
-                _waveOutEvent.Init(_waveProvider);
+                provider.BufferDuration = PlaybackBufferCeiling;
+                provider.DiscardOnBufferOverflow = true;
+                waveOut.Init(provider);
+
+                _waveOutEvent = waveOut;
+                lock (_renderLock) { _waveProvider = provider; }
             }
             catch (Exception excp)
             {
+                // Publish nothing. A provider that no device drains swallows the entire call
+                // in silence: RTP keeps arriving, the trim keeps discarding it, the PBX keeps
+                // recording a perfectly two-sided call, and the operator hears nothing.
+                DisposePlaybackDevice();
+
                 logger.LogWarning(0, excp, "WindowsAudioEndPoint failed to initialise playback device.");
+                AppLogger.Log("Audio",
+                    $"Playback device failed to open (index {audioOutDeviceIndex}, "
+                  + $"{audioSinkSampleRate} Hz): {excp.GetType().Name} — {excp.Message}");
                 OnAudioSinkError?.Invoke($"WindowsAudioEndPoint failed to initialise playback device. {excp.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Releases the render device. Stopping is not releasing: <see cref="WaveOutEvent.Stop"/>
+        /// issues waveOutReset and leaves the handle open, only Dispose issues waveOutClose.
+        /// Never throws — it runs on call teardown, where an MmException would take the
+        /// teardown with it.
+        /// </summary>
+        private void DisposePlaybackDevice()
+        {
+            var waveOut = _waveOutEvent;
+            _waveOutEvent = null;
+            lock (_renderLock) { _waveProvider = null; }
+
+            if (waveOut == null) return;
+
+            try { waveOut.Dispose(); }
+            catch (Exception ex)
+            {
+                AppLogger.Log("Audio", $"Playback device dispose threw: {ex.GetType().Name} — {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Releases the capture device. Same handle-lifetime rule as the render side:
+        /// StopRecording issues waveInReset, only Dispose issues waveInClose. Never throws.
+        /// </summary>
+        private void DisposeCaptureDevice()
+        {
+            var waveIn = _waveInEvent;
+            _waveInEvent = null;
+
+            if (waveIn == null) return;
+
+            try
+            {
+                waveIn.DataAvailable -= LocalAudioSampleAvailable;
+                waveIn.StopRecording();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("Audio", $"Capture device stop threw: {ex.GetType().Name} — {ex.Message}");
+            }
+
+            try { waveIn.Dispose(); }
+            catch (Exception ex)
+            {
+                AppLogger.Log("Audio", $"Capture device dispose threw: {ex.GetType().Name} — {ex.Message}");
             }
         }
 
@@ -311,11 +383,7 @@ namespace OrbitalSIP.Services.Audio
             {
                 if (WaveInEvent.DeviceCount > audioInDeviceIndex)
                 {
-                    if (_waveInEvent != null)
-                    {
-                        _waveInEvent.DataAvailable -= LocalAudioSampleAvailable;
-                        _waveInEvent.StopRecording();
-                    }
+                    DisposeCaptureDevice();
 
                     _waveSourceFormat = new WaveFormat(
                            audioSourceSampleRate,
@@ -517,11 +585,29 @@ namespace OrbitalSIP.Services.Audio
             if (!_isAudioSinkClosed)
             {
                 _isAudioSinkClosed = true;
-
-                _waveOutEvent?.Stop();
+                DisposePlaybackDevice();
             }
 
             return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Releases both winmm devices. This is the only thing that closes them: NAudio's
+        /// Stop/StopRecording reset the stream but keep the handle open, so a widget left
+        /// running for a shift leaked one capture and one render handle per call. Once the
+        /// driver ran out, waveOutOpen failed and the next call opened no speaker at all —
+        /// while the PBX went on recording a healthy two-sided conversation.
+        /// </summary>
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            _isAudioSourceClosed = true;
+            _isAudioSinkClosed = true;
+
+            DisposeCaptureDevice();
+            DisposePlaybackDevice();
         }
     }
 }
