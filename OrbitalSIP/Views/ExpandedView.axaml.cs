@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
@@ -28,7 +28,7 @@ namespace OrbitalSIP.Views
             var topBar = this.FindControl<TopBarControl>("TopBar");
             if (topBar != null) { topBar.OnMinimizeRequested += (_, __) => OnCloseRequested?.Invoke(this, EventArgs.Empty); topBar.OnAvatarClicked += (_, __) => OnAvatarClicked?.Invoke(this, EventArgs.Empty); topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, EventArgs.Empty); }
             var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
-            if (bottomNav != null) if (bottomNav != null) bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
+            if (bottomNav != null) bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
             if (bottomNav != null) bottomNav.OnRecentsRequested += (_, __) => OnRecentsRequested?.Invoke(this, EventArgs.Empty);
             bottomNav?.SetActiveTab("Dialer");
             BindAsync("CopyBtn", CopyDisplayedNumberAsync);
@@ -131,19 +131,7 @@ namespace OrbitalSIP.Views
 
             await topLevel.Clipboard.SetTextAsync(text);
 
-            var button = this.FindControl<Button>("CopyBtn");
-            if (button == null)
-            {
-                return;
-            }
-
-            if (button.Content is MaterialIcon icon)
-            {
-                var originalKind = icon.Kind;
-                icon.Kind = MaterialIconKind.Check;
-                await Task.Delay(1200);
-                icon.Kind = originalKind;
-            }
+            await IconFlash.ConfirmAsync(this.FindControl<Button>("CopyBtn")?.Content);
         }
 
         // ── Events ────────────────────────────────────────────────────

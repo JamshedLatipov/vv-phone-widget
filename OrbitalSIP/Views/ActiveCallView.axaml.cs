@@ -86,7 +86,13 @@ namespace OrbitalSIP.Views
         {
         }
 
-        public ActiveCallView(string callerId, bool isOutgoing = false, TimeSpan? initialElapsed = null)
+        /// <param name="isMuted">Current microphone state, so a panel rebuilt mid-call does
+        /// not start from its own field defaults. The mini widget has always been given
+        /// these; this panel was not, and its Hold button ended up showing the opposite of
+        /// the call for the rest of the conversation.</param>
+        /// <param name="isOnHold">Current hold state, same reason.</param>
+        public ActiveCallView(string callerId, bool isOutgoing = false, TimeSpan? initialElapsed = null,
+                              bool isMuted = false, bool isOnHold = false)
         {
             _callIdentity = callerId;
             InitializeComponent();
@@ -100,7 +106,10 @@ namespace OrbitalSIP.Views
 
             WireButtons();
             _initialElapsed = initialElapsed ?? TimeSpan.Zero;
-            SetStatus(App.SipService.IsOnHold);
+            _muted  = isMuted;
+            _onHold = isOnHold;
+            UpdateMuteUI();
+            SetStatus(_onHold);
             UpdateTimeUI();
             StartTimer();
 
@@ -206,8 +215,16 @@ namespace OrbitalSIP.Views
                 secondsLabel.Text = seconds.ToString("00");
         }
 
+        /// <summary>
+        /// Paints the hold state. Also the resync point: MainWindow calls this on every
+        /// Active/OnHold transition, so the Hold button follows the call even if the two
+        /// ever drift apart again.
+        /// </summary>
         public void SetStatus(bool isOnHold)
         {
+            _onHold = isOnHold;
+            UpdateHoldUI();
+
             var label = this.FindControl<TextBlock>("StatusLabel");
             var dot = this.FindControl<Ellipse>("StatusDot");
             if (label != null) label.Text = isOnHold ? Services.I18nService.Instance.Get("OnHold") : Services.I18nService.Instance.Get("InCall");
@@ -341,36 +358,31 @@ namespace OrbitalSIP.Views
 
             await topLevel.Clipboard.SetTextAsync(caller);
 
-            var copyButton = this.FindControl<Button>("CopyCallerBtn");
-            if (copyButton == null)
-            {
-                return;
-            }
-
-            if (copyButton.Content is MaterialIcon icon)
-            {
-                var originalKind = icon.Kind;
-                icon.Kind = Material.Icons.MaterialIconKind.Check;
-                await Task.Delay(1200);
-                icon.Kind = originalKind;
-            }
+            await IconFlash.ConfirmAsync(this.FindControl<Button>("CopyCallerBtn")?.Content);
         }
 
         private void ToggleMute()
         {
             _muted = !_muted;
+            UpdateMuteUI();
             OnMuteToggled?.Invoke(this, _muted);
+        }
 
+        /// <summary>Paints the microphone button from <see cref="_muted"/>.</summary>
+        private void UpdateMuteUI()
+        {
             var icon  = this.FindControl<MaterialIcon>("MuteIcon");
             var label = this.FindControl<TextBlock>("MuteLabel");
             var btn   = this.FindControl<Button>("MuteBtn");
+            var i18n  = Services.I18nService.Instance;
 
             if (icon  != null)
             {
                 icon.Foreground = new SolidColorBrush(_muted ? Color.Parse("#FFFFFF") : Color.Parse("#DDE7F3"));
                 icon.Kind = _muted ? MaterialIconKind.MicrophoneOff : MaterialIconKind.Microphone;
             }
-            if (label != null) label.Text  = _muted ? "Unmute" : "Mute";
+            // Was hardcoded English in an otherwise translated interface.
+            if (label != null) label.Text  = _muted ? i18n.Get("Unmute") : i18n.Get("Mute");
             if (btn   != null) btn.Background = new SolidColorBrush(_muted ? Color.Parse("#B91C1C") : Color.Parse("#1A2D42"));
         }
 
@@ -967,14 +979,22 @@ namespace OrbitalSIP.Views
             var taskBtn = this.FindControl<Button>("TaskBtn");
             if (taskBtn != null) taskBtn.IsEnabled = false;
 
-            bool success = await App.TaskService.CreateTaskAsync(request);
-            AppLogger.Log("CreateTask", $"Request success: {success}");
-
-            if (taskBtn != null)
+            // try/finally for the same reason CreateLeadAsync has one: the button is
+            // disabled across an await, this runs fire-and-forget from the task window's
+            // callback, and a throw would leave «Задача» dead for the rest of the call with
+            // the exception disappearing into UnobservedTaskException.
+            bool success;
+            try
             {
-                taskBtn.IsEnabled = true;
-                if (success) await FlashTaskCreated(taskBtn);
+                success = await App.TaskService.CreateTaskAsync(request);
+                AppLogger.Log("CreateTask", $"Request success: {success}");
             }
+            finally
+            {
+                if (taskBtn != null) taskBtn.IsEnabled = true;
+            }
+
+            if (success && taskBtn != null) await FlashTaskCreated(taskBtn);
         }
 
         private async Task ShowSmsComposeDialog()
@@ -1072,23 +1092,7 @@ namespace OrbitalSIP.Views
         }
 
         /// <summary>Briefly swaps the task-button icon to a checkmark to confirm creation.</summary>
-        private static async Task FlashTaskCreated(Button taskBtn)
-        {
-            if (taskBtn.Content is StackPanel panel)
-            {
-                foreach (var child in panel.Children)
-                {
-                    if (child is MaterialIcon icon)
-                    {
-                        var original = icon.Kind;
-                        icon.Kind = MaterialIconKind.Check;
-                        await Task.Delay(1200);
-                        icon.Kind = original;
-                        break;
-                    }
-                }
-            }
-        }
+        private static Task FlashTaskCreated(Button taskBtn) => IconFlash.ConfirmAsync(taskBtn.Content);
 
         private void ShowScriptsDialog()
         {
@@ -1112,8 +1116,13 @@ namespace OrbitalSIP.Views
         private void ToggleHold()
         {
             _onHold = !_onHold;
+            UpdateHoldUI();
             OnHoldToggled?.Invoke(this, _onHold);
+        }
 
+        /// <summary>Paints the hold button from <see cref="_onHold"/>.</summary>
+        private void UpdateHoldUI()
+        {
             var label = this.FindControl<TextBlock>("HoldLabel");
             var btn   = this.FindControl<Button>("HoldBtn");
 

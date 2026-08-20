@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Markup.Xaml;
@@ -217,7 +217,7 @@ namespace OrbitalSIP.Views
                 var left = svc.BreakEndTime.Value - DateTime.Now;
                 if (left.TotalSeconds > 0)
                 {
-                    text.Text = $"{label}: {left.Minutes:D2}:{left.Seconds:D2}";
+                    text.Text = $"{label}: {BreakCountdown.Format(left)}";
                     return;
                 }
             }

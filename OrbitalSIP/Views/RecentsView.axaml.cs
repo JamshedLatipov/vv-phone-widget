@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
@@ -91,8 +91,9 @@ namespace OrbitalSIP.Views
                 if (string.IsNullOrEmpty(operatorId) || string.IsNullOrEmpty(backendUrl))
                     return;
 
-                var startOfToday = DateTime.UtcNow.Date.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
-                var endOfToday = DateTime.UtcNow.Date.AddDays(1).AddTicks(-1).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+                // The operator's local day, expressed as UTC instants — not the UTC day.
+                // See CallHistoryWindow for what the UTC day cost the night shift.
+                var (startOfToday, endOfToday) = CallHistoryWindow.ForLocalDay(DateTimeOffset.Now);
 
                 var url = $"{backendUrl}/api/cdr?page=1&limit=20&fromDate={startOfToday}&toDate={endOfToday}&operatorId={Uri.EscapeDataString(operatorId)}";
 

@@ -1,4 +1,4 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia;
 using Avalonia.Threading;
@@ -45,6 +45,22 @@ namespace OrbitalSIP.Views
         {
             base.OnDetachedFromVisualTree(e);
             _timer?.Stop();
+        }
+
+        /// <summary>
+        /// Restarts the refresh the detach above stops.
+        ///
+        /// This control lives in ExpandedView, and ExpandedView always reaches the screen
+        /// through MainWindow's StartAnimation: parented into OverlayHost, then moved to
+        /// Host — a detach/attach pair. So the animation that puts the panel in front of the
+        /// operator was also what stopped its two-minute refresh, about 280 ms in, and the
+        /// numbers then sat frozen for as long as the panel stayed open. Same asymmetry the
+        /// call views already fixed.
+        /// </summary>
+        protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            base.OnAttachedToVisualTree(e);
+            _timer?.Start();
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);

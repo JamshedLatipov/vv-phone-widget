@@ -55,12 +55,12 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.0.0" />
     <PackageReference Include="Material.Icons.Avalonia" Version="2.1.0" />
     <PackageReference Include="Sentry" Version="5.7.0" />
-    <PackageReference Include="SIPSorcery" Version="10.0.13" />
+    <PackageReference Include="SIPSorcery" Version="10.0.16" />
 
     <!-- SIPSorceryMedia.Abstractions is where IAudioEncoder / MediaEndPoints /
          AudioFormat live; GainAudioEndPoint implements those interfaces directly,
          so pin it explicitly instead of inheriting whatever SIPSorcery resolves. -->
-    <PackageReference Include="SIPSorceryMedia.Abstractions" Version="10.0.13" />
+    <PackageReference Include="SIPSorceryMedia.Abstractions" Version="10.0.16" />
 
     <!-- SIPSorceryMedia.Windows is deliberately absent: its only type this app could
          use is WindowsAudioEndPoint, which GainAudioEndPoint already replaces, and

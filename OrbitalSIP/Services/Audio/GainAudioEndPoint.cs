@@ -46,8 +46,11 @@ namespace OrbitalSIP.Services.Audio
 
         private ILogger logger = SIPSorcery.LogFactory.CreateLogger<GainAudioEndPoint>();
 
-        private WaveFormat _waveSinkFormat;
-        private WaveFormat _waveSourceFormat;
+        /// <summary>Format the render device is currently open at. Null until a device opens.</summary>
+        private WaveFormat? _waveSinkFormat;
+
+        /// <summary>Format the capture device is currently open at. Null until a device opens.</summary>
+        private WaveFormat? _waveSourceFormat;
 
         /// <summary>
         /// Audio render device. Null whenever no device is open — before initialisation, after a
@@ -207,10 +210,11 @@ namespace OrbitalSIP.Services.Audio
 
             if (!_disableSource)
             {
-                if (_waveSourceFormat.SampleRate != _audioFormatManager.SelectedFormat.ClockRate)
+                if (_waveSourceFormat == null ||
+                    _waveSourceFormat.SampleRate != _audioFormatManager.SelectedFormat.ClockRate)
                 {
                     // Reinitialise the audio capture device.
-                    logger.LogDebug($"Windows audio end point adjusting capture rate from {_waveSourceFormat.SampleRate} to {_audioFormatManager.SelectedFormat.ClockRate}.");
+                    logger.LogDebug($"Windows audio end point adjusting capture rate from {_waveSourceFormat?.SampleRate.ToString() ?? "<none>"} to {_audioFormatManager.SelectedFormat.ClockRate}.");
 
                     InitCaptureDevice(_audioInDeviceIndex, _audioFormatManager.SelectedFormat.ClockRate);
                 }
@@ -223,10 +227,11 @@ namespace OrbitalSIP.Services.Audio
 
             if (!_disableSink)
             {
-                if (_waveSinkFormat.SampleRate != _audioFormatManager.SelectedFormat.ClockRate)
+                if (_waveSinkFormat == null ||
+                    _waveSinkFormat.SampleRate != _audioFormatManager.SelectedFormat.ClockRate)
                 {
                     // Reinitialise the audio output device.
-                    logger.LogDebug($"Windows audio end point adjusting playback rate from {_waveSinkFormat.SampleRate} to {_audioFormatManager.SelectedFormat.ClockRate}.");
+                    logger.LogDebug($"Windows audio end point adjusting playback rate from {_waveSinkFormat?.SampleRate.ToString() ?? "<none>"} to {_audioFormatManager.SelectedFormat.ClockRate}.");
 
                     InitPlaybackDevice(_audioOutDeviceIndex, _audioFormatManager.SelectedFormat.ClockRate);
                 }
@@ -286,69 +291,93 @@ namespace OrbitalSIP.Services.Audio
 
         private void InitPlaybackDevice(int audioOutDeviceIndex, int audioSinkSampleRate)
         {
-            // Stop() only issues waveOutReset — the winmm handle stays open until Dispose().
-            // Every re-init used to stack a fresh WaveOutEvent on top of the old one, so the
-            // handles accumulated for the life of the process until waveOutOpen started failing.
-            DisposePlaybackDevice();
+            // Failure messages are collected inside the lock and raised outside it: they run
+            // straight into UI code through OnAudioSinkError, and that must never happen
+            // while the render path is held.
+            string? failure = null;
 
-            int deviceCount = WaveOutDevices.Count;
-            int deviceNumber = audioOutDeviceIndex;
-
-            // WAVE_MAPPER resolves on any machine that owns a playback device at all, so
-            // failing this check means there is nothing left to fall back to.
-            if (!PlaybackDevice.IsUsable(AUDIO_OUTPUTDEVICE_INDEX, deviceCount))
+            // The whole swap is one critical section. _waveOutEvent and _waveProvider used to
+            // be published by two separate writes, so two overlapping inits — SDP negotiation
+            // on the SIP thread and a format change from GotEncodedMediaFrame on the RTP
+            // thread — could leave the device from one paired with the buffer from the other.
+            // Nothing then drains the buffer being filled: the operator hears silence for the
+            // whole call while the device is open and the PBX records both sides.
+            lock (_renderLock)
             {
-                ReportSinkFailure("No audio playback devices are available.");
-                return;
+                // A late RTP frame after teardown must not open a device nothing will ever
+                // close. Dispose is one-shot, so a resurrected WaveOutEvent leaks for good.
+                if (_disposed || _isAudioSinkClosed) return;
+
+                // Stop() only issues waveOutReset — the winmm handle stays open until Dispose().
+                // Every re-init used to stack a fresh WaveOutEvent on top of the old one, so the
+                // handles accumulated for the life of the process until waveOutOpen started failing.
+                DisposePlaybackDeviceLocked();
+
+                int deviceCount = WaveOutDevices.Count;
+                int deviceNumber = audioOutDeviceIndex;
+
+                // WAVE_MAPPER resolves on any machine that owns a playback device at all, so
+                // failing this check means there is nothing left to fall back to.
+                if (!PlaybackDevice.IsUsable(AUDIO_OUTPUTDEVICE_INDEX, deviceCount))
+                {
+                    failure = "No audio playback devices are available.";
+                }
+                else
+                {
+                    if (!PlaybackDevice.IsUsable(deviceNumber, deviceCount))
+                    {
+                        // The saved index outlived the device it named: a headset unplugged, a dock
+                        // detached, a driver renumbering the list. The capture side has always checked
+                        // this, while the render side let the stale index reach waveOutOpen and throw.
+                        // Detecting it is not enough — falling back is what keeps the operator on a
+                        // call they can actually hear.
+                        failure =
+                            $"Playback device index {deviceNumber} is not among the {deviceCount} device(s) present; falling back to the system default.";
+                        deviceNumber = AUDIO_OUTPUTDEVICE_INDEX;
+                    }
+
+                    try
+                    {
+                        var sinkFormat = new WaveFormat(
+                            audioSinkSampleRate,
+                            DEVICE_BITS_PER_SAMPLE,
+                            DEVICE_CHANNELS);
+
+                        // Playback device. Built locally and only published once Init has actually
+                        // opened the device, so a failure cannot leave a half-live render path behind.
+                        var waveOut = new WaveOutEvent();
+                        waveOut.DeviceNumber = deviceNumber;
+                        var provider = new BufferedWaveProvider(sinkFormat);
+                        // NAudio defaults this to 5 seconds. That is the worst case the operator
+                        // can end up hearing, since the backlog never drains on its own — active
+                        // trimming keeps it near the target and this is only the backstop.
+                        provider.BufferDuration = PlaybackBufferCeiling;
+                        provider.DiscardOnBufferOverflow = true;
+                        waveOut.Init(provider);
+
+                        // The device, its buffer and the format it was opened at become visible
+                        // together or not at all.
+                        _waveSinkFormat = sinkFormat;
+                        _waveOutEvent   = waveOut;
+                        _waveProvider   = provider;
+                    }
+                    catch (Exception excp)
+                    {
+                        // Publish nothing. A provider that no device drains swallows the entire call
+                        // in silence: RTP keeps arriving, the trim keeps discarding it, the PBX keeps
+                        // recording a perfectly two-sided call, and the operator hears nothing.
+                        DisposePlaybackDeviceLocked();
+
+                        logger.LogWarning(0, excp, "WindowsAudioEndPoint failed to initialise playback device.");
+                        AppLogger.Log("Audio",
+                            $"Playback device failed to open (index {audioOutDeviceIndex}, "
+                          + $"{audioSinkSampleRate} Hz): {excp.GetType().Name} — {excp.Message}");
+                        failure = $"WindowsAudioEndPoint failed to initialise playback device. {excp.Message}";
+                    }
+                }
             }
 
-            if (!PlaybackDevice.IsUsable(deviceNumber, deviceCount))
-            {
-                // The saved index outlived the device it named: a headset unplugged, a dock
-                // detached, a driver renumbering the list. The capture side has always checked
-                // this, while the render side let the stale index reach waveOutOpen and throw.
-                // Detecting it is not enough — falling back is what keeps the operator on a
-                // call they can actually hear.
-                ReportSinkFailure(
-                    $"Playback device index {deviceNumber} is not among the {deviceCount} device(s) present; falling back to the system default.");
-                deviceNumber = AUDIO_OUTPUTDEVICE_INDEX;
-            }
-
-            try
-            {
-                _waveSinkFormat = new WaveFormat(
-                    audioSinkSampleRate,
-                    DEVICE_BITS_PER_SAMPLE,
-                    DEVICE_CHANNELS);
-
-                // Playback device. Built locally and only published once Init has actually
-                // opened the device, so a failure cannot leave a half-live render path behind.
-                var waveOut = new WaveOutEvent();
-                waveOut.DeviceNumber = deviceNumber;
-                var provider = new BufferedWaveProvider(_waveSinkFormat);
-                // NAudio defaults this to 5 seconds. That is the worst case the operator
-                // can end up hearing, since the backlog never drains on its own — active
-                // trimming keeps it near the target and this is only the backstop.
-                provider.BufferDuration = PlaybackBufferCeiling;
-                provider.DiscardOnBufferOverflow = true;
-                waveOut.Init(provider);
-
-                _waveOutEvent = waveOut;
-                lock (_renderLock) { _waveProvider = provider; }
-            }
-            catch (Exception excp)
-            {
-                // Publish nothing. A provider that no device drains swallows the entire call
-                // in silence: RTP keeps arriving, the trim keeps discarding it, the PBX keeps
-                // recording a perfectly two-sided call, and the operator hears nothing.
-                DisposePlaybackDevice();
-
-                logger.LogWarning(0, excp, "WindowsAudioEndPoint failed to initialise playback device.");
-                AppLogger.Log("Audio",
-                    $"Playback device failed to open (index {audioOutDeviceIndex}, "
-                  + $"{audioSinkSampleRate} Hz): {excp.GetType().Name} — {excp.Message}");
-                OnAudioSinkError?.Invoke($"WindowsAudioEndPoint failed to initialise playback device. {excp.Message}");
-            }
+            if (failure != null) ReportSinkFailure(failure);
         }
 
         /// <summary>
@@ -371,9 +400,16 @@ namespace OrbitalSIP.Services.Audio
 
         private void DisposePlaybackDevice()
         {
+            lock (_renderLock) { DisposePlaybackDeviceLocked(); }
+        }
+
+        /// <summary>Caller holds <see cref="_renderLock"/>.</summary>
+        private void DisposePlaybackDeviceLocked()
+        {
             var waveOut = _waveOutEvent;
-            _waveOutEvent = null;
-            lock (_renderLock) { _waveProvider = null; }
+            _waveOutEvent   = null;
+            _waveProvider   = null;
+            _waveSinkFormat = null;
 
             if (waveOut == null) return;
 

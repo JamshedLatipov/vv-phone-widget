@@ -1,4 +1,4 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Markup.Xaml;
 using System;
@@ -25,6 +25,34 @@ namespace OrbitalSIP.Views
 
             // Show dot if the update is discovered while this control is on screen.
             App.Updater.UpdateAvailable += OnUpdateAvailable;
+        }
+
+        /// <summary>
+        /// Releases the subscription above. App.Updater lives for the whole process, and
+        /// MainWindow builds a fresh view — and therefore a fresh one of these — on every
+        /// screen change, so without this each navigation pinned an entire control tree to
+        /// a static event for the rest of the shift. That is hundreds over a shift, and the
+        /// active-call panel among them holds the caller's lead, name and number in its own
+        /// fields, which ForgetCachedCall does not reach.
+        /// </summary>
+        protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            App.Updater.UpdateAvailable -= OnUpdateAvailable;
+            base.OnDetachedFromVisualTree(e);
+        }
+
+        /// <summary>
+        /// The animated screen swap parents a view into OverlayHost and then moves it to
+        /// Host — a detach/attach pair — so the detach above is not always the end of this
+        /// control's life. Re-subscribe, and keep it idempotent: -= on an absent handler is
+        /// a no-op, but += twice would fire twice.
+        /// </summary>
+        protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            base.OnAttachedToVisualTree(e);
+            App.Updater.UpdateAvailable -= OnUpdateAvailable;
+            App.Updater.UpdateAvailable += OnUpdateAvailable;
+            if (App.Updater.HasUpdate) ShowUpdateDot(true);
         }
 
         private void OnUpdateAvailable()

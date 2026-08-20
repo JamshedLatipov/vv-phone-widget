@@ -353,21 +353,20 @@ namespace OrbitalSIP.Services
             {
                 Log($"Incoming BYE from {remoteEP}. Request-URI={req.URI}");
 
-                // A BYE used to end the call unconditionally, whoever it was for. On UDP
-                // that is trivially spoofable, and a retransmitted BYE from a call that
-                // already ended would tear down the NEXT one. Only a BYE that names the
-                // dialog we are actually on may end it; anything else gets the 481 the
-                // RFC asks for and leaves the live call alone.
+                // Only a BYE naming an ESTABLISHED dialog may end the call; everything else
+                // gets the 481 the RFC asks for. Note this deliberately rejects during the
+                // ringing window too, where Dialogue is still null — see ByeAuthorization
+                // for why "no dialog yet" used to mean "accept anything".
                 SIPUserAgent? activeUa;
                 lock (_lock) { activeUa = _activeCall; }
 
                 var byeCallId    = req.Header?.CallId;
                 var activeCallId = activeUa?.Dialogue?.CallId;
 
-                if (activeCallId != null && byeCallId != null &&
-                    !string.Equals(activeCallId, byeCallId, StringComparison.Ordinal))
+                if (Models.ByeAuthorization.Classify(activeCallId, byeCallId)
+                    == Models.ByeDisposition.RejectUnknownDialog)
                 {
-                    Log($"Ignoring BYE for an unknown dialog. Call-ID={byeCallId}; active={activeCallId}.");
+                    Log($"Ignoring BYE for an unknown dialog. Call-ID={byeCallId}; established={activeCallId ?? "<none>"}.");
                     return _transport != null
                         ? _transport.SendResponseAsync(SIPResponse.GetResponse(
                             req, SIPResponseStatusCodesEnum.CallLegTransactionDoesNotExist, null))
@@ -385,19 +384,65 @@ namespace OrbitalSIP.Services
                 return Task.CompletedTask;
             }
 
-            if (req.Method == SIPMethodsEnum.INVITE && State == CallState.Idle)
+            if (req.Method == SIPMethodsEnum.INVITE)
             {
+                // Claim Idle -> IncomingRinging inside the lock, the same way CallAsync
+                // claims Idle -> Ringing. Testing State here and assigning it a dozen lines
+                // later left the reverse race wide open: this handler read Idle, CallAsync
+                // claimed Ringing, and this handler then overwrote _activeCall with the
+                // incoming agent — stranding the outbound leg mid-Call(), where Hangup()
+                // could no longer reach it and the call hung until its own timeout.
+                //
+                // Busy still gets no response from here, exactly as before: a re-INVITE for
+                // the dialog we are already on (far-end hold) also arrives on this event,
+                // and answering it ourselves would break hold. It belongs to SIPSorcery's
+                // own agent for that dialog.
+                lock (_lock)
+                {
+                    if (_state != CallState.Idle || _transport == null) return Task.CompletedTask;
+                    _state = CallState.IncomingRinging;
+                }
+
                 Log($"Incoming INVITE from {remoteEP}. From={req.Header.From?.FromURI}");
                 TryMangleInviteRequest(remoteEP, req);
-                var ua  = new SIPUserAgent(_transport!, null);
-                var uas = ua.AcceptCall(req);   // sends 100 Trying
+
+                SIPUserAgent       ua;
+                SIPServerUserAgent uas;
+                try
+                {
+                    ua  = new SIPUserAgent(_transport!, null);
+                    uas = ua.AcceptCall(req);   // sends 100 Trying
+                }
+                catch (Exception ex)
+                {
+                    // The claim above has to be handed back, or the widget sits in
+                    // IncomingRinging with no leg behind it and refuses every later call
+                    // for the rest of the session.
+                    Log($"Accepting the incoming INVITE threw: {ex}");
+                    lock (_lock) { _state = CallState.Idle; }
+                    return Task.CompletedTask;
+                }
                 ua.ServerCallCancelled += (_, cancelReq) =>
                 {
                     try
                     {
                         Log($"Incoming call cancelled by remote: {cancelReq?.StatusLine}");
-                        lock (_lock) { _pendingUas = null; _activeCall = null; }
-                        SetState(CallState.Idle);
+
+                        // Through OnCallEnded, not an inline Idle write. This was the ONE
+                        // path to Idle in this class that never reached CleanupMedia: if the
+                        // operator had already pressed Answer, TryCreateAudio had built the
+                        // audio endpoint and the media session, and a CANCEL landing in that
+                        // window (a queue caller giving up exactly as the operator picks up)
+                        // leaked one winmm capture handle and one render handle for the life
+                        // of the process. Enough of those and waveOutOpen starts refusing —
+                        // the operator hears nothing while the PBX records a healthy
+                        // two-sided call.
+                        //
+                        // _pendingUas is cleared first so OnCallEnded finds nothing to
+                        // reject: the CANCEL has already terminated that INVITE transaction,
+                        // and TryRejectPending would be a second final response to it.
+                        lock (_lock) { _pendingUas = null; }
+                        OnCallEnded();
                     }
                     catch (Exception ex) { Log($"ServerCallCancelled handler threw: {ex}"); }
                 };
@@ -411,14 +456,31 @@ namespace OrbitalSIP.Services
                     catch (Exception ex) { Log($"OnCallHungup(incoming) handler threw: {ex}"); }
                 };
 
+                // The remote can CANCEL between AcceptCall above and this point, and that
+                // handler claims Idle. Publishing the legs and announcing IncomingRinging
+                // over it would put a call on the operator's screen that no longer exists —
+                // answerable, with a dead agent behind it. SetState wrote _state
+                // unconditionally, so it would have overwritten the Idle that CANCEL just
+                // claimed; announce only while the claim we made is still ours.
+                bool stillRinging;
                 lock (_lock)
                 {
-                    _activeCall = ua;
-                    _pendingUas = uas;
-                    ActiveCallerId = req.Header.From?.FromURI?.User ?? "Unknown";
+                    stillRinging = _state == CallState.IncomingRinging;
+                    if (stillRinging)
+                    {
+                        _activeCall = ua;
+                        _pendingUas = uas;
+                        ActiveCallerId = req.Header.From?.FromURI?.User ?? "Unknown";
+                    }
                 }
 
-                SetState(CallState.IncomingRinging);
+                if (!stillRinging)
+                {
+                    Log("Incoming call ended before it could be announced; not showing it.");
+                    return Task.CompletedTask;
+                }
+
+                AnnounceState(CallState.IncomingRinging);
                 IncomingCallReceived?.Invoke(ActiveCallerId);
             }
             return Task.CompletedTask;
@@ -625,8 +687,13 @@ namespace OrbitalSIP.Services
                 //    previously escaped as an UnhandledException on the mute toggle
                 //    and killed the widget. Swallow it — the call stays up (no mic
                 //    audio), and the operator can fix the input device without a crash.
-                _audioPaused = IsMuted;
-                Log($"ApplyAudioState ignored ({ex.GetType().Name}): {ex.Message}");
+                // _audioPaused is deliberately NOT updated here. It used to be set to
+                // IsMuted, which recorded the transition as achieved even though it had just
+                // thrown: after a failed ResumeAudio the `!IsMuted && _audioPaused` branch
+                // could never fire again, so the microphone stayed paused for the rest of the
+                // session while the interface showed the operator un-muted. Leaving the flag
+                // on its real value means the next toggle retries the operation that failed.
+                Log($"ApplyAudioState failed ({ex.GetType().Name}), leaving _audioPaused={_audioPaused}: {ex.Message}");
             }
         }
 
@@ -640,7 +707,20 @@ namespace OrbitalSIP.Services
 
         public bool IsOnHold { get; private set; }
 
-        public void ToggleHold()
+        public void ToggleHold() => ApplyHold(desired: null);
+
+        /// <summary>
+        /// Puts the call into the requested hold state, or does nothing if it is already
+        /// there.
+        ///
+        /// The panel used to ask for a flip, which is only correct while the view and the
+        /// service agree about the current state — and a panel rebuilt mid-call (every
+        /// collapse/expand builds a new one) started from its field defaults, so they did
+        /// not. Asking for a state instead means a disagreement costs at most a no-op.
+        /// </summary>
+        public void SetHold(bool onHold) => ApplyHold(desired: onHold);
+
+        private void ApplyHold(bool? desired)
         {
             SIPUserAgent? ua;
             CallState from, to;
@@ -652,7 +732,13 @@ namespace OrbitalSIP.Services
                 if (ua == null || (_state != CallState.Active && _state != CallState.OnHold)) return;
 
                 from        = _state;
-                goingOnHold = !IsOnHold;
+                goingOnHold = desired ?? !IsOnHold;
+
+                // Already where the caller wants it. Checked inside the lock with everything
+                // else, so a redundant request cannot fire a re-INVITE against a state that
+                // another thread is in the middle of changing.
+                if (goingOnHold == IsOnHold) return;
+
                 to          = goingOnHold ? CallState.OnHold : CallState.Active;
 
                 // Claimed inside the lock. Hold is reachable from the panel, the mini
@@ -723,6 +809,18 @@ namespace OrbitalSIP.Services
 
         private bool TryCreateAudio()
         {
+            // Built locally and published once, under the lock, at the very end. The fields
+            // used to be assigned mid-construction, which left a window where OnCallEnded on
+            // a SIPSorcery thread could take _audioEndPoint while _mediaSession was still
+            // null — closing the device of the call being set up — or find both null and
+            // release nothing while the two references landed a moment later.
+            //
+            // The flip side is that nothing downstream can find these to release them any
+            // more, so the catch below has to do it: that is what keeps this from becoming a
+            // third instance of the winmm handle leak.
+            GainAudioEndPoint? endPoint = null;
+            VoIPMediaSession?  session  = null;
+
             try
             {
                 int outIdx = _settings.AudioOutDeviceIndex;
@@ -738,11 +836,11 @@ namespace OrbitalSIP.Services
                 Debug.WriteLine($"[SipService] Audio OUT: {outName}  IN: {inName}");
                 Log($"Audio devices. OUT={outName}; IN={inName}");
 
-                _audioEndPoint = new GainAudioEndPoint(
+                endPoint = new GainAudioEndPoint(
                     new AudioEncoder(),
                     audioOutDeviceIndex: outIdx,
                     audioInDeviceIndex:  inIdx);
-                _audioEndPoint.OnAudioSourceError += err =>
+                endPoint.OnAudioSourceError += err =>
                 {
                     Debug.WriteLine($"[SipService] Audio source error: {err}");
                     Log($"Audio source error: {err}");
@@ -751,7 +849,7 @@ namespace OrbitalSIP.Services
                 // A render device that fails to open is the one fault nothing else reveals:
                 // RTP keeps arriving, the PBX keeps recording both directions, and the operator
                 // sits through a silent call with no error anywhere. Surface it.
-                _audioEndPoint.OnAudioSinkError += err =>
+                endPoint.OnAudioSinkError += err =>
                 {
                     Debug.WriteLine($"[SipService] Audio sink error: {err}");
                     Log($"Audio sink error: {err}");
@@ -760,26 +858,26 @@ namespace OrbitalSIP.Services
 
                 // The constructor opens playback before anything can subscribe above, so the
                 // failure that matters most — the one at call setup — has to be read back.
-                if (!_audioEndPoint.IsPlaybackDeviceOpen)
+                if (!endPoint.IsPlaybackDeviceOpen)
                 {
                     Log("Playback device is not open after audio init — the operator will hear nothing.");
                     NotifySpeakerFailure();
                 }
 
-                _audioEndPoint.SourceGain = _settings.MicGainPercent / 100f;
-                _audioEndPoint.SinkGain   = _settings.SpeakerGainPercent / 100f;
+                endPoint.SourceGain = _settings.MicGainPercent / 100f;
+                endPoint.SinkGain   = _settings.SpeakerGainPercent / 100f;
                 Log($"Applied gains. mic={_settings.MicGainPercent}% speaker={_settings.SpeakerGainPercent}%");
 
                 // G.722 (wideband HD), PCMU (G.711 μ-law), PCMA (G.711 A-law) —
                 // covers every mainstream SIP server and softphone.
-                _audioEndPoint.RestrictFormats(f =>
+                endPoint.RestrictFormats(f =>
                     f.FormatName == "G722" ||
                     f.FormatName == "PCMU" ||
                     f.FormatName == "PCMA");
 
                 // Log exactly which codecs go into the SDP offer.
                 var sb = new System.Text.StringBuilder();
-                foreach (var fmt in _audioEndPoint.GetAudioSinkFormats())
+                foreach (var fmt in endPoint.GetAudioSinkFormats())
                     sb.Append(fmt.FormatName).Append('/').Append(fmt.ClockRate).Append(' ');
                 Debug.WriteLine($"[SipService] Offering codecs: {sb}");
                 Log($"Offering codecs: {sb}");
@@ -791,19 +889,19 @@ namespace OrbitalSIP.Services
                 if (!string.IsNullOrEmpty(_transport?.ContactHost))
                     IPAddress.TryParse(_transport.ContactHost, out rtpBindAddr);
 
-                _mediaSession = new VoIPMediaSession(_audioEndPoint.ToMediaEndPoints(),
+                session = new VoIPMediaSession(endPoint.ToMediaEndPoints(),
                     bindAddress: rtpBindAddr)
                 {
                     AcceptRtpFromAny = true
                 };
                 Log($"RTP bind address: {rtpBindAddr?.ToString() ?? "any"}");
-                _mediaSession.OnAudioFormatsNegotiated += formats =>
+                session.OnAudioFormatsNegotiated += formats =>
                     Log($"Negotiated audio formats: {string.Join(", ", formats)}");
 
                 // Count received RTP packets — if this stays 0 the problem is network/NAT,
                 // not the audio device.  First packet + every 100th are logged.
                 int rtpRxCount = 0;
-                _mediaSession.OnRtpPacketReceived += (ep, _, pkt) =>
+                session.OnRtpPacketReceived += (ep, _, pkt) =>
                 {
                     int n = Interlocked.Increment(ref rtpRxCount);
                     if (n == 1 || n % 100 == 0)
@@ -815,7 +913,7 @@ namespace OrbitalSIP.Services
                     }
                 };
 
-                _mediaSession.OnRtpClosed += reason =>
+                session.OnRtpClosed += reason =>
                 {
                     try
                     {
@@ -828,17 +926,28 @@ namespace OrbitalSIP.Services
                     }
                     catch (Exception ex) { Log($"OnRtpClosed handler threw: {ex}"); }
                 };
-                _mediaSession.OnTimeout += mediaType =>
+                session.OnTimeout += mediaType =>
                 {
                     Debug.WriteLine($"[SipService] RTP TIMEOUT ({mediaType}) — no packets for 30s");
                     Log($"RTP timeout for {mediaType}");
                 };
+                lock (_lock)
+                {
+                    _audioEndPoint = endPoint;
+                    _mediaSession  = session;
+                }
+
                 Debug.WriteLine("[SipService] Audio device opened OK.");
                 Log("Audio device opened successfully.");
                 return true;
             }
             catch (Exception ex)
             {
+                // Nothing else holds these yet — CleanupMedia would find nulls — so release
+                // them here. Stop is not release for NAudio: only Dispose issues waveOutClose.
+                try { session?.Close("audio setup failed"); } catch (Exception closeEx) { Log($"MediaSession.Close after failed audio setup threw: {closeEx.Message}"); }
+                try { endPoint?.Dispose(); }                  catch (Exception dispEx)  { Log($"Audio endpoint dispose after failed audio setup threw: {dispEx.Message}"); }
+
                 Debug.WriteLine($"[SipService] TryCreateAudio failed: {ex.Message}");
                 Log($"TryCreateAudio exception: {ex}");
                 return false;
@@ -894,7 +1003,14 @@ namespace OrbitalSIP.Services
                 session        = _mediaSession;
                 _audioEndPoint = null;
                 _mediaSession  = null;
-                _audioPaused   = false; // reset so next call starts fresh
+
+                // Every per-call toggle resets here, not just _audioPaused. IsMuted survived
+                // into the next call, and the widget seeds its icon from it, so the operator
+                // opened a fresh call already muted with a live-looking microphone — anything
+                // said in the first seconds went nowhere. IsOnHold survived the same way.
+                _audioPaused   = false;
+                IsMuted        = false;
+                IsOnHold       = false;
             }
 
             ActiveCallStartedAt = null;
