@@ -190,5 +190,8 @@
   "SmsCancelled": "SMS yuborish bekor qilindi",
   "Sms": "SMS",
   "SmsActiveCallUnavailable": "SMS uchun faol qo'ng'iroqni tasdiqlab bo'lmadi. Qayta urinib ko'ring.",
-  "SmsHistoryCallUnavailable": "SMS uchun qo'ng'iroqlar tarixidagi yozuvni tasdiqlab bo'lmadi. Qayta urinib ko'ring."
+  "SmsHistoryCallUnavailable": "SMS uchun qo'ng'iroqlar tarixidagi yozuvni tasdiqlab bo'lmadi. Qayta urinib ko'ring.",
+  "Recents": "Tarix",
+  "Tasks": "Vazifalar",
+  "Settings": "Sozlamalar"
 }

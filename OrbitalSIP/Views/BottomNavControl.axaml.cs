@@ -1,18 +1,32 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Markup.Xaml;
 using System;
-using Avalonia.Media;
+using System.Collections.Generic;
+using Material.Icons;
 using Material.Icons.Avalonia;
+using OrbitalSIP.Models;
+using OrbitalSIP.Services;
 
 namespace OrbitalSIP.Views
 {
+    /// <summary>
+    /// The bottom tab bar. It reports which tab was pressed and draws the state it is
+    /// given; it does not know what any tab leads to.
+    ///
+    /// It used to raise four separate OnXxxRequested events, and each screen wired up
+    /// whichever subset its author remembered. Settings never wired Recents, the call
+    /// screen never wired the dialer, and Contacts was wired by nobody at all. Routing
+    /// now lives in MainWindow.NavigateTo, in one switch nobody can partially implement.
+    /// </summary>
     public partial class BottomNavControl : UserControl
     {
-        public event EventHandler? OnSettingsRequested;
-        public event EventHandler? OnDialerRequested;
-        public event EventHandler? OnRecentsRequested;
-        public event EventHandler? OnContactsRequested;
+        /// <summary>Raised on every tab press, including a press on the active tab.</summary>
+        public event EventHandler<NavTab>? TabSelected;
+
+        private readonly Dictionary<NavTab, Button> _buttons = new();
+        private NavTab _activeTab = NavTab.Dialer;
+        private bool _inCall;
 
         public BottomNavControl()
         {
@@ -34,6 +48,9 @@ namespace OrbitalSIP.Views
         /// a static event for the rest of the shift. That is hundreds over a shift, and the
         /// active-call panel among them holds the caller's lead, name and number in its own
         /// fields, which ForgetCachedCall does not reach.
+        ///
+        /// The pulse needs no such release: it belongs to a style, and leaving the tree
+        /// detaches the styles with everything they are running.
         /// </summary>
         protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
         {
@@ -64,29 +81,113 @@ namespace OrbitalSIP.Views
 
         private void WireButtons()
         {
-            var settingsBtn = this.FindControl<Button>("SettingsBtn");
-            if (settingsBtn != null)
-            {
-                settingsBtn.Click += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
-            }
+            Register(NavTab.Dialer,   "DialerBtn");
+            Register(NavTab.Recents,  "RecentsBtn");
+            Register(NavTab.Tasks,    "TasksBtn");
+            Register(NavTab.Settings, "SettingsBtn");
 
-            var dialerBtn = this.FindControl<Button>("DialerBtn");
-            if (dialerBtn != null)
+            void Register(NavTab tab, string name)
             {
-                dialerBtn.Click += (_, __) => OnDialerRequested?.Invoke(this, EventArgs.Empty);
+                var button = this.FindControl<Button>(name);
+                if (button == null) return;
+                _buttons[tab] = button;
+                button.Click += (_, __) => TabSelected?.Invoke(this, tab);
             }
+        }
 
-            var recentsBtn = this.FindControl<Button>("RecentsBtn");
-            if (recentsBtn != null)
+        /// <summary>Which tab reads as current. Set by MainWindow, never inferred here.</summary>
+        public NavTab ActiveTab
+        {
+            get => _activeTab;
+            set
             {
-                recentsBtn.Click += (_, __) => OnRecentsRequested?.Invoke(this, EventArgs.Empty);
+                _activeTab = value;
+                foreach (var (tab, button) in _buttons)
+                    button.Classes.Set("active", tab == value);
+                RefreshInCallVisuals();
             }
+        }
 
-            var contactsBtn = this.FindControl<Button>("ContactsBtn");
-            if (contactsBtn != null)
+        /// <summary>
+        /// Swaps the Dialer tab to a "you are on a call" affordance.
+        ///
+        /// ShowDialer() has always redirected to the call screen while a call is up, so the
+        /// tab already meant "back to the call" — it just never said so, and the highlight
+        /// claimed the operator was looking at a dialpad they could not reach.
+        /// </summary>
+        public void SetInCall(bool inCall)
+        {
+            _inCall = inCall;
+            RefreshInCallVisuals();
+        }
+
+        private void RefreshInCallVisuals()
+        {
+            if (!_buttons.TryGetValue(NavTab.Dialer, out var dialerBtn)) return;
+            var icon = this.FindControl<MaterialIcon>("DialerIcon");
+
+            dialerBtn.Classes.Set("in-call", _inCall);
+            if (icon != null)
+                icon.Kind = _inCall ? MaterialIconKind.PhoneInTalk : MaterialIconKind.Dialpad;
+
+            ToolTip.SetTip(dialerBtn, I18nService.Instance.Get(_inCall ? "InCall" : "Dialer"));
+
+            SetPulse(dialerBtn, NavPulse.ShouldPulse(_inCall, _activeTab));
+        }
+
+        /// <summary>
+        /// Breathes the tab while a call runs off-screen.
+        ///
+        /// A Transition would be wrong here: it animates a value that changes, and this
+        /// value does not. It takes an Animation with an infinite iteration count, and in
+        /// Avalonia 11 only a style can start one of those — Animation.RunAsync throws on
+        /// IterationCount.Infinite ("Looping animations must not use the Run method") and
+        /// Animation.Apply, the call the style system makes on its behalf, is internal.
+        ///
+        /// So the class is the switch, and clearing it is what stops the animation: left
+        /// running it keeps the compositor busy on a window that is otherwise perfectly
+        /// still. The resting opacity comes back from the styles rather than from an
+        /// assignment here, which is why a local Opacity is never written — one would
+        /// outrank :pointerover for the rest of this control's life.
+        /// </summary>
+        private static void SetPulse(Button button, bool pulse) =>
+            button.Classes.Set("pulse", pulse);
+
+        /// <summary>
+        /// Disables what a signed-out operator cannot reach.
+        ///
+        /// Settings is reachable from the login screen, and from there Recents, Tasks and
+        /// the dialer all lead nowhere. The Dialer slot becomes a back arrow instead;
+        /// MainWindow routes any tab press back to login while this is on.
+        /// </summary>
+        public void SetLoginMode(bool loginMode)
+        {
+            if (_buttons.TryGetValue(NavTab.Recents, out var recents)) recents.IsEnabled = !loginMode;
+            if (_buttons.TryGetValue(NavTab.Tasks, out var tasks)) tasks.IsEnabled = !loginMode;
+
+            var icon = this.FindControl<MaterialIcon>("DialerIcon");
+            if (icon != null && loginMode) icon.Kind = MaterialIconKind.ArrowLeft;
+        }
+
+        /// <summary>Shows the count pill on a tab. Zero or less hides it.</summary>
+        public void SetBadge(NavTab tab, int count, bool alert)
+        {
+            var (badgeName, textName) = tab switch
             {
-                contactsBtn.Click += (_, __) => OnContactsRequested?.Invoke(this, EventArgs.Empty);
-            }
+                NavTab.Recents => ("RecentsBadge", "RecentsBadgeText"),
+                NavTab.Tasks   => ("TasksBadge", "TasksBadgeText"),
+                _              => (string.Empty, string.Empty),
+            };
+            if (badgeName.Length == 0) return;
+
+            var badge = this.FindControl<Border>(badgeName);
+            var text = this.FindControl<TextBlock>(textName);
+            if (badge == null || text == null) return;
+
+            var label = NavBadgeState.FormatCount(count);
+            text.Text = label;
+            badge.Classes.Set("alert", alert);
+            badge.IsVisible = label.Length > 0;
         }
 
         /// <summary>Show or hide the green update-available dot on the Settings button.</summary>
@@ -94,31 +195,6 @@ namespace OrbitalSIP.Views
         {
             var dot = this.FindControl<Ellipse>("UpdateDot");
             if (dot != null) dot.IsVisible = visible;
-        }
-
-        public void SetActiveTab(string tabName)
-        {
-            var dialerBtn = this.FindControl<Button>("DialerBtn");
-            var recentsBtn = this.FindControl<Button>("RecentsBtn");
-            var contactsBtn = this.FindControl<Button>("ContactsBtn");
-            var settingsBtn = this.FindControl<Button>("SettingsBtn");
-
-            var dialerIcon = this.FindControl<MaterialIcon>("DialerIcon");
-            var recentsIcon = this.FindControl<MaterialIcon>("RecentsIcon");
-            var contactsIcon = this.FindControl<MaterialIcon>("ContactsIcon");
-            var settingsIcon = this.FindControl<MaterialIcon>("SettingsIcon");
-
-            if (dialerBtn != null) dialerBtn.Opacity = tabName == "Dialer" ? 1.0 : 0.65;
-            if (dialerIcon != null) dialerIcon.Foreground = new SolidColorBrush(tabName == "Dialer" ? Color.Parse("#60A5FA") : Color.Parse("#8AA0B8"));
-
-            if (recentsBtn != null) recentsBtn.Opacity = tabName == "Recents" ? 1.0 : 0.65;
-            if (recentsIcon != null) recentsIcon.Foreground = new SolidColorBrush(tabName == "Recents" ? Color.Parse("#60A5FA") : Color.Parse("#8AA0B8"));
-
-            if (contactsBtn != null) contactsBtn.Opacity = tabName == "Contacts" ? 1.0 : 0.65;
-            if (contactsIcon != null) contactsIcon.Foreground = new SolidColorBrush(tabName == "Contacts" ? Color.Parse("#60A5FA") : Color.Parse("#8AA0B8"));
-
-            if (settingsBtn != null) settingsBtn.Opacity = tabName == "Settings" ? 1.0 : 0.65;
-            if (settingsIcon != null) settingsIcon.Foreground = new SolidColorBrush(tabName == "Settings" ? Color.Parse("#60A5FA") : Color.Parse("#8AA0B8"));
         }
     }
 }

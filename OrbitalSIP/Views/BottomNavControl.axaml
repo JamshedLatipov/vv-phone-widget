@@ -1,21 +1,115 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:i18n="clr-namespace:OrbitalSIP.Services"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="OrbitalSIP.Views.BottomNavControl">
+
+  <UserControl.Styles>
+    <!-- The active/inactive look used to be four pairs of hand-written Opacity and
+         SolidColorBrush assignments in code-behind. Here it is once. -->
+    <Style Selector="Button.nav-tab">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Opacity" Value="0.65" />
+    </Style>
+
+    <Style Selector="Button.nav-tab:pointerover">
+      <Setter Property="Opacity" Value="0.85" />
+    </Style>
+
+    <Style Selector="Button.nav-tab.active">
+      <Setter Property="Opacity" Value="1.0" />
+    </Style>
+
+    <Style Selector="Button.nav-tab:disabled">
+      <Setter Property="Opacity" Value="0.28" />
+    </Style>
+
+    <!-- Breathes the tab while a call runs off-screen. A looping animation has to be
+         declared on a style rather than started from code: Avalonia 11's
+         Animation.RunAsync rejects IterationCount.Infinite outright, and Animation.Apply
+         — the call the style system makes here — is internal. The class is the switch,
+         and removing it is what stops the animation; see BottomNavControl.SetPulse. -->
+    <Style Selector="Button.nav-tab.pulse">
+      <Style.Animations>
+        <Animation Duration="0:0:1.4" IterationCount="INFINITE" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="1.0" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="Opacity" Value="0.45" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1.0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <Style Selector="Button.nav-tab materialIcons|MaterialIcon">
+      <Setter Property="Foreground" Value="#8AA0B8" />
+    </Style>
+
+    <Style Selector="Button.nav-tab.active materialIcons|MaterialIcon">
+      <Setter Property="Foreground" Value="#60A5FA" />
+    </Style>
+
+    <Style Selector="Button.nav-tab.in-call materialIcons|MaterialIcon">
+      <Setter Property="Foreground" Value="#22C55E" />
+    </Style>
+
+    <Style Selector="Border.nav-badge">
+      <Setter Property="Background" Value="#3B82F6" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="MinWidth" Value="18" />
+      <Setter Property="Height" Value="18" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="Margin" Value="0,-6,-8,0" />
+    </Style>
+
+    <Style Selector="Border.nav-badge.alert">
+      <Setter Property="Background" Value="#EF4444" />
+    </Style>
+  </UserControl.Styles>
+
   <Border Background="#0F172A" Height="46" BorderBrush="#1E293B" BorderThickness="1,1,1,0" VerticalAlignment="Bottom">
     <Grid ColumnDefinitions="*,*,*,*">
-      <Button Grid.Column="0" Name="DialerBtn" Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-        <materialIcons:MaterialIcon Name="DialerIcon" Kind="Dialpad" Width="20" Height="20" Foreground="#60A5FA" />
+
+      <Button Grid.Column="0" Name="DialerBtn" Classes="nav-tab active" ToolTip.Tip="{i18n:I18n Dialer}">
+        <materialIcons:MaterialIcon Name="DialerIcon" Kind="Dialpad" Width="20" Height="20" />
       </Button>
-      <Button Grid.Column="1" Name="RecentsBtn" Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Opacity="0.65">
-        <materialIcons:MaterialIcon Name="RecentsIcon" Kind="ClockOutline" Width="22" Height="22" Foreground="#8AA0B8" />
-      </Button>
-      <Button Grid.Column="2" Name="ContactsBtn" Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Opacity="0.65">
-        <materialIcons:MaterialIcon Name="ContactsIcon" Kind="AccountCircleOutline" Width="22" Height="22" Foreground="#8AA0B8" />
-      </Button>
-      <Button Grid.Column="3" Name="SettingsBtn" Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Opacity="0.65">
+
+      <Button Grid.Column="1" Name="RecentsBtn" Classes="nav-tab" ToolTip.Tip="{i18n:I18n Recents}">
         <Panel>
-          <materialIcons:MaterialIcon Name="SettingsIcon" Kind="CogOutline" Width="22" Height="22" Foreground="#8AA0B8" />
+          <materialIcons:MaterialIcon Name="RecentsIcon" Kind="ClockOutline" Width="22" Height="22" />
+          <Border Name="RecentsBadge" Classes="nav-badge" IsVisible="False">
+            <TextBlock Name="RecentsBadgeText" Text="" FontSize="10" FontWeight="Bold"
+                       Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </Panel>
+      </Button>
+
+      <Button Grid.Column="2" Name="TasksBtn" Classes="nav-tab" ToolTip.Tip="{i18n:I18n Tasks}">
+        <Panel>
+          <materialIcons:MaterialIcon Name="TasksIcon" Kind="FormatListChecks" Width="22" Height="22" />
+          <Border Name="TasksBadge" Classes="nav-badge" IsVisible="False">
+            <TextBlock Name="TasksBadgeText" Text="" FontSize="10" FontWeight="Bold"
+                       Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </Panel>
+      </Button>
+
+      <Button Grid.Column="3" Name="SettingsBtn" Classes="nav-tab" ToolTip.Tip="{i18n:I18n Settings}">
+        <Panel>
+          <materialIcons:MaterialIcon Name="SettingsIcon" Kind="CogOutline" Width="22" Height="22" />
           <!-- Update available indicator dot -->
           <Ellipse Name="UpdateDot" Width="8" Height="8"
                    Fill="#17E0A0"
@@ -24,6 +118,7 @@
                    IsVisible="False" />
         </Panel>
       </Button>
+
     </Grid>
   </Border>
 </UserControl>

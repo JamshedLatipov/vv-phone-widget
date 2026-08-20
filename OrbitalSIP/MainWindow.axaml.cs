@@ -1,5 +1,6 @@
 ﻿using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Avalonia;
 using Avalonia.Controls;
@@ -8,6 +9,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using System.Diagnostics;
+using OrbitalSIP.Models;
 using OrbitalSIP.Services;
 
 namespace OrbitalSIP
@@ -64,6 +66,19 @@ namespace OrbitalSIP
         private ContentControl? _animHost;
         private ContentControl? _animOverlay;
         private readonly DispatcherTimer _httpErrorHideTimer;
+
+        /// <summary>
+        /// Which tab the bottom bar should read as current. Held here rather than asked of
+        /// the control, because the control is rebuilt on every screen change and would
+        /// have nothing to remember it with.
+        /// </summary>
+        private NavTab _currentTab = NavTab.Dialer;
+
+        /// <summary>
+        /// True while Settings is open from the login screen. Nothing else is reachable
+        /// without a session, so every tab press goes back to login instead.
+        /// </summary>
+        private bool _settingsFromLogin;
 
         public MainWindow()
         {
@@ -367,6 +382,12 @@ namespace OrbitalSIP
 
         private void ExpandWidget()
         {
+            // The panel this opens is the dialer, and it is reached without going through
+            // ShowDialer — so say so, or the bar would still highlight whatever tab the
+            // operator was on when they collapsed. ReturnToPreferredMode below has it for
+            // the same reason.
+            _currentTab = NavTab.Dialer;
+
             _isExpanded = true;
             _preferredMode = PreferredMode.Panel;
             _anchorX = Position.X + (int)Width;
@@ -389,6 +410,7 @@ namespace OrbitalSIP
 
             if (_preferredMode == PreferredMode.Panel)
             {
+                _currentTab = NavTab.Dialer;
                 _isExpanded = true;
                 StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight, CreateDialerView());
             }
@@ -402,6 +424,9 @@ namespace OrbitalSIP
         // ── Login ─────────────────────────────────────────────────────
         private void ShowLogin()
         {
+            _settingsFromLogin = false;
+            _currentTab = NavTab.Dialer;
+
             var login = new Views.LoginView();
             login.OnLoginSuccess += (_, __) =>
             {
@@ -420,15 +445,23 @@ namespace OrbitalSIP
             var r = new Views.RecentsView();
             r.OnCloseRequested += (_, __) => ToggleExpanded();
             r.OnExitAppRequested += (_, __) => ShutdownApp();
-            r.OnSettingsRequested += (_, __) => ShowSettings();
-            r.OnDialerRequested += (_, __) => ShowDialer();
             r.OutgoingCallRequested += (sender, num) => StartOutgoingCall(num);
 
+            _currentTab = NavTab.Recents;
             SetMainContent(r);
+        }
+
+        private void ShowTasks()
+        {
+            // Real screen lands with the tasks task; until then the tab must not throw.
+            _currentTab = NavTab.Tasks;
+            SetMainContent(CreateDialerView());
         }
 
         private void ShowDialer()
         {
+            _currentTab = NavTab.Dialer;
+
             if (App.SipService.State == CallState.Active || App.SipService.State == CallState.OnHold)
             {
                 var elapsed = App.SipService.ActiveCallStartedAt.HasValue
@@ -479,15 +512,13 @@ namespace OrbitalSIP
         }
         private void ShowSettings(bool isFromLogin = false)
         {
+            _settingsFromLogin = isFromLogin;
+            _currentTab = NavTab.Settings;
+
             var settingsView = new Views.SettingsView();
             settingsView.OnMinimizeRequested += (_, __) => CollapseWidget();
             settingsView.OnExitAppRequested += (_, __) => ShutdownApp();
             settingsView.OnAvatarClicked += (_, __) => ShowStatusPopup();
-            settingsView.OnBackRequested += (_, __) =>
-            {
-                if (isFromLogin) ShowLogin();
-                else ShowDialer();
-            };
             settingsView.OnSaveRequested += (_, __) =>
             {
                 var settings = SipSettings.Load();
@@ -621,6 +652,8 @@ namespace OrbitalSIP
 
         private void ShowActiveCallWidgetView(string callerId, TimeSpan elapsed)
         {
+            _currentTab = NavTab.Dialer;
+
             var widget = new Views.ActiveCallWidgetView(callerId, elapsed, App.SipService.IsMuted, App.SipService.IsOnHold);
             WireActiveCallWidgetView(widget);
 
@@ -645,6 +678,8 @@ namespace OrbitalSIP
 
         private void ShowActiveCallView(string callerId, TimeSpan? elapsed = null)
         {
+            _currentTab = NavTab.Dialer;
+
             // Seeded from the service, exactly as ShowActiveCallWidgetView already does for
             // the mini widget. Without it a panel rebuilt mid-call started from false/false.
             var callView = new Views.ActiveCallView(
@@ -677,9 +712,7 @@ namespace OrbitalSIP
             callView.OnHoldToggled += (_, onHold) => App.SipService.SetHold(onHold);
             callView.OnTransferRequested += async (_, dest) => await App.SipService.BlindTransferAsync(dest);
             callView.OnKeypadRequested += (_, __) => ShowDialer();
-            callView.OnSettingsRequested += (_, __) => ShowSettings();
             callView.OnAvatarClicked += (_, __) => ShowStatusPopup();
-            callView.OnRecentsRequested += (_, __) => ShowRecents();
         }
 
         // ── SIP state changes ─────────────────────────────────────────
@@ -845,9 +878,7 @@ namespace OrbitalSIP
             var dialer = new Views.ExpandedView();
             dialer.OnCloseRequested += (_, __) => CollapseWidget();
             dialer.OnExitAppRequested += (_, __) => ShutdownApp();
-            dialer.OnSettingsRequested += (_, __) => ShowSettings();
             dialer.OnAvatarClicked += (_, __) => ShowStatusPopup();
-            dialer.OnRecentsRequested += (_, __) => ShowRecents();
             dialer.OutgoingCallRequested += (_, number) => StartOutgoingCall(number);
             return dialer;
         }
@@ -861,6 +892,59 @@ namespace OrbitalSIP
             if (host != null) { host.Content = content; host.Opacity = 1; }
             if (overlay != null) { overlay.Content = null; overlay.Opacity = 0; }
             _pendingContent = null;
+            AttachNav(content);
+        }
+
+        /// <summary>
+        /// Hands a freshly built screen's bottom bar its handler and its state.
+        ///
+        /// Called from both places content reaches the window — SetMainContent and
+        /// CompleteAnimatedContentSwap. Missing either one leaves a bar whose buttons do
+        /// nothing, which is the whole class of bug this replaced.
+        ///
+        /// Down the logical tree, not the visual one. SetMainContent hands over a view
+        /// built a moment ago and never yet measured, and a UserControl gets its visual
+        /// children from a ContentPresenter that is only created on the first measure — so
+        /// a visual-tree search finds nothing on that path and would leave the bar dead,
+        /// silently, exactly the way the old wiring did. The logical tree is built as the
+        /// XAML loads.
+        ///
+        /// No leak: the reference runs from the control to this window, and the control is
+        /// discarded with its screen. That is the opposite direction from the static
+        /// App.Updater subscription the control has to unhook by hand.
+        /// </summary>
+        private void AttachNav(object? content)
+        {
+            if (content is not Control control) return;
+            var nav = control.FindLogicalDescendantOfType<Views.BottomNavControl>();
+            if (nav == null) return;      // Widget, Login and Incoming have no bottom bar
+
+            nav.TabSelected += OnNavTabSelected;
+            nav.ActiveTab = _currentTab;
+            nav.SetInCall(App.SipService.State is CallState.Active or CallState.OnHold);
+            nav.SetLoginMode(_settingsFromLogin);
+        }
+
+        private void OnNavTabSelected(object? sender, NavTab tab) => NavigateTo(tab);
+
+        /// <summary>The only place a tab press turns into a screen.</summary>
+        private void NavigateTo(NavTab tab)
+        {
+            if (_settingsFromLogin)
+            {
+                ShowLogin();
+                return;
+            }
+
+            _currentTab = tab;
+
+            switch (tab)
+            {
+                case NavTab.Dialer:   ShowDialer();   break;
+                case NavTab.Recents:  ShowRecents();  break;
+                case NavTab.Tasks:    ShowTasks();    break;
+                case NavTab.Settings: ShowSettings(); break;
+            }
         }
 
         private void CompleteAnimatedContentSwap()
@@ -873,6 +957,7 @@ namespace OrbitalSIP
             else if (host != null) host.Opacity = 1;
             if (overlay != null) { overlay.Opacity = 0; overlay.IsVisible = false; }
             _pendingContent = null;
+            AttachNav(nextContent);
         }
 
         /// <summary>

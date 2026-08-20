@@ -190,5 +190,8 @@
   "SmsCancelled": "Ирсоли SMS бекор шуд",
   "Sms": "SMS",
   "SmsActiveCallUnavailable": "Занги фаъолро барои SMS тасдиқ кардан муяссар нашуд. Боз кӯшиш кунед.",
-  "SmsHistoryCallUnavailable": "Сабти таърихи зангҳоро барои SMS тасдиқ кардан муяссар нашуд. Боз кӯшиш кунед."
+  "SmsHistoryCallUnavailable": "Сабти таърихи зангҳоро барои SMS тасдиқ кардан муяссар нашуд. Боз кӯшиш кунед.",
+  "Recents": "Таърих",
+  "Tasks": "Вазифаҳо",
+  "Settings": "Танзимот"
 }

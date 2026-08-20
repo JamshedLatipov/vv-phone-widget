@@ -324,12 +324,6 @@ namespace OrbitalSIP.Views
                 topBar.OnAvatarClicked += (_, __) => OnAvatarClicked?.Invoke(this, System.EventArgs.Empty);
                 topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, System.EventArgs.Empty);
             }
-            var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
-            if (bottomNav != null)
-            {
-                bottomNav.OnDialerRequested += (_, __) => OnBackRequested?.Invoke(this, System.EventArgs.Empty);
-                bottomNav.SetActiveTab("Settings");
-            }
         }
 
         private static void RefreshUpdateBtnText(Button btn)
@@ -407,7 +401,6 @@ namespace OrbitalSIP.Views
                 apply(text);
         }
 
-        public event System.EventHandler? OnBackRequested;
         public event System.EventHandler? OnMinimizeRequested;
         public event System.EventHandler? OnSaveRequested;
         public event System.EventHandler? OnAvatarClicked;

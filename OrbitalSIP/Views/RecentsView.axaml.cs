@@ -23,8 +23,6 @@ namespace OrbitalSIP.Views
         public ObservableCollection<CdrItemViewModel> CdrItems { get; } = new ObservableCollection<CdrItemViewModel>();
 
         public event EventHandler? OnCloseRequested;
-        public event EventHandler? OnSettingsRequested;
-        public event EventHandler? OnDialerRequested;
         public event EventHandler<string>? OutgoingCallRequested;
         public event EventHandler? OnExitAppRequested;
 
@@ -70,14 +68,6 @@ namespace OrbitalSIP.Views
         {
             var topBar = this.FindControl<TopBarControl>("TopBar");
             if (topBar != null) { topBar.OnMinimizeRequested += (_, __) => OnCloseRequested?.Invoke(this, EventArgs.Empty); topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, EventArgs.Empty); }
-
-            var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
-            if (bottomNav != null)
-            {
-                bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
-                bottomNav.OnDialerRequested += (_, __) => OnDialerRequested?.Invoke(this, EventArgs.Empty);
-                bottomNav.SetActiveTab("Recents");
-            }
         }
 
         private async Task LoadCallHistoryAsync()

@@ -328,16 +328,6 @@ namespace OrbitalSIP.Views
             }
 
             var copy = this.FindControl<Button>("CopyCallerBtn");
-            var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
-            if (bottomNav != null)
-            {
-                bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
-                // Recents was wired at the MainWindow end (WireActiveCallView subscribes
-                // to it) but never raised here, so the button in this panel's bottom nav
-                // did nothing at all — the compiler had been reporting it as CS0067 on an
-                // event with no publisher. ExpandedView forwards it the same way.
-                bottomNav.OnRecentsRequested += (_, __) => OnRecentsRequested?.Invoke(this, EventArgs.Empty);
-            }
             if (copy != null)
                 copy.Click += SafeHandler.Click("ActiveCall", CopyCallerAsync);
         }
@@ -1165,9 +1155,7 @@ namespace OrbitalSIP.Views
         public event EventHandler<string>? OnTransferRequested; // arg = destination
         public event EventHandler?        OnKeypadRequested;
         public event EventHandler?        OnMinimizeRequested;
-        public event EventHandler?        OnSettingsRequested;
         public event EventHandler?        OnAvatarClicked;
-        public event EventHandler?        OnRecentsRequested;
         public event EventHandler?        OnExitAppRequested;
     }
 }
