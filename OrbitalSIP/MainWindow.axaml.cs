@@ -70,13 +70,16 @@ namespace OrbitalSIP
         /// <summary>
         /// Which tab the bottom bar should read as current. Held here rather than asked of
         /// the control, because the control is rebuilt on every screen change and would
-        /// have nothing to remember it with.
+        /// have nothing to remember it with — but derived in <see cref="AttachNav"/> from
+        /// the screen being installed, never assigned by whoever installed it.
         /// </summary>
         private NavTab _currentTab = NavTab.Dialer;
 
         /// <summary>
         /// True while Settings is open from the login screen. Nothing else is reachable
-        /// without a session, so every tab press goes back to login instead.
+        /// without a session, so every tab press goes back to login instead. Set by
+        /// <see cref="ShowSettings"/>, which is the only thing that knows the intent, and
+        /// then narrowed by <see cref="AttachNav"/> to the screen it describes.
         /// </summary>
         private bool _settingsFromLogin;
 
@@ -382,12 +385,6 @@ namespace OrbitalSIP
 
         private void ExpandWidget()
         {
-            // The panel this opens is the dialer, and it is reached without going through
-            // ShowDialer — so say so, or the bar would still highlight whatever tab the
-            // operator was on when they collapsed. ReturnToPreferredMode below has it for
-            // the same reason.
-            _currentTab = NavTab.Dialer;
-
             _isExpanded = true;
             _preferredMode = PreferredMode.Panel;
             _anchorX = Position.X + (int)Width;
@@ -397,11 +394,6 @@ namespace OrbitalSIP
 
         private void CollapseWidget()
         {
-            // Minimising is a way off the login-mode Settings screen, and the flag has to
-            // come off with it. Left set, the next expand gave a working dialpad whose bar
-            // showed a back arrow, greyed Recents and Tasks, and sent every press to login.
-            _settingsFromLogin = false;
-
             HideStatusPopup();
             _isExpanded = false;
             _preferredMode = PreferredMode.Widget;
@@ -415,7 +407,6 @@ namespace OrbitalSIP
 
             if (_preferredMode == PreferredMode.Panel)
             {
-                _currentTab = NavTab.Dialer;
                 _isExpanded = true;
                 StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight, CreateDialerView());
             }
@@ -429,9 +420,6 @@ namespace OrbitalSIP
         // ── Login ─────────────────────────────────────────────────────
         private void ShowLogin()
         {
-            _settingsFromLogin = false;
-            _currentTab = NavTab.Dialer;
-
             var login = new Views.LoginView();
             login.OnLoginSuccess += (_, __) =>
             {
@@ -452,21 +440,20 @@ namespace OrbitalSIP
             r.OnExitAppRequested += (_, __) => ShutdownApp();
             r.OutgoingCallRequested += (sender, num) => StartOutgoingCall(num);
 
-            _currentTab = NavTab.Recents;
             SetMainContent(r);
         }
 
         private void ShowTasks()
         {
-            // Real screen lands with the tasks task; until then the tab must not throw.
-            _currentTab = NavTab.Tasks;
+            // TODO(task-8): replace with the real TasksView, and add its arm to the switch
+            // in AttachNav. Until then this shows a dialer, and AttachNav lights the Dialer
+            // tab because that is what is actually on screen — a lit Tasks tab over a
+            // dialpad would be the lying highlight this rework exists to remove.
             SetMainContent(CreateDialerView());
         }
 
         private void ShowDialer()
         {
-            _currentTab = NavTab.Dialer;
-
             if (App.SipService.State == CallState.Active || App.SipService.State == CallState.OnHold)
             {
                 var elapsed = App.SipService.ActiveCallStartedAt.HasValue
@@ -518,7 +505,6 @@ namespace OrbitalSIP
         private void ShowSettings(bool isFromLogin = false)
         {
             _settingsFromLogin = isFromLogin;
-            _currentTab = NavTab.Settings;
 
             var settingsView = new Views.SettingsView();
             settingsView.OnMinimizeRequested += (_, __) => CollapseWidget();
@@ -657,8 +643,6 @@ namespace OrbitalSIP
 
         private void ShowActiveCallWidgetView(string callerId, TimeSpan elapsed)
         {
-            _currentTab = NavTab.Dialer;
-
             var widget = new Views.ActiveCallWidgetView(callerId, elapsed, App.SipService.IsMuted, App.SipService.IsOnHold);
             WireActiveCallWidgetView(widget);
 
@@ -683,8 +667,6 @@ namespace OrbitalSIP
 
         private void ShowActiveCallView(string callerId, TimeSpan? elapsed = null)
         {
-            _currentTab = NavTab.Dialer;
-
             // Seeded from the service, exactly as ShowActiveCallWidgetView already does for
             // the mini widget. Without it a panel rebuilt mid-call started from false/false.
             var callView = new Views.ActiveCallView(
@@ -922,12 +904,50 @@ namespace OrbitalSIP
         /// No leak: the reference runs from the control to this window, and the control is
         /// discarded with its screen. That is the opposite direction from the static
         /// App.Updater subscription the control has to unhook by hand.
+        ///
+        /// Takes the content rather than reading Host itself, and must keep doing so. Both
+        /// callers happen to assign Host before calling this, so CurrentNav() would resolve
+        /// identically today — that is a coincidence of their current statement order, not
+        /// a guarantee, and this runs on content that is being installed rather than
+        /// content that is installed.
         /// </summary>
         private void AttachNav(object? content)
         {
+            // Both of these describe the screen being installed, so both are read off it
+            // rather than assigned by whoever installed it. Hand-placed assignments are the
+            // failure this rework exists to remove: "every screen must remember to set
+            // _currentTab" fails exactly as silently as "every screen must remember to wire
+            // its events" did. _settingsFromLogin had already proved it — cleared only on
+            // the exits someone thought of, it let an answered call's panel inherit login
+            // mode, where every tab press replaced the call screen with login mid-call,
+            // taking hangup, mute and hold with it.
+            //
+            // Above both returns below, or the screens with no bar stop updating either one.
+            _settingsFromLogin &= content is Views.SettingsView;
+            _currentTab = content switch
+            {
+                Views.RecentsView  => NavTab.Recents,
+                Views.SettingsView => NavTab.Settings,
+                // TasksView joins this list with task 8 — see ShowTasks.
+                _                  => NavTab.Dialer,
+            };
+
             if (content is not Control control) return;
+
             var nav = control.FindLogicalDescendantOfType<Views.BottomNavControl>();
-            if (nav == null) return;      // Widget, Login and Incoming have no bottom bar
+            if (nav == null)
+            {
+                // Those four have no bottom bar by design. Any other screen arriving here
+                // is one whose bar the search missed, and the symptom is a bar that draws
+                // normally and does nothing — which is exactly what the four scattered
+                // events used to produce, silently, in four places. One place now, so make
+                // it a place that says something.
+                if (content is not (Views.WidgetView or Views.LoginView or
+                                    Views.IncomingView or Views.ActiveCallWidgetView))
+                    AppLogger.Log("MainWindow",
+                        $"No BottomNavControl found in {control.GetType().Name} — its tab bar is dead.");
+                return;
+            }
 
             nav.TabSelected += OnNavTabSelected;
             nav.ActiveTab = _currentTab;
@@ -959,13 +979,22 @@ namespace OrbitalSIP
         /// <summary>The only place a tab press turns into a screen.</summary>
         private void NavigateTo(NavTab tab)
         {
+            // Pressing the tab you are already on used to be inert, because a screen simply
+            // did not wire its own tab. Every screen wires every tab now, so without this a
+            // stray tap on the lit Settings tab rebuilds the view and takes the operator's
+            // unsaved host, credentials, language and scale with it — none of which are
+            // committed before OnSaveRequested — a tap on the lit Dialer tab discards a
+            // half-typed number, and on the call screen it rebuilds the panel mid-call.
+            //
+            // Above the login check on purpose: in login mode Settings is the screen you are
+            // on, so its tab goes inert, while the Dialer slot's back arrow still leaves.
+            if (tab == _currentTab) return;
+
             if (_settingsFromLogin)
             {
                 ShowLogin();
                 return;
             }
-
-            _currentTab = tab;
 
             switch (tab)
             {
