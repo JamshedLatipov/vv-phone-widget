@@ -87,7 +87,8 @@ namespace OrbitalSIP.Views
         }
 
         /// <summary>Re-renders the one tooltip on this bar that markup cannot keep current.</summary>
-        private void OnLanguageChanged() => RefreshTabVisuals();
+        private void OnLanguageChanged() =>
+            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(RefreshTabVisuals);
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 

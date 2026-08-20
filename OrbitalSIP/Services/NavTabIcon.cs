@@ -1,3 +1,4 @@
+using System;
 using Material.Icons;
 
 namespace OrbitalSIP.Services;
@@ -31,10 +32,19 @@ public static class NavTabIcon
     /// which restating the precedence here would leave one careless edit away from
     /// returning.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The slot grew a fourth affordance and this was not told about it. Deliberately not
+    /// a default arm: the fallback used to be "Dialer", which would label a brand new glyph
+    /// as the dial pad — the same lying tooltip this method exists to prevent, moved one
+    /// step along rather than removed. The bare _ in ForDialerTab above is a different
+    /// case: its domain is two bools, so it really is exhaustive.
+    /// </exception>
     public static string TooltipKeyFor(MaterialIconKind kind) => kind switch
     {
         MaterialIconKind.ArrowLeft   => "Back",
         MaterialIconKind.PhoneInTalk => "NavInCall",
-        _                            => "Dialer",
+        MaterialIconKind.Dialpad     => "Dialer",
+        _ => throw new ArgumentOutOfRangeException(
+                 nameof(kind), kind, "No tooltip wording is defined for this dialer-tab glyph."),
     };
 }

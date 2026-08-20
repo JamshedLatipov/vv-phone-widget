@@ -1,3 +1,4 @@
+using System;
 using Material.Icons;
 using OrbitalSIP.Services;
 using Xunit;
@@ -55,5 +56,19 @@ public class NavTabIconTests
     {
         Assert.Equal(expectedKey,
             NavTabIcon.TooltipKeyFor(NavTabIcon.ForDialerTab(loginMode, inCall)));
+    }
+
+    /// <summary>
+    /// The slot grows a fourth affordance the day someone adds a glyph to ForDialerTab,
+    /// and the combination cases above cannot see it: they are parameterised over
+    /// (loginMode, inCall), so a new state dimension lands outside them entirely. Falling
+    /// back to "Dialer" there would label the new glyph as the dial pad — the same lying
+    /// tooltip this pair of methods exists to prevent.
+    /// </summary>
+    [Fact]
+    public void AGlyphWithNoWordingFailsRatherThanGuessing()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => NavTabIcon.TooltipKeyFor(MaterialIconKind.Cog));
     }
 }
