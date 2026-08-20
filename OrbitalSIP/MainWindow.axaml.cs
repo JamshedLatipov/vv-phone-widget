@@ -397,6 +397,11 @@ namespace OrbitalSIP
 
         private void CollapseWidget()
         {
+            // Minimising is a way off the login-mode Settings screen, and the flag has to
+            // come off with it. Left set, the next expand gave a working dialpad whose bar
+            // showed a back arrow, greyed Recents and Tasks, and sent every press to login.
+            _settingsFromLogin = false;
+
             HideStatusPopup();
             _isExpanded = false;
             _preferredMode = PreferredMode.Widget;
@@ -726,6 +731,11 @@ namespace OrbitalSIP
                 return;
             }
 
+            // Before the branches below, because neither of them reaches every screen: the
+            // idle branch deliberately leaves Settings in place, and a call starting while
+            // Settings is open takes no branch at all. Both left the bar stale.
+            RefreshNavCallState();
+
             if (state == CallState.Idle && _isExpanded)
             {
                 var host = this.FindControl<ContentControl>("Host");
@@ -924,6 +934,25 @@ namespace OrbitalSIP
             nav.SetInCall(App.SipService.State is CallState.Active or CallState.OnHold);
             nav.SetLoginMode(_settingsFromLogin);
         }
+
+        /// <summary>
+        /// The bottom bar of whatever is on screen, or null for the screens that have none
+        /// (Widget, Login, Incoming).
+        /// </summary>
+        private Views.BottomNavControl? CurrentNav() =>
+            (this.FindControl<ContentControl>("Host")?.Content as Control)
+                ?.FindLogicalDescendantOfType<Views.BottomNavControl>();
+
+        /// <summary>
+        /// Re-tells the bar whether a call is up.
+        ///
+        /// AttachNav answers that question once, when a screen is built. Settings is the
+        /// screen that outlives the answer: OnCallStateChanged deliberately leaves it in
+        /// place when a call ends, so without this the tab kept advertising a call that
+        /// was over — and kept an infinite animation running on an idle window.
+        /// </summary>
+        private void RefreshNavCallState() =>
+            CurrentNav()?.SetInCall(App.SipService.State is CallState.Active or CallState.OnHold);
 
         private void OnNavTabSelected(object? sender, NavTab tab) => NavigateTo(tab);
 

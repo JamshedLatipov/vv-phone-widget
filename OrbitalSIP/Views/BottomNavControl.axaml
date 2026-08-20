@@ -83,7 +83,11 @@
   <Border Background="#0F172A" Height="46" BorderBrush="#1E293B" BorderThickness="1,1,1,0" VerticalAlignment="Bottom">
     <Grid ColumnDefinitions="*,*,*,*">
 
-      <Button Grid.Column="0" Name="DialerBtn" Classes="nav-tab active" ToolTip.Tip="{i18n:I18n Dialer}">
+      <!-- The only tab whose tooltip changes at runtime, so it is the only one with no
+           ToolTip.Tip binding here: RefreshInCallVisuals sets the text, and a binding left
+           in the markup would stay live underneath it and push "Dialer" back over the
+           in-call wording the next time the language changed. Do not restore it. -->
+      <Button Grid.Column="0" Name="DialerBtn" Classes="nav-tab active">
         <materialIcons:MaterialIcon Name="DialerIcon" Kind="Dialpad" Width="20" Height="20" />
       </Button>
 

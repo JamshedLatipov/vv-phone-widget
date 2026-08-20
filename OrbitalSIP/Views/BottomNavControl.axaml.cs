@@ -27,6 +27,7 @@ namespace OrbitalSIP.Views
         private readonly Dictionary<NavTab, Button> _buttons = new();
         private NavTab _activeTab = NavTab.Dialer;
         private bool _inCall;
+        private bool _loginMode;
 
         public BottomNavControl()
         {
@@ -121,6 +122,13 @@ namespace OrbitalSIP.Views
             RefreshInCallVisuals();
         }
 
+        /// <summary>
+        /// Redraws everything about the Dialer tab that depends on state, from the state
+        /// itself — so it does not matter which of ActiveTab, SetInCall and SetLoginMode
+        /// ran last. The icon in particular used to be left wherever the previous caller
+        /// put it, which made leaving login mode depend on the order MainWindow happened
+        /// to call them in.
+        /// </summary>
         private void RefreshInCallVisuals()
         {
             if (!_buttons.TryGetValue(NavTab.Dialer, out var dialerBtn)) return;
@@ -128,9 +136,14 @@ namespace OrbitalSIP.Views
 
             dialerBtn.Classes.Set("in-call", _inCall);
             if (icon != null)
-                icon.Kind = _inCall ? MaterialIconKind.PhoneInTalk : MaterialIconKind.Dialpad;
+                icon.Kind = _loginMode ? MaterialIconKind.ArrowLeft
+                          : _inCall    ? MaterialIconKind.PhoneInTalk
+                                       : MaterialIconKind.Dialpad;
 
-            ToolTip.SetTip(dialerBtn, I18nService.Instance.Get(_inCall ? "InCall" : "Dialer"));
+            // NavInCall, not the InCall the status line uses: that one is an all-caps
+            // status label, which reads as a shout in a tooltip. Set here rather than bound
+            // in the markup — see the comment on DialerBtn.
+            ToolTip.SetTip(dialerBtn, I18nService.Instance.Get(_inCall ? "NavInCall" : "Dialer"));
 
             SetPulse(dialerBtn, NavPulse.ShouldPulse(_inCall, _activeTab));
         }
@@ -162,11 +175,12 @@ namespace OrbitalSIP.Views
         /// </summary>
         public void SetLoginMode(bool loginMode)
         {
+            _loginMode = loginMode;
+
             if (_buttons.TryGetValue(NavTab.Recents, out var recents)) recents.IsEnabled = !loginMode;
             if (_buttons.TryGetValue(NavTab.Tasks, out var tasks)) tasks.IsEnabled = !loginMode;
 
-            var icon = this.FindControl<MaterialIcon>("DialerIcon");
-            if (icon != null && loginMode) icon.Kind = MaterialIconKind.ArrowLeft;
+            RefreshInCallVisuals();
         }
 
         /// <summary>Shows the count pill on a tab. Zero or less hides it.</summary>

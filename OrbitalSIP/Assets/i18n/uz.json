@@ -193,5 +193,6 @@
   "SmsHistoryCallUnavailable": "SMS uchun qo'ng'iroqlar tarixidagi yozuvni tasdiqlab bo'lmadi. Qayta urinib ko'ring.",
   "Recents": "Tarix",
   "Tasks": "Vazifalar",
-  "Settings": "Sozlamalar"
+  "Settings": "Sozlamalar",
+  "NavInCall": "Suhbat davom etmoqda"
 }
