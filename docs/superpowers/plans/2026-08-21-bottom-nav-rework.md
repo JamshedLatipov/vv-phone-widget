@@ -51,7 +51,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 | `OrbitalSIP/Models/NavTab.cs` | Перечисление табов. Больше ничего. |
 | `OrbitalSIP/Models/NavBadgeState.cs` | Чистая арифметика бейджей: сложение открытых, watermark пропущенных, формат счётчика. Без HTTP и без UI. |
 | `OrbitalSIP/Services/NavPulse.cs` | Одна функция: пульсировать ли табу «Набор». |
-| `OrbitalSIP/Services/TaskItemPresenter.cs` | Чистые вычисления для строки задачи: просрочена ли, цвет приоритета, ведро срока, текст времени. |
+| `OrbitalSIP/Services/TaskItemPresenter.cs` | Чистые вычисления для строки задачи: просрочена ли, цвет приоритета, ведро срока, текст времени. Здесь же живёт `DueBucket` — он ничего не отражает на проводе, а описывает подпись строки, как `LeadPanelState` рядом со своим презентером. |
 | `OrbitalSIP/Services/NavBadgeService.cs` | Расписание опроса, HTTP, уведомление подписчиков. Считать не умеет — держит `NavBadgeState`. |
 | `OrbitalSIP/ViewModels/TaskItemViewModel.cs` | Готовые к биндингу свойства строки. Склеивает `TaskItemPresenter` с `I18nService`. |
 | `OrbitalSIP/Views/TasksView.axaml` + `.axaml.cs` | Экран задач. |
@@ -1413,15 +1413,6 @@ git commit -m "refactor(nav): route every tab press through one switch in MainWi
         public int Overdue { get; set; }
     }
 
-    /// <summary>How soon a task is due, in the buckets the row label distinguishes.</summary>
-    public enum DueBucket
-    {
-        None,
-        Overdue,
-        Today,
-        Tomorrow,
-        Later,
-    }
 ```
 
 И добавить в шапку файла недостающие using:
@@ -1597,6 +1588,24 @@ using OrbitalSIP.Models;
 
 namespace OrbitalSIP.Services
 {
+    /// <summary>How soon a task is due, in the buckets the row label distinguishes.</summary>
+    public enum DueBucket
+    {
+        None,
+        Overdue,
+        Today,
+        Tomorrow,
+
+        /// <summary>
+        /// Everything the row label renders as a plain date with no relative word: a
+        /// deadline more than a day out, AND a finished task whose deadline has already
+        /// passed. IsOverdue excludes done/completed, so a closed task with an old
+        /// deadline lands here — Later is defined by what the renderer does with it, not
+        /// by when it happens, and that suits both cases.
+        /// </summary>
+        Later,
+    }
+
     /// <summary>
     /// Everything a task row displays that can be worked out from the task itself.
     ///
@@ -1626,8 +1635,8 @@ namespace OrbitalSIP.Services
             if (task.DueDate is not { } due) return DueBucket.None;
             if (IsOverdue(task, now)) return DueBucket.Overdue;
 
-            var dueDay = due.ToLocalTime().Date;
-            var today = now.ToLocalTime().Date;
+            var dueDay = DateAt(due, now);
+            var today  = now.Date;
 
             if (dueDay == today) return DueBucket.Today;
             if (dueDay == today.AddDays(1)) return DueBucket.Tomorrow;
@@ -1639,11 +1648,28 @@ namespace OrbitalSIP.Services
         {
             if (due is not { } value) return string.Empty;
 
-            var local = value.ToLocalTime();
-            return local.Date == now.ToLocalTime().Date
+            var local = value.ToOffset(now.Offset);
+            return DateAt(value, now) == now.Date
                 ? local.ToString("HH:mm")
                 : local.ToString("dd.MM HH:mm");
         }
+
+        /// <summary>
+        /// The calendar day an instant falls on for whoever is holding the phone.
+        ///
+        /// ToOffset(now.Offset), not ToLocalTime(): the latter resolves against
+        /// TimeZoneInfo.Local — the machine's setting — and discards the offset the value
+        /// carries, so the answer changes with the host and the tests pass only on a box
+        /// set to the deployment's zone. CallHistoryWindow already paid for that lesson:
+        /// a UTC day boundary cost a night shift the first five hours of its own call
+        /// history, and its summary says outright that the point of taking the instant is
+        /// to be testable at offsets this machine is not set to.
+        ///
+        /// Shared rather than written twice, because Bucket and TimeText disagreeing about
+        /// which day a row belongs to is a bug nothing would report.
+        /// </summary>
+        private static DateTime DateAt(DateTimeOffset instant, DateTimeOffset now) =>
+            instant.ToOffset(now.Offset).Date;
 
         /// <summary>
         /// Stripe colour down the left of a row. An unknown or absent priority gets the
@@ -1669,7 +1695,7 @@ namespace OrbitalSIP.Services
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~TaskItemPresenterTests"
 ```
 
-Ожидаемо: PASS, 24 теста — 23 из списка выше плюс один, который добавила мутационная проверка: ни один из 23 не подавал `status: null` вместе с прошедшим сроком, поэтому null-небезопасный `IsFinished` проходил незамеченным.
+Ожидаемо: PASS, 28 тестов — 23 из списка выше плюс пять, которые добавила проверка: ни один из 23 не подавал `status: null` вместе с прошедшим сроком; ни один не проверял независимость от зоны машины; ни один не гонял `Bucket` и `TimeText` от одного срока; ни один не пинил `Later` для закрытой просроченной задачи и регистр `IsFinished`.
 
 - [ ] **Step 6: Коммит**
 
@@ -2119,7 +2145,7 @@ dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "Ful
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: PASS, 571 тест.
+Ожидаемо: PASS, 575 тестов.
 
 - [ ] **Step 6: Коммит**
 
@@ -2431,7 +2457,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 571 тест зелёный. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
+Ожидаемо: сборка чистая, 575 тестов зелёные. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
 
 ```bash
 grep -rn "class OperatorDetailsResponse" OrbitalSIP/Models/OperatorStats.cs
@@ -2883,7 +2909,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка без ошибок, 571 тест зелёный.
+Ожидаемо: сборка без ошибок, 575 тестов зелёные.
 
 - [ ] **Step 7: Проверить руками**
 
@@ -3039,7 +3065,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 571 тест зелёный.
+Ожидаемо: сборка чистая, 575 тестов зелёные.
 
 - [ ] **Step 6: Проверить руками**
 
@@ -3062,7 +3088,7 @@ git commit -m "fix(call): send DTMF from the keypad button instead of rebuilding
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: 571 тест, 0 упавших.
+Ожидаемо: 575 тестов, 0 упавших.
 
 - [ ] **Сборка релизной конфигурации**
 
