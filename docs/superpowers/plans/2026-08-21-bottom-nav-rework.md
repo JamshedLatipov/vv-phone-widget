@@ -1669,7 +1669,7 @@ namespace OrbitalSIP.Services
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~TaskItemPresenterTests"
 ```
 
-Ожидаемо: PASS, 23 теста.
+Ожидаемо: PASS, 24 теста — 23 из списка выше плюс один, который добавила мутационная проверка: ни один из 23 не подавал `status: null` вместе с прошедшим сроком, поэтому null-небезопасный `IsFinished` проходил незамеченным.
 
 - [ ] **Step 6: Коммит**
 
@@ -2119,7 +2119,7 @@ dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "Ful
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: PASS, 570 тестов.
+Ожидаемо: PASS, 571 тест.
 
 - [ ] **Step 6: Коммит**
 
@@ -2431,7 +2431,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 570 тестов зелёные. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
+Ожидаемо: сборка чистая, 571 тест зелёный. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
 
 ```bash
 grep -rn "class OperatorDetailsResponse" OrbitalSIP/Models/OperatorStats.cs
@@ -2883,7 +2883,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка без ошибок, 570 тестов зелёные.
+Ожидаемо: сборка без ошибок, 571 тест зелёный.
 
 - [ ] **Step 7: Проверить руками**
 
@@ -3039,7 +3039,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 570 тестов зелёные.
+Ожидаемо: сборка чистая, 571 тест зелёный.
 
 - [ ] **Step 6: Проверить руками**
 
@@ -3062,7 +3062,7 @@ git commit -m "fix(call): send DTMF from the keypad button instead of rebuilding
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: 570 тестов, 0 упавших.
+Ожидаемо: 571 тест, 0 упавших.
 
 - [ ] **Сборка релизной конфигурации**
 
