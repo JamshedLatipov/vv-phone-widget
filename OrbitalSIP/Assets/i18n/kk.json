@@ -142,6 +142,7 @@
   "TasksEmpty": "Тапсырмалар жоқ",
   "TasksNoAccess": "Тапсырмаларға рұқсат жоқ",
   "TasksLoadFailed": "Тапсырмаларды жүктеу мүмкін болмады",
+  "TasksSessionExpired": "Сессия аяқталды. Қайта кіріңіз.",
   "TaskDone": "Орындалды",
   "TaskDoneFailed": "Тапсырма күйін өзгерту мүмкін болмады",
   "TaskDueToday": "бүгін",

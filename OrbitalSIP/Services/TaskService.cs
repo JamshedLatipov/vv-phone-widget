@@ -106,8 +106,23 @@ namespace OrbitalSIP.Services
         /// Scoped to the token by way of <see cref="AssignedToId"/>'s log rather than
         /// latched, for the same reason as <see cref="TasksForbidden"/>: a new session gets
         /// to be a different person.
+        ///
+        /// Only means what it says while <see cref="SignedOut"/> is false. It reads the
+        /// token's sub, and BackendAuth.EndSession nulls the decoded token outright, so a
+        /// session that has simply expired is indistinguishable from an SSO account here.
+        /// Check the session first — <see cref="TaskListOutcome"/> does.
         /// </summary>
         public bool TasksUnassignable => AssignedToId() == null;
+
+        /// <summary>
+        /// True when there is no token to ask with — the session ended, or never began.
+        ///
+        /// The same field BackendAuth.EndSession clears, so this is "the session is over"
+        /// rather than a guess at it. Exists because the two permanent-sounding states
+        /// above are both computed from a token that is no longer there, and telling an
+        /// operator they lack a permission when their session died is the wrong sentence.
+        /// </summary>
+        public bool SignedOut => string.IsNullOrEmpty(_settingsProvider()?.AccessToken);
 
         /// <summary>Creates a task via POST /api/tasks. Returns true on 2xx.</summary>
         public async Task<bool> CreateTaskAsync(CreateTaskRequest task)

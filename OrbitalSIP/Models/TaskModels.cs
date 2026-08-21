@@ -92,8 +92,14 @@ namespace OrbitalSIP.Models
     /// <summary>The envelope GET /api/tasks answers with.</summary>
     public class TaskListResponse
     {
+        /// <summary>
+        /// Elements are nullable because the backend has been seen to send
+        /// <c>"data": [null]</c>, and both call sites filter for it. Declaring them
+        /// non-null promised callers something the runtime handling right beside it does
+        /// not believe — the same claim OpenTaskList.From refused to make.
+        /// </summary>
         [JsonPropertyName("data")]
-        public List<TaskItem> Data { get; set; } = new();
+        public List<TaskItem?> Data { get; set; } = new();
 
         [JsonPropertyName("total")]
         public int Total { get; set; }

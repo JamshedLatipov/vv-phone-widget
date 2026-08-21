@@ -152,6 +152,7 @@
   "TasksEmpty": "Задач нет",
   "TasksNoAccess": "Нет доступа к задачам",
   "TasksLoadFailed": "Не удалось загрузить задачи",
+  "TasksSessionExpired": "Сессия истекла. Войдите заново.",
   "TaskDone": "Выполнено",
   "TaskDoneFailed": "Не удалось изменить статус задачи",
   "TaskDueToday": "сегодня",

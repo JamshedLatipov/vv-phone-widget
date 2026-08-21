@@ -11,8 +11,9 @@ namespace OrbitalSIP.Tests;
 public class TaskListOutcomeTests
 {
     private static TaskListState Of(TaskFetch first, TaskFetch second, int taskCount,
-                                    bool forbidden = false, bool unassignable = false) =>
-        TaskListOutcome.Of(new[] { first, second }, taskCount, forbidden, unassignable);
+                                    bool forbidden = false, bool unassignable = false,
+                                    bool signedOut = false) =>
+        TaskListOutcome.Of(new[] { first, second }, taskCount, forbidden, unassignable, signedOut);
 
     [Fact]
     public void BothHalvesAnsweredWithTasksIsReady()
@@ -43,7 +44,7 @@ public class TaskListOutcomeTests
     [InlineData(0, TaskListState.Empty)]
     public void OneRequestIsEnoughToKnow(int taskCount, TaskListState expected)
     {
-        Assert.Equal(expected, TaskListOutcome.Of(new[] { TaskFetch.Answered }, taskCount, false, false));
+        Assert.Equal(expected, TaskListOutcome.Of(new[] { TaskFetch.Answered }, taskCount, false, false, false));
     }
 
     [Fact]
@@ -119,5 +120,53 @@ public class TaskListOutcomeTests
     {
         Assert.Equal(TaskListState.Refused,
             Of(TaskFetch.Skipped, TaskFetch.Skipped, 0, forbidden: true, unassignable: true));
+    }
+
+    /// <summary>
+    /// The case that made this parameter necessary. EndSession nulls the decoded token, so
+    /// a session that has merely expired arrives here looking exactly like an SSO account
+    /// that can never be assigned tasks — and would be told "not for you", permanently
+    /// worded, when the fix is to sign in again. Reachable: a session dying behind an
+    /// active call defers the login screen, and the Tasks tab is reachable from the call.
+    /// </summary>
+    [Fact]
+    public void ADeadSessionOutranksTheUnassignableItCauses()
+    {
+        Assert.Equal(TaskListState.Expired,
+            Of(TaskFetch.Skipped, TaskFetch.Skipped, 0, unassignable: true, signedOut: true));
+    }
+
+    /// <summary>
+    /// And outranks a refusal remembered from the session that has just ended: the 403 was
+    /// the old token's, and the next operator gets to be a different person.
+    /// </summary>
+    [Fact]
+    public void ADeadSessionOutranksARefusalFromTheSessionBeforeIt()
+    {
+        Assert.Equal(TaskListState.Expired,
+            Of(TaskFetch.Skipped, TaskFetch.Skipped, 0, forbidden: true, signedOut: true));
+    }
+
+    /// <summary>
+    /// Rows fetched before the session died are not shown under it either — Apply drops
+    /// them — so the state has to say expired rather than ready.
+    /// </summary>
+    [Fact]
+    public void ADeadSessionOutranksTasksAlreadyFetched()
+    {
+        Assert.Equal(TaskListState.Expired,
+            Of(TaskFetch.Answered, TaskFetch.Answered, 4, signedOut: true));
+    }
+
+    /// <summary>
+    /// The distinction stays a distinction: an SSO account with a live session is still
+    /// refused, not expired. Collapsing the two the other way would tell every SSO
+    /// operator to sign in again, every time, for a session that is perfectly good.
+    /// </summary>
+    [Fact]
+    public void AnUnassignableAccountWithALiveSessionIsStillRefused()
+    {
+        Assert.Equal(TaskListState.Refused,
+            Of(TaskFetch.Skipped, TaskFetch.Skipped, 0, unassignable: true, signedOut: false));
     }
 }

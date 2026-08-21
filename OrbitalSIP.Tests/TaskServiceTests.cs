@@ -67,7 +67,8 @@ public class TaskServiceTests
         Assert.NotNull(result);
         Assert.Equal(1, result!.Total);
         var task = Assert.Single(result.Data);
-        Assert.Equal(7, task.Id);
+        Assert.NotNull(task);
+        Assert.Equal(7, task!.Id);
         Assert.Equal("Перезвонить", task.Title);
     }
 

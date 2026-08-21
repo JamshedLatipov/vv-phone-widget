@@ -32,6 +32,14 @@ namespace OrbitalSIP.Services
         /// </summary>
         Refused,
 
+        /// <summary>
+        /// There is no session to ask with. Told apart from <see cref="Refused"/> because
+        /// the operator can do something about this one, and because the wording for
+        /// refused is permanent — "not for you" — which is the wrong thing to say to
+        /// someone whose token merely expired.
+        /// </summary>
+        Expired,
+
         /// <summary>Nothing was learned, so nothing may be claimed about the list.</summary>
         Failed,
     }
@@ -52,7 +60,15 @@ namespace OrbitalSIP.Services
         /// <summary>
         /// The order of the rules is the whole content of this method.
         ///
-        /// A refusal comes first, ahead of any failed request, because it is a definite
+        /// A dead session comes before everything, because every other signal is downstream
+        /// of it. <paramref name="unassignable"/> in particular is computed from the token's
+        /// sub, and EndSession nulls the whole decoded token — so an expired session reads
+        /// as unassignable and would be reported as "not for you", permanently worded, to
+        /// an operator whose only problem is that they need to sign in again. Reachable
+        /// today: a session dying behind an active call defers the login screen, the
+        /// operator stays on the call, and the Tasks tab is reachable from there.
+        ///
+        /// Then a refusal, ahead of any failed request, because it is a definite
         /// answer and the request that carried it necessarily failed too: a 403 is both,
         /// and reading it as "could not load" would put a retry-shaped sentence next to a
         /// refresh button that can never help. <paramref name="unassignable"/> joins it for
@@ -70,9 +86,11 @@ namespace OrbitalSIP.Services
         /// </summary>
         /// <param name="fetches">One entry per request the load considered making.</param>
         /// <param name="taskCount">Rows in hand after the responses were merged.</param>
+        /// <param name="signedOut">No token to ask with — the session ended or never began.</param>
         public static TaskListState Of(IReadOnlyList<TaskFetch> fetches, int taskCount,
-                                       bool forbidden, bool unassignable)
+                                       bool forbidden, bool unassignable, bool signedOut)
         {
+            if (signedOut) return TaskListState.Expired;
             if (forbidden || unassignable) return TaskListState.Refused;
             if (fetches.Any(fetch => fetch == TaskFetch.Failed)) return TaskListState.Failed;
             if (!fetches.Any(fetch => fetch == TaskFetch.Answered)) return TaskListState.Failed;

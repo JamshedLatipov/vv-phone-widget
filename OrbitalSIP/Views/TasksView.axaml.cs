@@ -27,12 +27,6 @@ namespace OrbitalSIP.Views
         private bool _shownOpenOnly = true;
 
         /// <summary>
-        /// True when a detach cancelled a load that had not finished, so the re-attach can
-        /// ask for it again. See <see cref="OnDetachedFromVisualTree"/>.
-        /// </summary>
-        private bool _reloadOnAttach;
-
-        /// <summary>
         /// The load still in flight, so a newer one can call it off.
         ///
         /// Not an _isLoading flag that turns the newer load away. The chips light before
@@ -77,28 +71,18 @@ namespace OrbitalSIP.Views
         /// parsed, merged and drawn into a list nobody can see — one orphaned round trip
         /// per visit. Cancelling is silent by design, so nothing is said about it.
         ///
-        /// The animated content swap moves this same instance from the overlay to the
-        /// host, which detaches and re-attaches it — on a screen that is about to come
-        /// straight back, and typically while the constructor's own load is still in
-        /// flight. Remembering that the cancel happened is what stops that swap from
-        /// leaving the screen permanently empty.
+        /// A detach here is the end of this screen, so cancelling is all there is to do.
+        /// That holds only while ShowTasks installs through SetMainContent: the animated
+        /// swap parks a view in the overlay and then moves it to the host, which is a
+        /// detach/attach pair on an instance that is coming straight back, and this cancel
+        /// would leave it permanently empty. Route this view through StartAnimation and it
+        /// needs a reload-on-attach to go with it.
         /// </summary>
         protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
         {
             base.OnDetachedFromVisualTree(e);
 
-            _reloadOnAttach = _loadCts != null;
             _loadCts?.Cancel();
-        }
-
-        protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
-        {
-            base.OnAttachedToVisualTree(e);
-
-            if (!_reloadOnAttach) return;
-
-            _reloadOnAttach = false;
-            _ = LoadAsync();
         }
 
         private void WireButtons()
@@ -205,7 +189,7 @@ namespace OrbitalSIP.Views
                         // not shown at all, so once the pending half is missing the
                         // in_progress half is a request whose answer is already destined
                         // for the bin — and one more banner over the same outage.
-                        List<TaskItem>? running = null;
+                        List<TaskItem?>? running = null;
                         if (first == TaskFetch.Answered)
                         {
                             var response = await service.GetMyTasksAsync("in_progress", ct);
@@ -224,12 +208,13 @@ namespace OrbitalSIP.Views
                         // to be merged before it means anything. Null rows are dropped for
                         // the same reason OpenTaskList.From drops them: "data": [null].
                         if (all?.Data != null)
-                            tasks.AddRange(all.Data.Where(task => task is not null));
+                            tasks.AddRange(all.Data.OfType<TaskItem>());
                     }
                 }
 
                 var state = TaskListOutcome.Of(new[] { first, second }, tasks.Count,
-                                               service.TasksForbidden, service.TasksUnassignable);
+                                               service.TasksForbidden, service.TasksUnassignable,
+                                               service.SignedOut);
 
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
@@ -294,9 +279,10 @@ namespace OrbitalSIP.Views
                 return;
             }
 
-            // Refused replaces the list rather than leaving stale rows under a sentence
-            // saying the operator cannot see them.
-            ReplaceItems(state == TaskListState.Refused ? null : tasks, now);
+            // Refused and Expired both replace the list rather than leave stale rows under
+            // a sentence saying the operator cannot see them, or is not signed in.
+            var withheld = state is TaskListState.Refused or TaskListState.Expired;
+            ReplaceItems(withheld ? null : tasks, now);
             _shownOpenOnly = openOnly;
 
             // A load that answered supersedes everything either label was carrying: both
@@ -305,6 +291,7 @@ namespace OrbitalSIP.Views
             ShowMessage(state switch
             {
                 TaskListState.Refused => Note.NoAccess,
+                TaskListState.Expired => Note.SessionExpired,
                 TaskListState.Empty   => Note.Empty,
                 _                     => Note.None,
             });
@@ -351,30 +338,31 @@ namespace OrbitalSIP.Views
             None,
             Empty,
             NoAccess,
+            SessionExpired,
             LoadFailed,
             DoneFailed,
         }
 
-        /// <summary>What the centred label is saying. Only ever set over an empty list.</summary>
-        private Note _message = Note.None;
-
-        /// <summary>What the bottom label is saying.</summary>
+        /// <summary>
+        /// What the bottom label is saying. Its twin for the centred label is not kept:
+        /// nothing reads it, because the centred label is only ever replaced wholesale by
+        /// the next answer, while this one has to be told apart from a failed tap.
+        /// </summary>
         private Note _error = Note.None;
 
         private static string TextOf(Note note) => note switch
         {
-            Note.Empty      => I18nService.Instance.Get("TasksEmpty"),
-            Note.NoAccess   => I18nService.Instance.Get("TasksNoAccess"),
-            Note.LoadFailed => I18nService.Instance.Get("TasksLoadFailed"),
-            Note.DoneFailed => I18nService.Instance.Get("TaskDoneFailed"),
-            _               => string.Empty,
+            Note.Empty          => I18nService.Instance.Get("TasksEmpty"),
+            Note.NoAccess       => I18nService.Instance.Get("TasksNoAccess"),
+            Note.SessionExpired => I18nService.Instance.Get("TasksSessionExpired"),
+            Note.LoadFailed     => I18nService.Instance.Get("TasksLoadFailed"),
+            Note.DoneFailed     => I18nService.Instance.Get("TaskDoneFailed"),
+            _                   => string.Empty,
         };
 
         /// <summary>What the list is doing when it has nothing to show: empty, or refused.</summary>
         private void ShowMessage(Note note)
         {
-            _message = note;
-
             var label = this.FindControl<TextBlock>("TasksMessageLabel");
             if (label == null) return;
 

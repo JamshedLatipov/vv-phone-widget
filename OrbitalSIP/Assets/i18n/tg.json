@@ -142,6 +142,7 @@
   "TasksEmpty": "Вазифаҳо нестанд",
   "TasksNoAccess": "Дастрасӣ ба вазифаҳо нест",
   "TasksLoadFailed": "Боркунии вазифаҳо ноком шуд",
+  "TasksSessionExpired": "Сессия ба охир расид. Дубора ворид шавед.",
   "TaskDone": "Иҷро шуд",
   "TaskDoneFailed": "Ҳолати вазифаро тағйир додан нашуд",
   "TaskDueToday": "имрӯз",
