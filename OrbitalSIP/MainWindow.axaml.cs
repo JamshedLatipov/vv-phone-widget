@@ -130,7 +130,7 @@ namespace OrbitalSIP
             App.NavBadges.Changed += () =>
             {
                 var nav = CurrentNav();
-                if (nav != null) App.NavBadges.ApplyTo(nav);
+                if (nav != null) ApplyBadges(nav);
             };
 
             // Initial view
@@ -736,6 +736,12 @@ namespace OrbitalSIP
             // Settings is open takes no branch at all. Both left the bar stale.
             RefreshNavCallState();
 
+            // A call that ends is the one moment the missed-calls total can have just
+            // moved, and it is also the moment the operator is looking at the bar again.
+            // Waiting for the next tick would put the badge up to two minutes late — ten
+            // if the backend has been failing and the backoff has stretched.
+            if (state == CallState.Idle) _ = App.NavBadges.RefreshNowAsync();
+
             if (state == CallState.Idle && _isExpanded)
             {
                 var host = this.FindControl<ContentControl>("Host");
@@ -979,12 +985,31 @@ namespace OrbitalSIP
             nav.ActiveTab = _currentTab;
             nav.SetInCall(App.SipService.State is CallState.Active or CallState.OnHold);
             nav.SetLoginMode(_settingsFromLogin);
+            ApplyBadges(nav);
+        }
 
+        /// <summary>
+        /// Draws the badge counts on a bar — the fourth piece of state this window pushes
+        /// into one, beside ActiveTab, SetInCall and SetLoginMode above.
+        ///
+        /// Here rather than on NavBadgeService, which used to take the control and call
+        /// SetBadge itself: that made a service under Services the only thing in the
+        /// project reaching into Views, and it was also the only way the counts could be
+        /// observed, so nothing could assert them without building a control.
+        ///
+        /// Both places that put a bar on screen go through this — AttachNav when the bar is
+        /// built, and the Changed handler when the numbers move under one already up.
+        /// </summary>
+        private void ApplyBadges(Views.BottomNavControl nav)
+        {
             // Not in login mode: Settings is reachable from the login screen, and after a
             // session expiry the counters still in hand are the previous session's. Drawn
             // there they would be a claim about an operator who is no longer signed in,
             // sitting on the Recents and Tasks buttons SetLoginMode has just greyed out.
-            if (!_settingsFromLogin) App.NavBadges.ApplyTo(nav);
+            if (_settingsFromLogin) return;
+
+            nav.SetBadge(NavTab.Tasks, App.NavBadges.OpenTasks, App.NavBadges.HasOverdueTasks);
+            nav.SetBadge(NavTab.Recents, App.NavBadges.NewMissed, alert: false);
         }
 
         /// <summary>

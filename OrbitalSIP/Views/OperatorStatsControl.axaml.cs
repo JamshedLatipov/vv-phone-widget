@@ -1,7 +1,6 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia;
-using Avalonia.Threading;
 using System;
 using System.Threading.Tasks;
 using OrbitalSIP.Models;
@@ -29,6 +28,13 @@ namespace OrbitalSIP.Views
             // Polling moved to NavBadgeService: it hits the same endpoint for the Recents
             // badge, and it survives the screen-swap animation that used to stop the timer
             // that lived here.
+            //
+            // Two things this panel does not say out loud, both low enough in reachability
+            // to leave standing. Until a poll has succeeded there is no cache to read, and
+            // the markup's own zeros — "0 / 0", 0%, in green — are indistinguishable from a
+            // backend that answered with a quiet shift. And OnBadgesChanged does nothing on
+            // a null cache, so a panel already open when a handover clears it keeps showing
+            // the outgoing operator's figures until the incoming one's first poll answers.
             App.NavBadges.Changed += OnBadgesChanged;
             if (App.NavBadges.OperatorStats is { } stats) UpdateUI(stats);
         }
@@ -53,10 +59,15 @@ namespace OrbitalSIP.Views
             if (App.NavBadges.OperatorStats is { } stats) UpdateUI(stats);
         }
 
+        /// <summary>
+        /// Called on the UI thread already — NavBadgeService raises Changed through
+        /// Dispatcher.UIThread.InvokeAsync — so this paints directly. Posting a second
+        /// InvokeAsync from here only put the panel one dispatcher turn behind the bar,
+        /// which repaints from the same event without one.
+        /// </summary>
         private void OnBadgesChanged()
         {
-            if (App.NavBadges.OperatorStats is { } stats)
-                Dispatcher.UIThread.InvokeAsync(() => UpdateUI(stats));
+            if (App.NavBadges.OperatorStats is { } stats) UpdateUI(stats);
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);

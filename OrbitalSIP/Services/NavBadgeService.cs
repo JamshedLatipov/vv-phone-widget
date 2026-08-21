@@ -5,7 +5,6 @@ using System.Net.Http.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using OrbitalSIP.Models;
-using OrbitalSIP.Views;
 
 namespace OrbitalSIP.Services
 {
@@ -19,6 +18,12 @@ namespace OrbitalSIP.Services
     ///
     /// It also serves OperatorStatsControl, which used to poll the same URL on its own
     /// schedule. One request now, not two.
+    ///
+    /// Reports numbers and knows nothing about the bar that draws them. It used to hand
+    /// them to a BottomNavControl itself, which made this the only type under Services or
+    /// Models that referenced Views — and, because that was the sole way out, made the
+    /// numbers unassertable from a test. MainWindow.AttachNav pushes them now, beside the
+    /// three other pieces of state it already pushes into a freshly built bar.
     /// </summary>
     public sealed class NavBadgeService : IDisposable
     {
@@ -26,22 +31,72 @@ namespace OrbitalSIP.Services
         private static readonly TimeSpan MaxInterval = TimeSpan.FromMinutes(10);
 
         private readonly NavBadgeState _state = new();
-        private readonly HttpClient _httpClient = BackendHttp.Client;
+        private readonly HttpClient _httpClient;
+        private readonly Func<SipSettings> _settingsProvider;
+        private readonly Func<TaskService> _taskServiceProvider;
         private readonly SemaphoreSlim _pollGate = new(1, 1);
         private DispatcherTimer? _timer;
         private int _consecutiveFailures;
+        private TimeSpan _interval = Healthy;
 
-        /// <summary>Raised on the UI thread whenever a number changed.</summary>
+        public NavBadgeService()
+            : this(BackendHttp.Client,
+                   () => App.SipService?.CurrentSettings ?? SipSettings.Load(),
+                   () => App.TaskService)
+        {
+        }
+
+        /// <summary>
+        /// Injectable overload, same shape TaskService, SmsService and ScriptService
+        /// already use, so a poll can be driven from a test without an App or a window.
+        ///
+        /// The task service arrives as a factory rather than an instance because both live
+        /// in App's static field list: taking App.TaskService in this constructor would
+        /// read a field that happens to be initialised earlier in declaration order today,
+        /// and would silently become null the day someone reordered them.
+        /// </summary>
+        public NavBadgeService(HttpClient httpClient,
+                               Func<SipSettings> settingsProvider,
+                               Func<TaskService> taskServiceProvider)
+        {
+            _httpClient = httpClient;
+            _settingsProvider = settingsProvider;
+            _taskServiceProvider = taskServiceProvider;
+        }
+
+        /// <summary>
+        /// Raised on the UI thread at the end of every poll, and when Recents is opened.
+        /// Unconditional: a poll where both fetches failed raises it too, having changed
+        /// nothing. Subscribers redraw from the numbers below rather than from an argument,
+        /// so a redundant raise costs a repaint of values that did not move.
+        /// </summary>
         public event Action? Changed;
 
         /// <summary>Latest operator stats, for whoever wants more than a badge out of them.</summary>
         public OperatorStats? OperatorStats { get; private set; }
 
+        /// <summary>Open tasks — pending plus in progress. The Tasks badge.</summary>
+        public int OpenTasks => _state.OpenTasks;
+
+        /// <summary>True when one of those open tasks is past due, which reddens the badge.</summary>
+        public bool HasOverdueTasks => _state.HasOverdueTasks;
+
+        /// <summary>Missed calls not looked at since Recents was last opened.</summary>
+        public int NewMissed => _state.NewMissed;
+
+        /// <summary>
+        /// How far apart the polls currently are — <see cref="Healthy"/> until the backend
+        /// starts failing, then stretched by <see cref="PollBackoff"/>. Public because the
+        /// backoff is otherwise invisible from outside, and "the badge quietly dropped to a
+        /// ten-minute refresh" is precisely the failure that hid inside it.
+        /// </summary>
+        public TimeSpan PollInterval => _interval;
+
         public void Start()
         {
             if (_timer != null) return;
 
-            _timer = new DispatcherTimer { Interval = Healthy };
+            _timer = new DispatcherTimer { Interval = _interval };
             _timer.Tick += async (_, __) => await PollAsync();
             _timer.Start();
 
@@ -60,6 +115,7 @@ namespace OrbitalSIP.Services
             // cap, and one unlucky failure there would leave their badges stale for ten
             // minutes of a session whose backend is fine.
             _consecutiveFailures = 0;
+            _interval = Healthy;
         }
 
         /// <summary>Polls right now — after ticking a task off, or after a call ends.</summary>
@@ -69,13 +125,6 @@ namespace OrbitalSIP.Services
         {
             _state.MarkRecentsSeen();
             Raise();
-        }
-
-        /// <summary>Pushes the current numbers into a freshly built bar.</summary>
-        public void ApplyTo(BottomNavControl nav)
-        {
-            nav.SetBadge(NavTab.Tasks, _state.OpenTasks, _state.HasOverdueTasks);
-            nav.SetBadge(NavTab.Recents, _state.NewMissed, alert: false);
         }
 
         private async Task PollAsync()
@@ -103,6 +152,13 @@ namespace OrbitalSIP.Services
         {
             var ok = true;
 
+            // Both halves below read the session, and there is an await between them. Read
+            // once so they cannot end up describing two different sessions — which is what
+            // OperatorIdOf's comment promises, and what two independent reads would quietly
+            // stop being true.
+            var settings = _settingsProvider();
+            var tasks = _taskServiceProvider();
+
             // Before anything else writes to _state, not after: a handover on a shared
             // terminal keeps the same process, and the numbers this poll is about to fetch
             // belong to whoever is signed in now.
@@ -113,9 +169,21 @@ namespace OrbitalSIP.Services
             // expanded the dialer. Cleared on the answer SetOperator already gives rather
             // than on a comparison of our own, so there is one definition of "the operator
             // changed" and no second copy to drift against it.
-            if (_state.SetOperator(OperatorIdOf(App.SipService?.CurrentSettings ?? SipSettings.Load())))
+            if (_state.SetOperator(OperatorIdOf(settings)))
                 OperatorStats = null;
 
+            if (tasks.TasksUnassignable)
+            {
+                // Nothing to ask: the JWT carries no user id the tasks API can be queried
+                // by, and it will not grow one before the session changes. Counted as a
+                // failure — which is what treating the null answer as one did — it would
+                // climb the backoff on every poll and drag the missed-calls half, whose
+                // endpoint is answering perfectly, down to a ten-minute refresh for the
+                // whole shift. Every SSO operator is in this state permanently, because
+                // their token's sub is an opaque string. So: badge cleared, ok untouched,
+                // and TaskService logs it once per token rather than once per poll.
+                _state.SetTasks(0, 0, 0);
+            }
             // Ask TaskService rather than keeping a latch of our own. Its TasksForbidden is
             // scoped to the access token that drew the 403, so it clears itself when the
             // session changes — and a local bool here would outlive that, which is the
@@ -123,14 +191,14 @@ namespace OrbitalSIP.Services
             // stop calling GetMyStatsAsync, so the token behind the latch would never be
             // re-examined, and an operator who does have tasks:read would keep seeing a
             // dead badge until the app restarted.
-            if (!App.TaskService.TasksForbidden)
+            else if (!tasks.TasksForbidden)
             {
-                var stats = await App.TaskService.GetMyStatsAsync();
+                var stats = await tasks.GetMyStatsAsync();
                 if (stats != null)
                 {
                     _state.SetTasks(stats.Pending, stats.InProgress, stats.Overdue);
                 }
-                else if (App.TaskService.TasksForbidden)
+                else if (tasks.TasksForbidden)
                 {
                     // A permission this role does not have will not appear in two minutes,
                     // so stop asking until the session changes.
@@ -143,7 +211,7 @@ namespace OrbitalSIP.Services
                 }
             }
 
-            var missed = await LoadMissedCallsAsync();
+            var missed = await LoadMissedCallsAsync(settings);
             if (missed.HasValue) _state.SetMissed(missed.Value);
             else ok = false;
 
@@ -157,8 +225,9 @@ namespace OrbitalSIP.Services
             // LoadMissedCallsAsync below — which does not go through TaskService — keeps
             // the same rule by hand, logging and nothing more.
             _consecutiveFailures = ok ? 0 : _consecutiveFailures + 1;
+            _interval = PollBackoff.Next(_consecutiveFailures, Healthy, MaxInterval);
             if (_timer != null)
-                _timer.Interval = PollBackoff.Next(_consecutiveFailures, Healthy, MaxInterval);
+                _timer.Interval = _interval;
 
             Raise();
         }
@@ -168,11 +237,10 @@ namespace OrbitalSIP.Services
         /// null on any failure, so the badge keeps its last known value: a stale number is
         /// a smaller lie than a zero.
         /// </summary>
-        private async Task<int?> LoadMissedCallsAsync()
+        private async Task<int?> LoadMissedCallsAsync(SipSettings settings)
         {
             try
             {
-                var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
                 var operatorId = OperatorIdOf(settings);
                 var backendUrl = settings.BackendUrl?.TrimEnd('/');
 
@@ -215,10 +283,14 @@ namespace OrbitalSIP.Services
 
         private void Raise() => Dispatcher.UIThread.InvokeAsync(() => Changed?.Invoke());
 
-        public void Dispose()
-        {
-            Stop();
-            _pollGate.Dispose();
-        }
+        /// <summary>
+        /// Stops the timer, and deliberately leaves the gate alone. A poll may be holding
+        /// it — a slow backend makes that window seconds wide — and its finally would then
+        /// call Release on a disposed semaphore, throwing ObjectDisposedException into an
+        /// async void timer handler with nobody to catch it. SemaphoreSlim only owns a
+        /// disposable resource once AvailableWaitHandle has been asked for, which nothing
+        /// here does, so there is nothing being leaked by not disposing it.
+        /// </summary>
+        public void Dispose() => Stop();
     }
 }

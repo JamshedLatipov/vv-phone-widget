@@ -79,6 +79,27 @@ namespace OrbitalSIP.Services
         public bool TasksForbidden =>
             _forbiddenForToken != null && _forbiddenForToken == _settingsProvider()?.AccessToken;
 
+        /// <summary>The access token whose missing assignee has already been logged.</summary>
+        private string? _noAssigneeLoggedForToken;
+
+        /// <summary>
+        /// True when the JWT in play carries no user id the tasks API can be asked by, so
+        /// there is nothing to query and no request to make.
+        ///
+        /// Neither a failure nor a transient one: the local HS256 login signs <c>sub</c> as
+        /// a number, but a Zitadel SSO token carries an opaque string that
+        /// <c>int.TryParse</c> will never accept, so every SSO operator is in this state
+        /// for the whole session. <see cref="NavBadgeService"/> reads it to tell "I did not
+        /// ask" apart from "I asked and it failed" — without that distinction it counted
+        /// every poll as a backend failure and backed the missed-calls badge, whose
+        /// endpoint was answering perfectly, off to a ten-minute refresh for the shift.
+        ///
+        /// Scoped to the token by way of <see cref="AssignedToId"/>'s log rather than
+        /// latched, for the same reason as <see cref="TasksForbidden"/>: a new session gets
+        /// to be a different person.
+        /// </summary>
+        public bool TasksUnassignable => AssignedToId() == null;
+
         /// <summary>Creates a task via POST /api/tasks. Returns true on 2xx.</summary>
         public async Task<bool> CreateTaskAsync(CreateTaskRequest task)
         {
@@ -157,11 +178,21 @@ namespace OrbitalSIP.Services
         /// <summary>The numeric user id the tasks API assigns by, or null if the JWT has none.</summary>
         private int? AssignedToId()
         {
-            var sub = _settingsProvider()?.DecodedToken?.Sub;
+            var settings = _settingsProvider();
+            var sub = settings?.DecodedToken?.Sub;
             if (int.TryParse(sub, out var userId)) return userId;
 
-            AppLogger.Log("TaskService",
-                $"No assignee — JWT sub is not a user id (sub: {(sub == null ? "<absent>" : $"'{sub}'")}).");
+            // Once per access token, not once per call. NavBadgeService reads
+            // TasksUnassignable every two minutes for a whole shift, and an SSO sub never
+            // starts parsing, so the unconditional log this replaced wrote the same line
+            // some 240 times a day — for exactly the operators it could tell nothing new.
+            if (_noAssigneeLoggedForToken != settings?.AccessToken)
+            {
+                _noAssigneeLoggedForToken = settings?.AccessToken;
+                AppLogger.Log("TaskService",
+                    $"No assignee — JWT sub is not a user id (sub: {(sub == null ? "<absent>" : $"'{sub}'")}).");
+            }
+
             return null;
         }
 
