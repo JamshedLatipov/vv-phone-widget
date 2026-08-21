@@ -96,7 +96,7 @@
                  TextAlignment="Center" />
 
       <!-- Bottom tab bar -->
-      <Views:BottomNavControl Grid.Row="3" Name="BottomNav" />
+      <Views:BottomNavControl Grid.Row="3" />
 
     </Grid>
   </Border>

@@ -227,7 +227,7 @@ namespace OrbitalSIP.Views
         }
 
         /// <summary>Show or hide the green update-available dot on the Settings button.</summary>
-        public void ShowUpdateDot(bool visible)
+        private void ShowUpdateDot(bool visible)
         {
             var dot = this.FindControl<Ellipse>("UpdateDot");
             if (dot != null) dot.IsVisible = visible;

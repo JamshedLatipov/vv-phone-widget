@@ -92,7 +92,7 @@
                  FontSize="11" Foreground="#FCA5A5" TextWrapping="Wrap"
                  TextAlignment="Center" />
 
-      <Views:BottomNavControl Grid.Row="3" Name="BottomNav" />
+      <Views:BottomNavControl Grid.Row="3" />
 
     </Grid>
   </Border>

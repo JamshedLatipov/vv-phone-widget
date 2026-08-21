@@ -85,7 +85,7 @@ namespace OrbitalSIP.Views
                 icon.Kind = _isExpanded ? Material.Icons.MaterialIconKind.ChevronUp : Material.Icons.MaterialIconKind.ChevronDown;
         }
 
-        public Task LoadStatsAsync() => App.NavBadges.RefreshNowAsync();
+        private Task LoadStatsAsync() => App.NavBadges.RefreshNowAsync();
 
         private void UpdateUI(OperatorStats stats)
         {

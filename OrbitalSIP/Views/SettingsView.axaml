@@ -255,7 +255,7 @@
                    HorizontalAlignment="Center" IsVisible="False" />
       </StackPanel>
 
-      <Views:BottomNavControl Grid.Row="3" Name="BottomNav" Margin="-20,20,-20,-20" />
+      <Views:BottomNavControl Grid.Row="3" Margin="-20,20,-20,-20" />
     </Grid>
 
   </Border>

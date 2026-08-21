@@ -424,7 +424,7 @@
         </StackPanel>
       </StackPanel>
     </ScrollViewer>
-    <Views:BottomNavControl Grid.Row="1" Name="BottomNav" />
+    <Views:BottomNavControl Grid.Row="1" />
   </Grid>
   </Border>
 </UserControl>

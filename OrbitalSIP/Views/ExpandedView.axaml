@@ -143,7 +143,7 @@
 
 
       <!-- Bottom tab bar -->
-      <Views:BottomNavControl Grid.Row="6" Name="BottomNav" />
+      <Views:BottomNavControl Grid.Row="6" />
 
     </Grid>
   </Border>
