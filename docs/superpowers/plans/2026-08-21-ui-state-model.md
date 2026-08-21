@@ -1673,6 +1673,8 @@ git commit -m "feat(nav): let the bar light nothing at all"
 
             var content = contentChanged ? BuildContent(next) : null;
 
+            // Passed to RefreshChrome below, so a screen still parked in the overlay gets
+            // dressed there rather than 280 ms later when it lands.
             if (box.Placement == ShellPlacement.CenterOnScreen)
             {
                 // The login screens are neither animated nor anchored to the corner: they
@@ -1694,7 +1696,7 @@ git commit -m "feat(nav): let the bar light nothing at all"
                 SetMainContent(content);
             }
 
-            RefreshChrome(next);
+            RefreshChrome(next, content);
             ApplyStatusPopup(next);
         }
 
@@ -1740,10 +1742,20 @@ git commit -m "feat(nav): let the bar light nothing at all"
         /// <summary>
         /// Hands the bottom bar its state. The replacement for AttachNav, which derived the
         /// tab and the login mode from the screen's type — both are already in UiState here.
+        ///
+        /// Takes the screen rather than reading Host, and must keep doing so. During a resize
+        /// the incoming screen is parked in the overlay and shown for the whole 280 ms fade
+        /// while Host still holds the outgoing one; reading Host here would dress the screen
+        /// that is leaving and let the arriving one paint its markup defaults for the length
+        /// of the fade — a blue dialpad on a call screen snapping to green at the last frame,
+        /// badges popping in as it lands. That is the bug the comment beside StartAnimation's
+        /// AttachNav call describes, and this signature is what prevents it. Null means "the
+        /// screen already in Host", which is every caller that is not mid-animation.
         /// </summary>
-        private void RefreshChrome(UiState s)
+        private void RefreshChrome(UiState s, object? content = null)
         {
-            var nav = CurrentNav();
+            var nav = ((content ?? this.FindControl<ContentControl>("Host")?.Content) as Control)
+                ?.FindLogicalDescendantOfType<Views.BottomNavControl>();
             if (nav == null) return;
 
             nav.TabSelected -= OnNavTabSelected;
@@ -1944,7 +1956,15 @@ git commit -m "refactor(ui): the window starts rendering a state instead of deci
         private void OnNavTabSelected(object? sender, NavTab tab) => Dispatch(new UiEvent.TabPressed(tab));
 ```
 
-`AttachNav` зовётся из трёх мест — строки 917 (парковка контента в оверлей на старте анимации), 976 (`SetMainContent`) и 1153 (`CompleteAnimatedContentSwap`). Все три заменить на `RefreshChrome(_state)`. Проверить, что ни одного не осталось:
+`AttachNav` зовётся из трёх мест, и они не одинаковы:
+
+| Где | Чем заменить | Почему так |
+|---|---|---|
+| 917 — парковка контента в оверлей на старте анимации | `RefreshChrome(_state, nextContent)` | Экран ещё не в `Host`; без явной передачи оделось бы уходящее меню |
+| 976 — `SetMainContent` | `RefreshChrome(_state, content)` | Тот же довод: `Host` присваивается строкой выше, но полагаться на порядок операторов здесь не стоит — это совпадение, а не гарантия |
+| 1153 — `CompleteAnimatedContentSwap` | `RefreshChrome(_state, nextContent)` | Перечитывает состояние, сдвинувшееся за время фейда |
+
+Проверить, что ни одного вызова не осталось:
 
 ```bash
 git grep -n "AttachNav" -- OrbitalSIP
