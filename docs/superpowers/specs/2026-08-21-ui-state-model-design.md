@@ -150,8 +150,8 @@ public abstract record UiEvent
 | `ExpandRequested` | `Shell == CallBar` | `Panel{Route=Call}`, `Home=Panel` |
 | `CollapseRequested` | звонок жив | `CallBar`, `Home=Collapsed` |
 | `CollapseRequested` | иначе | `Collapsed`, `Home=Collapsed` |
-| `IncomingCall` | `call == Idle` | `Incoming` |
-| `IncomingCall` | звонок уже идёт | без изменений |
+| `IncomingCall` | `call is Idle or IncomingRinging` | `Incoming` |
+| `IncomingCall` | идёт другой разговор | без изменений |
 | `IncomingDeclined` | — | `Home` |
 | `CallStarted` | `Home == Panel` | `Panel{Route=Call}` |
 | `CallStarted` | `Home == Collapsed` | `CallBar` |
@@ -258,6 +258,11 @@ private void Apply(UiState prev, UiState next)
 ```
 call != CallState.Idle   &&   Route != Call
 ```
+
+`IncomingRinging` в первой из этих двух строк — не поблажка, а необходимость:
+`SipService` выставляет состояние до того, как поднимет событие, поэтому к моменту, когда
+`IncomingCall` доходит до окна, звонок уже звонит. Строгое `call == Idle` не пропустило бы
+ни одного настоящего входящего.
 
 `CallState` — это `{ Idle, Ringing, IncomingRinging, Active, OnHold }`. «Звонок жив»
 везде в этом документе означает «не `Idle`»: исходящий гудок (`Ringing`) уже даёт
