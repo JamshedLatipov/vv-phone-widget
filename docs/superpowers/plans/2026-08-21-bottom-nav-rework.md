@@ -2994,6 +2994,13 @@ git commit -m "feat(tasks): give the fourth nav slot a screen worth opening"
 
 ## Task 9: Починить `KeypadBtn`
 
+> **Что выяснилось про `SendDtmfAsync` до начала работы.** Он снимает `_mediaSession` под
+> `lock` (не проверяет поле, а копирует — `CleanupMedia` обнуляет его из SIP-потока) и
+> **молча выходит при `_state != CallState.Active`**. То есть на удержании тоны не уходят
+> и оператору об этом ничего не говорится. Панель должна это отражать: либо гасить
+> клавиши на удержании, либо снимать удержание перед отправкой. Решить и обосновать.
+
+
 **Files:**
 - Modify: `OrbitalSIP/Views/ActiveCallView.axaml` (добавить панель после `TransferPanel`)
 - Modify: `OrbitalSIP/Views/ActiveCallView.axaml.cs:268-270,1166`
