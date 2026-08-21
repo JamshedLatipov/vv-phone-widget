@@ -4,10 +4,10 @@ using Xunit;
 namespace OrbitalSIP.Tests;
 
 /// <summary>
-/// Размер и способ размещения окна — свойство поверхности, а не того метода, который
-/// её строит. Логин центрируется по экрану, всё остальное держится за нижне-правый
-/// угол; сегодня это правило записано только внутри двух методов, которые строят
-/// логин, и любой третий путь к нему его теряет.
+/// The window's size and placement belong to the surface, not to whichever method builds
+/// it. Login centres on the screen and everything else holds the bottom-right corner;
+/// today that rule is written down only inside the two methods that build login, and any
+/// third way in loses it.
 /// </summary>
 public class ShellGeometryTests
 {
@@ -44,8 +44,9 @@ public class ShellGeometryTests
     }
 
     /// <summary>
-    /// Входящий и мини-звонок — одна и та же полоска. Разъехавшись, они дали бы
-    /// анимацию размера на переходе «ответил», которого в модели нет.
+    /// The incoming call and the in-call strip are the same strip. Letting them drift
+    /// apart would animate a resize across the "answered" transition — a resize the model
+    /// does not have.
     /// </summary>
     [Fact]
     public void IncomingAndCallBarShareTheStripGeometry()
@@ -56,8 +57,8 @@ public class ShellGeometryTests
     }
 
     /// <summary>
-    /// Ни одна поверхность не остаётся без размера. Ветка по умолчанию, возвращающая
-    /// что-нибудь правдоподобное, дала бы новому Shell тихий 320×600 вместо ошибки.
+    /// No surface is left without a size. A default branch returning something plausible
+    /// would hand a newly added Shell a silent 320×600 instead of an error.
     /// </summary>
     [Fact]
     public void EveryShellHasGeometry()

@@ -1,12 +1,12 @@
 namespace OrbitalSIP.Models;
 
 /// <summary>
-/// Что показано внутри <see cref="Shell.Panel"/>.
+/// What is on screen inside <see cref="Shell.Panel"/>.
 ///
-/// Отдельный тип, а не расширенный <see cref="NavTab"/>: у меню четыре слота и
-/// пятого не будет. На <see cref="Call"/> попадают только через плашку возврата,
-/// разворот <see cref="Shell.CallBar"/> или начало звонка — кнопки в меню для него
-/// нет, и подсвечивать на нём нечего.
+/// A type of its own rather than a widened <see cref="NavTab"/>: the bar has four slots
+/// and there will not be a fifth. <see cref="Call"/> is reached only through the return
+/// strip, by expanding <see cref="Shell.CallBar"/>, or by a call starting — the bar has
+/// no button for it, and while it is up there is nothing to light.
 /// </summary>
 public enum NavRoute
 {
@@ -15,6 +15,6 @@ public enum NavRoute
     Tasks,
     Settings,
 
-    /// <summary>Экран разговора. Допустим только при живом звонке — см. <c>ShellRouter</c>.</summary>
+    /// <summary>The call screen. Legal only while a call is live — see <c>ShellRouter</c>.</summary>
     Call,
 }

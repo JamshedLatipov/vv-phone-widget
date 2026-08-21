@@ -1,31 +1,31 @@
 namespace OrbitalSIP.Models;
 
 /// <summary>
-/// Поверхности окна — то, чем оно является целиком: размер, способ размещения и
-/// наличие хрома.
+/// The window's surfaces — what it is taken as a whole: its size, how it is placed, and
+/// whether it carries chrome.
 ///
-/// Заменяет собой пару флагов, из которых состояние выводилось раньше: _isExpanded
-/// (true в девяти местах, в том числе для полоски 436×132, панелью не являющейся) и
-/// _settingsFromLogin, который однажды уже протёк в панель отвеченного звонка.
-/// Поверхность протечь не может — из неё ведут только перечисленные переходы.
+/// Replaces the pair of flags the state used to be inferred from: _isExpanded, set true
+/// in nine places including the 436×132 strip that is not a panel at all, and
+/// _settingsFromLogin, which had already leaked into an answered call's panel once. A
+/// surface cannot leak — the only ways out of one are the transitions written down.
 /// </summary>
 public enum Shell
 {
-    /// <summary>Экран входа. Сессии нет, нижнего меню нет.</summary>
+    /// <summary>The login screen. No session, no bottom bar.</summary>
     Login,
 
-    /// <summary>Настройки, открытые до входа. Единственный выход — обратно в <see cref="Login"/>.</summary>
+    /// <summary>Settings opened before signing in. The one way out is back to <see cref="Login"/>.</summary>
     LoginSettings,
 
-    /// <summary>Плавающий виджет 96×96.</summary>
+    /// <summary>The floating 96×96 widget.</summary>
     Collapsed,
 
-    /// <summary>Панель 320×600 с топбаром и нижним меню. Что именно в ней — решает <see cref="NavRoute"/>.</summary>
+    /// <summary>The 320×600 panel, with a top bar and a bottom bar. What is inside it is <see cref="NavRoute"/>'s decision.</summary>
     Panel,
 
-    /// <summary>Полоска входящего вызова.</summary>
+    /// <summary>The incoming-call strip.</summary>
     Incoming,
 
-    /// <summary>Полоска идущего разговора — «свёрнутый» эквивалент панели во время звонка.</summary>
+    /// <summary>The strip for a call in progress — the "collapsed" equivalent of the panel while a call runs.</summary>
     CallBar,
 }

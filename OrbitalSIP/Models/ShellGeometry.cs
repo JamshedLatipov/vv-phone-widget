@@ -2,25 +2,26 @@ using System;
 
 namespace OrbitalSIP.Models;
 
-/// <summary>Как окно встаёт на экран, когда переходит на поверхность.</summary>
+/// <summary>How the window puts itself on screen when it moves to a surface.</summary>
 public enum ShellPlacement
 {
-    /// <summary>Держится за нижне-правый угол — там, где оператор его припарковал.</summary>
+    /// <summary>Holds the bottom-right corner — where the operator parked it.</summary>
     AnchorBottomRight,
 
-    /// <summary>Встаёт по центру рабочей области. Только для экранов входа.</summary>
+    /// <summary>Centres on the work area. Login screens only.</summary>
     CenterOnScreen,
 }
 
-/// <summary>Размер поверхности в базовых единицах, до умножения на масштаб виджета.</summary>
+/// <summary>A surface's size in base units, before the widget scale multiplies it.</summary>
 public readonly record struct ShellBox(double Width, double Height, ShellPlacement Placement);
 
 /// <summary>
-/// Размер и размещение окна как функция от поверхности.
+/// The window's size and placement as a function of its surface.
 ///
-/// Константы пришли из MainWindow, где раздавались по девятнадцати вызовам
-/// StartAnimation вручную. Масштаб (<c>_uiScale</c>) здесь не применяется намеренно:
-/// он свойство экрана и настройки, а не поверхности, и остаётся за окном.
+/// The constants came from MainWindow, where they were handed out by hand across nineteen
+/// StartAnimation calls. The scale (<c>_uiScale</c>) is deliberately not applied here: it
+/// is a property of the screen and of the setting, not of the surface, and it stays with
+/// the window.
 /// </summary>
 public static class ShellGeometry
 {
@@ -44,6 +45,6 @@ public static class ShellGeometry
         Shell.Incoming or Shell.CallBar =>
             new ShellBox(StripWidth, StripHeight, ShellPlacement.AnchorBottomRight),
 
-        _ => throw new ArgumentOutOfRangeException(nameof(shell), shell, "Поверхность без геометрии"),
+        _ => throw new ArgumentOutOfRangeException(nameof(shell), shell, "Surface has no geometry"),
     };
 }
