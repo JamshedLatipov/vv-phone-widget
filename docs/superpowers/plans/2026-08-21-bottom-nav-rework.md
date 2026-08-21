@@ -2281,6 +2281,12 @@ namespace OrbitalSIP.Services
             // Failures are logged, never raised as a banner. A badge is not worth
             // interrupting a call over, and a backend down all shift would otherwise put
             // one on screen every two minutes.
+            //
+            // Silence has to be asked for, not assumed: the banner is raised inside
+            // TaskService.SendAsync, synchronously, so there is nothing here to intercept.
+            // GetMyStatsAsync passes notifyErrors: false for that reason, and
+            // LoadMissedCallsAsync below — which does not go through TaskService — keeps
+            // the same rule by hand, logging and nothing more.
             _consecutiveFailures = ok ? 0 : _consecutiveFailures + 1;
             if (_timer != null)
                 _timer.Interval = PollBackoff.Next(_consecutiveFailures, Healthy, MaxInterval);
