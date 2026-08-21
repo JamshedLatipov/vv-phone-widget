@@ -94,6 +94,34 @@ public class TaskServiceTests
         Assert.True(result is null || result.Data.Count == 0);
     }
 
+    /// <summary>
+    /// The local HS256 login signs sub as a number but the Zitadel ID token sends a
+    /// string, and either can in principle carry something that is not a user id at all.
+    /// AssignedToId's int.TryParse guard has to catch that before a request goes out
+    /// with a garbage assignedToId, not after — so no request should be sent at all.
+    /// </summary>
+    [Theory]
+    [InlineData("not-a-number")]
+    [InlineData(null)]
+    public async Task GetMyTasksAsync_ReturnsNullWithoutARequestWhenTheJwtSubIsNotANumber(string? sub)
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse("""{ "data": [], "total": 0 }"""));
+        using var service = new TaskService(
+            new HttpClient(handler),
+            () => new SipSettings
+            {
+                BackendUrl = "https://crm.example/",
+                AccessToken = "widget-token",
+                DecodedToken = new JwtPayload { Sub = sub },
+            },
+            ownsHttpClient: true);
+
+        var result = await service.GetMyTasksAsync("pending");
+
+        Assert.Null(result);
+        Assert.Empty(handler.Requests);
+    }
+
     [Fact]
     public async Task GetMyStatsAsync_AsksForTheOperatorsOwnCounters()
     {
