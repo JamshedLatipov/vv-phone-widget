@@ -2208,7 +2208,6 @@ namespace OrbitalSIP.Services
         private readonly HttpClient _httpClient = BackendHttp.Client;
         private DispatcherTimer? _timer;
         private int _consecutiveFailures;
-        private bool _tasksPollDisabled;
 
         /// <summary>Raised on the UI thread whenever a number changed.</summary>
         public event Action? Changed;
@@ -2253,7 +2252,14 @@ namespace OrbitalSIP.Services
         {
             var ok = true;
 
-            if (!_tasksPollDisabled)
+            // Ask TaskService rather than keeping a latch of our own. Its TasksForbidden is
+            // scoped to the access token that drew the 403, so it clears itself when the
+            // session changes — and a local bool here would outlive that, which is the
+            // exact bug the token scoping was added to fix, just one layer up: we would
+            // stop calling GetMyStatsAsync, so the token behind the latch would never be
+            // re-examined, and an operator who does have tasks:read would keep seeing a
+            // dead badge until the app restarted.
+            if (!App.TaskService.TasksForbidden)
             {
                 var stats = await App.TaskService.GetMyStatsAsync();
                 if (stats != null)
@@ -2262,11 +2268,10 @@ namespace OrbitalSIP.Services
                 }
                 else if (App.TaskService.TasksForbidden)
                 {
-                    // A permission the role does not have now will not appear in two
-                    // minutes. Stop asking for the rest of the session.
-                    _tasksPollDisabled = true;
+                    // A permission this role does not have will not appear in two minutes,
+                    // so stop asking until the session changes.
                     _state.SetTasks(0, 0, 0);
-                    AppLogger.Log("NavBadges", "Tasks polling disabled: the backend refused tasks:read.");
+                    AppLogger.Log("NavBadges", "Tasks polling paused: the backend refused tasks:read.");
                 }
                 else
                 {
