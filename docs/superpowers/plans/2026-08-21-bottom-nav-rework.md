@@ -1865,7 +1865,8 @@ public class TaskServiceTests
         BackendUrl = "https://crm.example/",
         AccessToken = "widget-token",
         // The numeric user id the tasks API assigns by; TaskService reads it off the JWT.
-        DecodedToken = new Models.DecodedToken { Sub = "42" },
+        // JwtPayload, not "DecodedToken" — that is the property name, not the type.
+        DecodedToken = new JwtPayload { Sub = "42" },
     };
 
     private static HttpResponseMessage JsonResponse(string body) => new(HttpStatusCode.OK)
@@ -1898,13 +1899,10 @@ public class TaskServiceTests
 }
 ```
 
-> **Прежде чем писать код:** проверить, как на самом деле называются тип и свойства декодированного токена — тест выше предполагает `Models.DecodedToken` со строковым `Sub`:
->
-> ```bash
-> grep -n "class DecodedToken" -A 20 OrbitalSIP/Services/JwtDecoder.cs OrbitalSIP/Services/SipSettings.cs
-> ```
->
-> Если имена другие — поправить `SettingsProvider` в тесте под фактические, не наоборот.
+> Тип проверен: `SipSettings.DecodedToken` имеет тип `JwtPayload`
+> (`OrbitalSIP/Services/JwtDecoder.cs:9`), а `Sub` — `string?` с конвертером
+> `NumberOrStringConverter`, потому что локальный HS256-логин подписывает `sub` числом,
+> а ID-токен Zitadel — строкой. Для теста достаточно `new JwtPayload { Sub = "42" }`.
 
 - [ ] **Step 2: Прогнать — падает**
 
