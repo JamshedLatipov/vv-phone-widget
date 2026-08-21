@@ -2503,6 +2503,16 @@ git commit -m "feat(nav): poll badge counts once per session instead of once per
 
 ## Task 8: Экран `TasksView`
 
+> **Открытый вопрос, оставленный Task 7.** «Просмотрено» для бейджа «История» — это переход
+> на вкладку, а нажатие на уже активную вкладку `NavigateTo` намеренно делает инертным.
+> Значит пропущенный звонок, пришедший пока оператор **уже стоит** в «Истории», зажигает
+> бейдж, который не гаснет, пока тот не уйдёт и не вернётся.
+>
+> В лоб не чинится: `MarkRecentsSeen` поднимает `Changed`, а обработчик, гасящий бейдж по
+> `Changed`, поднимет его снова — получится цикл. Решать здесь, рядом с собственным
+> CDR-таймером `RecentsView`, а не в отрыве от него.
+
+
 **Files:**
 - Create: `OrbitalSIP/ViewModels/TaskItemViewModel.cs`
 - Create: `OrbitalSIP/Views/TasksView.axaml`
