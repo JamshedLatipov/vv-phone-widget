@@ -880,7 +880,10 @@ public class ShellRouterNavigationTests
     public void TheRouteSurvivesARoundTripThroughTheWidget()
     {
         var s = Reduce(Panel(NavRoute.Recents), new UiEvent.CollapseRequested());
+        Assert.Equal(Shell.Collapsed, s.Shell);
+
         s = Reduce(s, new UiEvent.ExpandRequested());
+        Assert.Equal(Shell.Panel, s.Shell);
 
         Assert.Equal(NavRoute.Recents, s.Route);
     }
@@ -941,6 +944,27 @@ public class ShellRouterNavigationTests
             Assert.True(home is Shell.Collapsed or Shell.Panel, $"{shell} + {e.GetType().Name} + {call} → Home={home}");
         }
     }
+
+    /// <summary>
+    /// The bar has four slots and the call screen is not one of them. Null is what task 7
+    /// widens BottomNavControl.ActiveTab to accept, so that this screen can light nothing
+    /// instead of lying about which tab the operator is on.
+    /// </summary>
+    [Theory]
+    [InlineData(NavRoute.Dialer,   NavTab.Dialer)]
+    [InlineData(NavRoute.Recents,  NavTab.Recents)]
+    [InlineData(NavRoute.Tasks,    NavTab.Tasks)]
+    [InlineData(NavRoute.Settings, NavTab.Settings)]
+    public void EveryTabRouteLightsItsOwnSlot(NavRoute route, NavTab tab)
+    {
+        Assert.Equal(tab, ShellRouter.TabFor(route));
+    }
+
+    [Fact]
+    public void TheCallRouteLightsNothing()
+    {
+        Assert.Null(ShellRouter.TabFor(NavRoute.Call));
+    }
 }
 ```
 
@@ -970,7 +994,7 @@ Expected: FAIL — `ATabPressOpensThePanelOnThatTab` падает на `Assert.E
         NavTab.Recents  => NavRoute.Recents,
         NavTab.Tasks    => NavRoute.Tasks,
         NavTab.Settings => NavRoute.Settings,
-        _               => NavRoute.Dialer,
+        _               => throw new ArgumentOutOfRangeException(nameof(tab), tab, "Tab with no route"),
     };
 ```
 

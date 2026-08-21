@@ -1,3 +1,4 @@
+using System;
 using OrbitalSIP.Services;
 
 namespace OrbitalSIP.Models;
@@ -93,6 +94,6 @@ public static class ShellRouter
         NavTab.Recents  => NavRoute.Recents,
         NavTab.Tasks    => NavRoute.Tasks,
         NavTab.Settings => NavRoute.Settings,
-        _               => NavRoute.Dialer,
+        _               => throw new ArgumentOutOfRangeException(nameof(tab), tab, "Tab with no route"),
     };
 }
