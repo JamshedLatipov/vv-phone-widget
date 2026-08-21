@@ -169,6 +169,13 @@ namespace OrbitalSIP.Services
                 HttpErrorNotifier.NotifyHttpError("TaskService", url, response.StatusCode, errorBody);
                 return null;
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // The caller cancelled — that is not a failure to report. Without this the
+                // generic catch below logs a stack trace and raises a banner, so switching
+                // the tasks filter would tell the operator their own tap had gone wrong.
+                throw;
+            }
             catch (Exception ex)
             {
                 var details = $"Error on {method} {path}: {ex.GetType().Name}: {ex.Message}";

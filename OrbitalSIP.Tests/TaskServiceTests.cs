@@ -95,6 +95,26 @@ public class TaskServiceTests
     }
 
     /// <summary>
+    /// A cancellation the caller asked for is not a failure to report. Task 8's tasks
+    /// screen cancels the in-flight load when the operator switches the Open/All filter
+    /// chip, and the generic catch used to swallow that into a logged "failure" plus a
+    /// UI banner — telling the operator their own tap had gone wrong.
+    /// </summary>
+    [Fact]
+    public async Task GetMyTasksAsync_PropagatesCallerCancellationInsteadOfReportingIt()
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse("""{ "data": [], "total": 0 }"""));
+        using var service = CreateService(handler);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => service.GetMyTasksAsync("pending", cancellation.Token));
+
+        Assert.Empty(handler.Requests);
+    }
+
+    /// <summary>
     /// The local HS256 login signs sub as a number but the Zitadel ID token sends a
     /// string, and either can in principle carry something that is not a user id at all.
     /// AssignedToId's int.TryParse guard has to catch that before a request goes out
@@ -162,6 +182,25 @@ public class TaskServiceTests
         using var service = CreateService(handler);
 
         Assert.False(await service.SetStatusAsync(7, "done"));
+    }
+
+    /// <summary>
+    /// The parameterless constructor hands TaskService the process-wide BackendHttp.Client
+    /// (see the sibling DisposingATaskServiceLeavesTheSharedClientAlive in
+    /// BackendHttpTests), so a flip of ownsHttpClient the other way has to actually take
+    /// down a client it was given — otherwise every injected client this service is ever
+    /// handed leaks for the life of the process.
+    /// </summary>
+    [Fact]
+    public async Task Dispose_DisposesOwnedHttpClient()
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse("{}"));
+        using var client = new HttpClient(handler);
+        var service = new TaskService(client, SettingsProvider, ownsHttpClient: true);
+
+        service.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => client.GetAsync("https://crm.example/health"));
     }
 
     private static TaskService CreateService(HttpMessageHandler handler) => new(
