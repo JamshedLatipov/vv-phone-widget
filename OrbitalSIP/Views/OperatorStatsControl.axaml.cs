@@ -3,8 +3,6 @@ using Avalonia.Markup.Xaml;
 using Avalonia;
 using Avalonia.Threading;
 using System;
-using System.Net.Http;
-using System.Net.Http.Json;
 using System.Threading.Tasks;
 using OrbitalSIP.Models;
 using OrbitalSIP.Services;
@@ -14,8 +12,6 @@ namespace OrbitalSIP.Views
 {
     public partial class OperatorStatsControl : UserControl
     {
-        private DispatcherTimer? _timer;
-        private static readonly HttpClient _httpClient = Services.BackendHttp.Client;
         private bool _isExpanded;
 
         public OperatorStatsControl()
@@ -30,37 +26,37 @@ namespace OrbitalSIP.Views
             if (refreshBtn != null)
                 refreshBtn.Click += async (_, __) => await LoadStatsAsync();
 
-            _timer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMinutes(2)
-            };
-            _timer.Tick += async (_, __) => await LoadStatsAsync();
-            _timer.Start();
-
-            // Initial load
-            _ = LoadStatsAsync();
+            // Polling moved to NavBadgeService: it hits the same endpoint for the Recents
+            // badge, and it survives the screen-swap animation that used to stop the timer
+            // that lived here.
+            App.NavBadges.Changed += OnBadgesChanged;
+            if (App.NavBadges.OperatorStats is { } stats) UpdateUI(stats);
         }
 
         protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
         {
             base.OnDetachedFromVisualTree(e);
-            _timer?.Stop();
+            App.NavBadges.Changed -= OnBadgesChanged;
         }
 
         /// <summary>
-        /// Restarts the refresh the detach above stops.
-        ///
-        /// This control lives in ExpandedView, and ExpandedView always reaches the screen
-        /// through MainWindow's StartAnimation: parented into OverlayHost, then moved to
-        /// Host — a detach/attach pair. So the animation that puts the panel in front of the
-        /// operator was also what stopped its two-minute refresh, about 280 ms in, and the
-        /// numbers then sat frozen for as long as the panel stayed open. Same asymmetry the
-        /// call views already fixed.
+        /// The screen-swap animation parents this control into OverlayHost and then moves
+        /// it to Host — a detach/attach pair — so the detach above is not the end of its
+        /// life. Idempotent re-subscribe: -= on an absent handler is a no-op, += twice
+        /// would repaint twice.
         /// </summary>
         protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
         {
             base.OnAttachedToVisualTree(e);
-            _timer?.Start();
+            App.NavBadges.Changed -= OnBadgesChanged;
+            App.NavBadges.Changed += OnBadgesChanged;
+            if (App.NavBadges.OperatorStats is { } stats) UpdateUI(stats);
+        }
+
+        private void OnBadgesChanged()
+        {
+            if (App.NavBadges.OperatorStats is { } stats)
+                Dispatcher.UIThread.InvokeAsync(() => UpdateUI(stats));
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
@@ -78,51 +74,7 @@ namespace OrbitalSIP.Views
                 icon.Kind = _isExpanded ? Material.Icons.MaterialIconKind.ChevronUp : Material.Icons.MaterialIconKind.ChevronDown;
         }
 
-        public async Task LoadStatsAsync()
-        {
-            try
-            {
-                var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
-                var operatorId = settings.DecodedToken?.Operator?.Username ?? settings.Username;
-                var backendUrl = settings.BackendUrl?.TrimEnd('/');
-
-                if (string.IsNullOrEmpty(operatorId) || string.IsNullOrEmpty(backendUrl))
-                    return;
-
-                var url = $"{backendUrl}/api/contact-center/operators/{Uri.EscapeDataString(operatorId)}/details?range=today";
-
-                using var request = new HttpRequestMessage(HttpMethod.Get, url);
-                if (!string.IsNullOrEmpty(settings.AccessToken))
-                {
-                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
-                }
-
-                using var response = await _httpClient.SendAsync(request);
-                if (response.IsSuccessStatusCode)
-                {
-                    var data = await response.Content.ReadFromJsonAsync<OperatorDetailsResponse>();
-                    if (data?.Stats != null)
-                    {
-                        await Dispatcher.UIThread.InvokeAsync(() => UpdateUI(data.Stats));
-                    }
-                }
-                else
-                {
-                    var errorBody = await response.Content.ReadAsStringAsync();
-                    AppLogger.Log("OperatorStats", $"Load stats failed. Status: {response.StatusCode}. Body: {errorBody}");
-                    HttpErrorNotifier.NotifyHttpError("OperatorStats", url, response.StatusCode, errorBody);
-                }
-            }
-            catch (Exception ex)
-            {
-                var details = $"Error loading stats: {ex.GetType().Name}: {ex.Message}";
-                if (ex.InnerException != null)
-                    details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
-                details += $" | StackTrace: {ex.StackTrace}";
-                AppLogger.Log("OperatorStats", details);
-                HttpErrorNotifier.NotifyException("OperatorStats", ex);
-            }
-        }
+        public Task LoadStatsAsync() => App.NavBadges.RefreshNowAsync();
 
         private void UpdateUI(OperatorStats stats)
         {

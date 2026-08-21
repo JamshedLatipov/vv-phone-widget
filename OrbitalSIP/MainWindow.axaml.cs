@@ -122,6 +122,17 @@ namespace OrbitalSIP
             App.GlobalHotkeys.HangupPressed       += (_, __) => DispatchHotkey(h => h.TriggerHangup(), iv => iv.TriggerDecline());
             App.GlobalHotkeys.AnswerPressed        += (_, __) => DispatchHotkey(null, iv => iv.TriggerAnswer());
 
+            // Repaint the badges of whatever bar is on screen when a poll changes a number.
+            // AttachNav covers the other direction — a bar built after the numbers arrived.
+            // Never unhooked, and does not need to be: this window is built once and lives
+            // as long as App.NavBadges does. Wired above the initial view below, which is
+            // one of the two places the poll starts.
+            App.NavBadges.Changed += () =>
+            {
+                var nav = CurrentNav();
+                if (nav != null) App.NavBadges.ApplyTo(nav);
+            };
+
             // Initial view
             if (string.IsNullOrEmpty(sip.CurrentSettings.Username) || string.IsNullOrEmpty(sip.CurrentSettings.Password))
             {
@@ -152,6 +163,7 @@ namespace OrbitalSIP
                 sip.Start(settings);
                 _ = App.StatusService.SetStateAsync("offline", null);
                 App.StatusService.StartPolling();
+                App.NavBadges.Start();
                 SetMainContent(new Views.WidgetView());
             }
 
@@ -233,6 +245,7 @@ namespace OrbitalSIP
 
         private void ShowLoginAfterSessionExpiry()
         {
+            App.NavBadges.Stop();
             _sessionExpiredPending = false;
 
             var host = this.FindControl<ContentControl>("Host");
@@ -423,6 +436,7 @@ namespace OrbitalSIP
             var login = new Views.LoginView();
             login.OnLoginSuccess += (_, __) =>
             {
+                App.NavBadges.Start();
                 _isExpanded = false;
                 _preferredMode = PreferredMode.Widget;
                 StartAnimation(Width, Height, WidgetSize, WidgetSize, new Views.WidgetView());
@@ -961,6 +975,7 @@ namespace OrbitalSIP
             nav.ActiveTab = _currentTab;
             nav.SetInCall(App.SipService.State is CallState.Active or CallState.OnHold);
             nav.SetLoginMode(_settingsFromLogin);
+            App.NavBadges.ApplyTo(nav);
         }
 
         /// <summary>
@@ -1007,7 +1022,7 @@ namespace OrbitalSIP
             switch (tab)
             {
                 case NavTab.Dialer:   ShowDialer();   break;
-                case NavTab.Recents:  ShowRecents();  break;
+                case NavTab.Recents:  App.NavBadges.MarkRecentsSeen(); ShowRecents();  break;
                 case NavTab.Tasks:    ShowTasks();    break;
                 case NavTab.Settings: ShowSettings(); break;
             }
@@ -1039,6 +1054,8 @@ namespace OrbitalSIP
         /// </summary>
         private void ShutdownApp()
         {
+            App.NavBadges.Stop();
+
             if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 desktop.Shutdown();
