@@ -1756,9 +1756,10 @@ namespace OrbitalSIP.Views
     /// The panel's chrome: the top bar, the return-to-call strip, the content and the
     /// bottom bar.
     ///
-    /// Until now the top bar and the bottom bar were duplicated in the markup of five
-    /// screens, and the strip would have made a sixth copy — and with it five places that
-    /// would each have to be taught when to show it and when to hide it.
+    /// Until now the top bar and the bottom bar were each duplicated in the markup of
+    /// five screens, and the strip would have been a third thing copied five times —
+    /// five places that would each have to be taught when to show it and when to hide it,
+    /// and five places to get that wrong in.
     /// </summary>
     public partial class PanelShellView : UserControl
     {
