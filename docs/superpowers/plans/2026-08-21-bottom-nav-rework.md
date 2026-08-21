@@ -2165,6 +2165,23 @@ git commit -m "feat(tasks): list, count and close tasks through one HTTP path"
 
 ## Task 7: `NavBadgeService` и один опрос вместо двух
 
+> **Как оно легло.** Задача выполнена (`8db9fb0`, `b6218a2`). Код ниже — исходное задание;
+> ревью добавило к нему четыре вещи, каждая про одно и то же — состояние, чья жизнь
+> привязана к объекту, а не к сессии, которую оно описывает:
+>
+> - Собственной защёлки `_tasksPollDisabled` нет: поллер спрашивает
+>   `TaskService.TasksForbidden`, привязанный к токену и гаснущий сам.
+> - `NavBadgeState.SetOperator(operatorId)` обнуляет счётчики и ватермарку при смене
+>   оператора. Ключ — логин, а не токен: refresh раз в час не должен читаться как новый
+>   человек. Пустой id значит «неизвестно» — не сбрасывает **и не запоминается**,
+>   иначе сетевой сбой стёр бы бейджи циклом позже.
+> - `AttachNav` не зовёт `ApplyTo` в login-режиме: счётчики закончившейся сессии на серых
+>   кнопках.
+> - `Stop()` стоит в `OnSessionExpired` рядом с `StatusService.StopPolling()`, а не ждёт
+>   конца звонка; `PollAsync` сериализован `SemaphoreSlim(1,1)` — не флагом, потому что
+>   `RefreshNowAsync` обязан дождаться и сработать, а не быть отшитым.
+
+
 **Files:**
 - Create: `OrbitalSIP/Services/NavBadgeService.cs`
 - Modify: `OrbitalSIP/App.axaml.cs`
