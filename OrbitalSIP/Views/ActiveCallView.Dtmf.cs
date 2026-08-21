@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -8,6 +9,14 @@ namespace OrbitalSIP.Views
     public partial class ActiveCallView
     {
         // ── DTMF pad ──────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Serializes the actual SendDtmf calls below. SafeHandler.Click gives each press
+        /// its own fire-and-forget async operation, so nothing else stops a second digit
+        /// typed quickly from starting its RTP send before the first one's has gone out.
+        /// The cost of waiting here is nothing at human typing speed.
+        /// </summary>
+        private readonly SemaphoreSlim _dtmfSendGate = new(1, 1);
 
         /// <summary>
         /// Opens or closes the in-call DTMF pad.
@@ -66,40 +75,69 @@ namespace OrbitalSIP.Views
             }
         }
 
+        /// <summary>
+        /// Echoes the digit and forwards it to SipService — but only for the operator to
+        /// see once it is actually true. The echo used to be unconditional, which is what
+        /// let a press taken mid-ring (see DtmfPadPresenter) look sent when it never left
+        /// this view.
+        /// </summary>
         private async Task SendDtmfAsync(char digit)
         {
             // Mirrors TransferToLeadOwner's defensive re-check: IsEnabled already keeps a
-            // held call from reaching this (see UpdateDtmfPadEnabled), but the handler
-            // asks DtmfPadPresenter again rather than trusting a button never fires stale.
-            if (!DtmfPadPresenter.CanSend(_onHold)) return;
+            // non-Active call from reaching this (see UpdateDtmfPadEnabled), but the
+            // handler asks DtmfPadPresenter again — against the live state, not a cached
+            // one — rather than trusting a button never fires stale.
+            if (!DtmfPadPresenter.CanSend(App.SipService.State)) return;
 
             var echo = this.FindControl<TextBlock>("DtmfEchoLabel");
             if (echo != null) echo.Text += digit;
 
-            await App.SipService.SendDtmfAsync(digit);
+            await _dtmfSendGate.WaitAsync();
+            try
+            {
+                await App.SipService.SendDtmfAsync(digit);
+            }
+            finally
+            {
+                _dtmfSendGate.Release();
+            }
         }
 
         /// <summary>
-        /// Paints the pad from <see cref="_onHold"/>. Called everywhere UpdateHoldUI is
-        /// — SetStatus (the server confirming a hold transition) and ToggleHold (the
-        /// operator's own Hold/Resume button) — so the pad reflects hold however it
-        /// changed, including while it is already open.
+        /// Paints the pad from the SIP service's live CallState. Called everywhere
+        /// UpdateHoldUI is — SetStatus (the server confirming an Active/OnHold
+        /// transition) and ToggleHold (the operator's own Hold/Resume button) — so the
+        /// pad repaints on both of the transitions that change what it shows, including
+        /// while it is already open. It reads state fresh each time rather than from
+        /// this view's own _onHold mirror, which only ever distinguishes Active from
+        /// OnHold and has nothing to say about Idle/Ringing/IncomingRinging — the gap
+        /// that let a dial-out echo tones nobody sent (see DtmfPadPresenter).
         ///
-        /// SipService.SendDtmfAsync already refuses to send outside CallState.Active —
-        /// hold's re-INVITE takes the media path down, so a tone would reach no one —
-        /// but it does so silently. Before this, the pad kept every key live regardless,
-        /// so a press taken while the caller was parked just vanished: no tone, no
-        /// error, nothing to tell the operator why the IVR never responded. Graying the
-        /// keys out and naming the reason turns that silence into something the operator
-        /// can act on — take the call off hold, then dial.
+        /// A press already echoed here proves nothing once the gate closes — Idle/
+        /// Ringing/IncomingRinging never sent it, and OnHold cannot send it now — so the
+        /// echo is cleared here too, not only when the panel is closed. Otherwise a
+        /// digit typed a moment ago can sit under a hint saying it cannot be sent.
         /// </summary>
         private void UpdateDtmfPadEnabled()
         {
-            var grid = this.FindControl<UniformGrid>("DtmfGrid");
-            var hint = this.FindControl<TextBlock>("DtmfHoldHintLabel");
-            var canSend = DtmfPadPresenter.CanSend(_onHold);
+            var state = App.SipService.State;
+            var canSend = DtmfPadPresenter.CanSend(state);
 
-            if (hint != null) hint.IsVisible = !canSend;
+            var hint = this.FindControl<TextBlock>("DtmfHintLabel");
+            if (hint != null)
+            {
+                var key = DtmfPadPresenter.HintKey(state);
+                hint.Text = key == null ? string.Empty : Services.I18nService.Instance.Get(key);
+                hint.IsVisible = key != null;
+            }
+
+            if (!canSend)
+            {
+                var echo = this.FindControl<TextBlock>("DtmfEchoLabel");
+                if (echo != null) echo.Text = string.Empty;
+            }
+
+            var grid = this.FindControl<UniformGrid>("DtmfGrid");
             if (grid == null) return;
 
             foreach (var child in grid.Children)

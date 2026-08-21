@@ -41,6 +41,7 @@
   "InternalSessions": "Ichki sessiyalar",
   "Keypad": "Klaviatura",
   "DtmfHoldHint": "Ton yuborish uchun qo'ng'iroqni kutishdan chiqaring",
+  "DtmfNotAnsweredHint": "Ton yuborish uchun javobni kuting",
   "Live": "FAOL",
   "Lead": "Lid",
   "Lunch": "Tushlik",
