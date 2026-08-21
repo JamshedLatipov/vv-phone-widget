@@ -2144,7 +2144,7 @@ namespace OrbitalSIP.Services
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~TaskServiceTests"
 ```
 
-Ожидаемо: PASS, 10 тестов.
+Ожидаемо: PASS, 14 тестов — 10 из списка выше плюс четыре, которые добавила проверка: не-числовой `sub` (две теории), проброс отмены и `Dispose` при `ownsHttpClient: true`.
 
 - [ ] **Step 5: Прогнать весь набор — `CreateTaskAsync` и `GetTaskTypesAsync` переписаны, они под тестами в `TaskModelsTests`**
 
@@ -2152,7 +2152,7 @@ dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "Ful
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: PASS, 575 тестов.
+Ожидаемо: PASS, 579 тестов.
 
 - [ ] **Step 6: Коммит**
 
@@ -2464,7 +2464,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 575 тестов зелёные. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
+Ожидаемо: сборка чистая, 579 тестов зелёные. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
 
 ```bash
 grep -rn "class OperatorDetailsResponse" OrbitalSIP/Models/OperatorStats.cs
@@ -2916,7 +2916,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка без ошибок, 575 тестов зелёные.
+Ожидаемо: сборка без ошибок, 579 тестов зелёные.
 
 - [ ] **Step 7: Проверить руками**
 
@@ -3072,7 +3072,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 575 тестов зелёные.
+Ожидаемо: сборка чистая, 579 тестов зелёные.
 
 - [ ] **Step 6: Проверить руками**
 
@@ -3095,7 +3095,7 @@ git commit -m "fix(call): send DTMF from the keypad button instead of rebuilding
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: 575 тестов, 0 упавших.
+Ожидаемо: 579 тестов, 0 упавших.
 
 - [ ] **Сборка релизной конфигурации**
 
