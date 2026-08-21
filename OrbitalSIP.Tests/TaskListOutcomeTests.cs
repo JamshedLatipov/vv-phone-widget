@@ -20,6 +20,17 @@ public class TaskListOutcomeTests
         Assert.Equal(TaskListState.Ready, Of(TaskFetch.Answered, TaskFetch.Answered, 3));
     }
 
+    /// <summary>
+    /// One task is an ordinary list, and the boundary the count is compared against — so
+    /// it is where an off-by-one would live. A "> 1" in place of "> 0" passes every other
+    /// case here and tells an operator with a single task that they have none.
+    /// </summary>
+    [Fact]
+    public void ASingleTaskIsStillAReadyList()
+    {
+        Assert.Equal(TaskListState.Ready, Of(TaskFetch.Answered, TaskFetch.Answered, 1));
+    }
+
     [Fact]
     public void BothHalvesAnsweredWithNothingIsEmpty()
     {

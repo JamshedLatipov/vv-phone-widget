@@ -41,10 +41,15 @@ namespace OrbitalSIP.Services
         /// <see cref="DateTimeOffset.MinValue"/> is how that is spelled — "as old as
         /// anything can be" — rather than an accident of null sorting.
         /// </summary>
-        public static List<TaskItem> From(IEnumerable<TaskItem>? pending, IEnumerable<TaskItem>? inProgress) =>
-            (pending ?? Enumerable.Empty<TaskItem>())
-                .Concat(inProgress ?? Enumerable.Empty<TaskItem>())
-                .Where(task => task is not null)
+        public static List<TaskItem> From(IEnumerable<TaskItem?>? pending, IEnumerable<TaskItem?>? inProgress) =>
+            (pending ?? Enumerable.Empty<TaskItem?>())
+                .Concat(inProgress ?? Enumerable.Empty<TaskItem?>())
+                // OfType rather than a null test: it drops the nulls and says so in the
+                // type, which is what lets everything below stop asking. The elements are
+                // declared nullable for the same reason — tolerating a null row while
+                // promising callers there are none was a claim the compiler was right to
+                // object to.
+                .OfType<TaskItem>()
                 .GroupBy(task => task.Id)
                 .Select(sameId => sameId.First())
                 .OrderByDescending(task => task.CreatedAt ?? DateTimeOffset.MinValue)

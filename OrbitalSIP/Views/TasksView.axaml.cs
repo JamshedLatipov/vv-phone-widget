@@ -444,7 +444,14 @@ namespace OrbitalSIP.Views
                     ShowMessage(Note.None);
                 }
 
-                ShowError(Note.DoneFailed);
+                // Not over a load failure still standing. That one is about the whole list
+                // rather than one row of it, it is still true, and nothing would ever put
+                // it back — the same rule as the clear at the top of this handler, from the
+                // other side. It is reachable without the guard above having helped: a
+                // reload that succeeded and then one that failed leaves this tap's row
+                // already back on screen, so there is nothing to reinsert and the older,
+                // larger failure is the one worth keeping.
+                if (_error != Note.LoadFailed) ShowError(Note.DoneFailed);
             });
         }
     }
