@@ -1563,8 +1563,26 @@ git commit -m "feat(ui): when the return strip is up, decided where a test can r
 
 - [ ] **Step 2: Починить остальные чтения поля**
 
-Run: `dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo`
-Expected: FAIL со списком мест, где `_activeTab` сравнивается с `NavTab`. Поправить каждое на `_activeTab == NavTab.X` (сравнение `NavTab?` с `NavTab` компилируется и даёт false для null) либо на `_activeTab.HasValue`, по смыслу места.
+Run: `dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo -c Release`
+Expected: FAIL. Место ровно одно — `RefreshTabVisuals` передаёт `_activeTab` в
+`NavPulse.ShouldPulse`, который принимает не-nullable `NavTab`.
+
+Смысл `null` здесь — «оператор на экране звонка», то есть смотрит прямо на разговор, и
+звать его туда пульсацией незачем. Значит:
+
+```csharp
+            SetPulse(dialerBtn, _activeTab.HasValue && NavPulse.ShouldPulse(inCall, _activeTab.Value));
+```
+
+`NavPulse` не трогать. Его сигнатура и его тесты останутся верными ещё две задачи, а
+затем он уйдёт целиком — см. ниже.
+
+**Чего в этой задаче делать НЕ надо.** Таб «Набор» сегодня несёт три роли: набор,
+«вернуться в звонок» и «назад из настроек». Вторая — то, что эта работа отменяет: с
+Task 11 возврат в звонок берёт на себя плашка, и зелёная трубка `PhoneInTalk` на кнопке,
+которая открывает набор, станет враньём. Но снимать её надо там же, где появляется
+замена, а не здесь — иначе между Task 9 и Task 11 не останется ни одного способа
+вернуться в звонок с другого таба. Task 11 это делает; Task 7 только расширяет тип.
 
 - [ ] **Step 3: Собрать**
 
@@ -2284,10 +2302,39 @@ Run: `dotnet run --project OrbitalSIP/OrbitalSIP.csproj`
 - Положить трубку с «Задач» — плашка исчезла, «Задачи» на месте.
 - Списки на «Задачах» и «Истории» не обрезаны снизу из-за высоты плашки.
 
-- [ ] **Step 6: Закоммитить**
+- [ ] **Step 6: Снять с таба «Набор» роль, которую забрала плашка**
+
+Теперь, и только теперь, у возврата в звонок есть собственный контрол — и вторая из трёх
+ролей первого таба становится ложью. Кнопка, открывающая набор, не должна быть зелёной,
+носить глиф `PhoneInTalk`, подсказку «NavInCall» и дышать, приглашая вернуться туда, куда
+она больше не ведёт.
+
+Удалить:
+
+| Что | Где |
+|---|---|
+| `SetInCall` и поле `_inCall` | `Views/BottomNavControl.axaml.cs` |
+| Вызов `nav.SetInCall(...)` в `RefreshChrome` | `MainWindow.axaml.cs` |
+| `SetPulse`, класс `pulse` и его стиль | `Views/BottomNavControl.axaml{,.cs}` |
+| Класс `in-call` и его стиль | `Views/BottomNavControl.axaml` |
+| `Services/NavPulse.cs` и `OrbitalSIP.Tests/NavPulseTests.cs` | целиком |
+
+Сузить `NavTabIcon.ForDialerTab(bool loginMode, bool inCall)` до `ForDialerTab(bool
+loginMode)`: остаются две роли, `ArrowLeft` и `Dialpad`. Из `TooltipKeyFor` уходит ветка
+`PhoneInTalk`, из `NavTabIconTests` — случаи про звонок. Ключ `NavInCall` в четырёх
+`Assets/i18n/*.json` становится сиротой — удалить и его.
+
+`RefreshTabVisuals` после этого решает две вещи вместо четырёх и, вероятно, перестаёт
+заслуживать отдельного метода — судить по тому, что от него останется.
+
+Проверить руками: во время звонка первый таб выглядит и ведёт себя как обычный набор, а
+единственное, что зовёт обратно в разговор, — плашка сверху.
+
+- [ ] **Step 7: Закоммитить**
 
 ```bash
-git add OrbitalSIP/Views/CallReturnStrip.axaml OrbitalSIP/Views/CallReturnStrip.axaml.cs OrbitalSIP/Views/PanelShellView.axaml OrbitalSIP/Views/PanelShellView.axaml.cs OrbitalSIP/MainWindow.axaml.cs
+git add OrbitalSIP/Views/CallReturnStrip.axaml OrbitalSIP/Views/CallReturnStrip.axaml.cs OrbitalSIP/Views/PanelShellView.axaml OrbitalSIP/Views/PanelShellView.axaml.cs OrbitalSIP/Views/BottomNavControl.axaml OrbitalSIP/Views/BottomNavControl.axaml.cs OrbitalSIP/Services/NavTabIcon.cs OrbitalSIP/MainWindow.axaml.cs OrbitalSIP/Assets/i18n OrbitalSIP.Tests
+git rm OrbitalSIP/Services/NavPulse.cs OrbitalSIP.Tests/NavPulseTests.cs
 git commit -m "feat(call): a way back to the call that is not the dialer tab"
 ```
 
