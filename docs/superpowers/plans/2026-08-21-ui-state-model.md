@@ -48,7 +48,7 @@ dotnet run --project OrbitalSIP/OrbitalSIP.csproj
 
 - `OrbitalSIP/Models/NavTab.cs` — `enum NavTab { Dialer, Recents, Tasks, Settings }`, четыре слота меню.
 - `OrbitalSIP/Services/SipService.cs:15` — `enum CallState { Idle, Ringing, IncomingRinging, Active, OnHold }`. `Ringing` — исходящий гудок, `IncomingRinging` — входящий.
-- `OrbitalSIP/Models/NavBadgeState.cs`, `Models/TaskListOutcome.cs`, `Models/WidgetScale.cs` — образец того, как в этом проекте выглядит чистая модель под тесты: без сети, без таймеров, без Avalonia.
+- `OrbitalSIP/Models/NavBadgeState.cs`, `OrbitalSIP/Services/TaskListOutcome.cs`, `OrbitalSIP/Services/WidgetScale.cs` — образец того, как в этом проекте выглядит чистая модель под тесты: без сети, без таймеров, без Avalonia. Обратить внимание: граница между `Models` и `Services` здесь проведена нечётко, и два из трёх лежат в `Services`. Новые файлы этой работы идут в `Models` по образцу `NavBadgeState`.
 - `OrbitalSIP.Tests/TaskListOutcomeTests.cs` — образец стиля тестов: xUnit, `[Fact]`, короткий приватный хелпер-конструктор, XML-комментарий над тестом объясняет, какой баг тест ловит.
 - `OrbitalSIP/MainWindow.axaml.cs` — то, что будет разбираться. Ключевые места: `_uiScale` и производные размеры (строки 19–43), `StartAnimation` (892), `SetMainContent` (967), `AttachNav` (1003), `NavigateTo` (1108), `CompleteAnimatedContentSwap` (1143).
 
@@ -75,10 +75,10 @@ using Xunit;
 namespace OrbitalSIP.Tests;
 
 /// <summary>
-/// Размер и способ размещения окна — свойство поверхности, а не того метода, который
-/// её строит. Логин центрируется по экрану, всё остальное держится за нижне-правый
-/// угол; сегодня это правило записано только внутри двух методов, которые строят
-/// логин, и любой третий путь к нему его теряет.
+/// The window's size and placement belong to the surface, not to whichever method builds
+/// it. Login centres on the screen and everything else holds the bottom-right corner;
+/// today that rule is written down only inside the two methods that build login, and any
+/// third way in loses it.
 /// </summary>
 public class ShellGeometryTests
 {
@@ -115,8 +115,9 @@ public class ShellGeometryTests
     }
 
     /// <summary>
-    /// Входящий и мини-звонок — одна и та же полоска. Разъехавшись, они дали бы
-    /// анимацию размера на переходе «ответил», которого в модели нет.
+    /// The incoming call and the in-call strip are the same strip. Letting them drift
+    /// apart would animate a resize across the "answered" transition — a resize the model
+    /// does not have.
     /// </summary>
     [Fact]
     public void IncomingAndCallBarShareTheStripGeometry()
@@ -127,8 +128,8 @@ public class ShellGeometryTests
     }
 
     /// <summary>
-    /// Ни одна поверхность не остаётся без размера. Ветка по умолчанию, возвращающая
-    /// что-нибудь правдоподобное, дала бы новому Shell тихий 320×600 вместо ошибки.
+    /// No surface is left without a size. A default branch returning something plausible
+    /// would hand a newly added Shell a silent 320×600 instead of an error.
     /// </summary>
     [Fact]
     public void EveryShellHasGeometry()
@@ -155,32 +156,32 @@ Expected: FAIL — `error CS0246: The type or namespace name 'Shell' could not b
 namespace OrbitalSIP.Models;
 
 /// <summary>
-/// Поверхности окна — то, чем оно является целиком: размер, способ размещения и
-/// наличие хрома.
+/// The window's surfaces — what it is taken as a whole: its size, how it is placed, and
+/// whether it carries chrome.
 ///
-/// Заменяет собой пару флагов, из которых состояние выводилось раньше: _isExpanded
-/// (true в девяти местах, в том числе для полоски 436×132, панелью не являющейся) и
-/// _settingsFromLogin, который однажды уже протёк в панель отвеченного звонка.
-/// Поверхность протечь не может — из неё ведут только перечисленные переходы.
+/// Replaces the pair of flags the state used to be inferred from: _isExpanded, set true
+/// in nine places including the 436×132 strip that is not a panel at all, and
+/// _settingsFromLogin, which had already leaked into an answered call's panel once. A
+/// surface cannot leak — the only ways out of one are the transitions written down.
 /// </summary>
 public enum Shell
 {
-    /// <summary>Экран входа. Сессии нет, нижнего меню нет.</summary>
+    /// <summary>The login screen. No session, no bottom bar.</summary>
     Login,
 
-    /// <summary>Настройки, открытые до входа. Единственный выход — обратно в <see cref="Login"/>.</summary>
+    /// <summary>Settings opened before signing in. The one way out is back to <see cref="Login"/>.</summary>
     LoginSettings,
 
-    /// <summary>Плавающий виджет 96×96.</summary>
+    /// <summary>The floating 96×96 widget.</summary>
     Collapsed,
 
-    /// <summary>Панель 320×600 с топбаром и нижним меню. Что именно в ней — решает <see cref="NavRoute"/>.</summary>
+    /// <summary>The 320×600 panel, with a top bar and a bottom bar. What is inside it is <see cref="NavRoute"/>'s decision.</summary>
     Panel,
 
-    /// <summary>Полоска входящего вызова.</summary>
+    /// <summary>The incoming-call strip.</summary>
     Incoming,
 
-    /// <summary>Полоска идущего разговора — «свёрнутый» эквивалент панели во время звонка.</summary>
+    /// <summary>The strip for a call in progress — the "collapsed" equivalent of the panel while a call runs.</summary>
     CallBar,
 }
 ```
@@ -191,12 +192,12 @@ public enum Shell
 namespace OrbitalSIP.Models;
 
 /// <summary>
-/// Что показано внутри <see cref="Shell.Panel"/>.
+/// What is on screen inside <see cref="Shell.Panel"/>.
 ///
-/// Отдельный тип, а не расширенный <see cref="NavTab"/>: у меню четыре слота и
-/// пятого не будет. На <see cref="Call"/> попадают только через плашку возврата,
-/// разворот <see cref="Shell.CallBar"/> или начало звонка — кнопки в меню для него
-/// нет, и подсвечивать на нём нечего.
+/// A type of its own rather than a widened <see cref="NavTab"/>: the bar has four slots
+/// and there will not be a fifth. <see cref="Call"/> is reached only through the return
+/// strip, by expanding <see cref="Shell.CallBar"/>, or by a call starting — the bar has
+/// no button for it, and while it is up there is nothing to light.
 /// </summary>
 public enum NavRoute
 {
@@ -205,7 +206,7 @@ public enum NavRoute
     Tasks,
     Settings,
 
-    /// <summary>Экран разговора. Допустим только при живом звонке — см. <c>ShellRouter</c>.</summary>
+    /// <summary>The call screen. Legal only while a call is live — see <c>ShellRouter</c>.</summary>
     Call,
 }
 ```
@@ -217,25 +218,26 @@ using System;
 
 namespace OrbitalSIP.Models;
 
-/// <summary>Как окно встаёт на экран, когда переходит на поверхность.</summary>
+/// <summary>How the window puts itself on screen when it moves to a surface.</summary>
 public enum ShellPlacement
 {
-    /// <summary>Держится за нижне-правый угол — там, где оператор его припарковал.</summary>
+    /// <summary>Holds the bottom-right corner — where the operator parked it.</summary>
     AnchorBottomRight,
 
-    /// <summary>Встаёт по центру рабочей области. Только для экранов входа.</summary>
+    /// <summary>Centres on the work area. Login screens only.</summary>
     CenterOnScreen,
 }
 
-/// <summary>Размер поверхности в базовых единицах, до умножения на масштаб виджета.</summary>
+/// <summary>A surface's size in base units, before the widget scale multiplies it.</summary>
 public readonly record struct ShellBox(double Width, double Height, ShellPlacement Placement);
 
 /// <summary>
-/// Размер и размещение окна как функция от поверхности.
+/// The window's size and placement as a function of its surface.
 ///
-/// Константы пришли из MainWindow, где раздавались по девятнадцати вызовам
-/// StartAnimation вручную. Масштаб (<c>_uiScale</c>) здесь не применяется намеренно:
-/// он свойство экрана и настройки, а не поверхности, и остаётся за окном.
+/// The constants came from MainWindow, where they were handed out by hand across nineteen
+/// StartAnimation calls. The scale (<c>_uiScale</c>) is deliberately not applied here: it
+/// is a property of the screen and of the setting, not of the surface, and it stays with
+/// the window.
 /// </summary>
 public static class ShellGeometry
 {
@@ -259,7 +261,7 @@ public static class ShellGeometry
         Shell.Incoming or Shell.CallBar =>
             new ShellBox(StripWidth, StripHeight, ShellPlacement.AnchorBottomRight),
 
-        _ => throw new ArgumentOutOfRangeException(nameof(shell), shell, "Поверхность без геометрии"),
+        _ => throw new ArgumentOutOfRangeException(nameof(shell), shell, "Surface has no geometry"),
     };
 }
 ```
@@ -298,9 +300,9 @@ using Xunit;
 namespace OrbitalSIP.Tests;
 
 /// <summary>
-/// Инварианты состояния — то, что верно про любой его экземпляр, независимо от того,
-/// какое событие его породило. Проверяются здесь, чтобы таблица переходов не носила
-/// их в каждой строке.
+/// The invariants of the state — what is true of any instance of it, whichever event
+/// produced it. Checked here so the transition table does not have to carry them in
+/// every row.
 /// </summary>
 public class UiStateTests
 {
@@ -324,9 +326,9 @@ public class UiStateTests
     }
 
     /// <summary>
-    /// Экран разговора без разговора. Достижим гонкой: оператор разворачивает виджет в
-    /// тот же момент, когда собеседник кладёт трубку. Инвариант снимает вопрос со всех
-    /// строк таблицы сразу.
+    /// The call screen with no call behind it. Reachable by a race: the operator expands
+    /// the widget at the moment the other side hangs up. The invariant settles that for
+    /// every row of the table at once.
     /// </summary>
     [Fact]
     public void CallRouteIsImpossibleWithoutACall()
@@ -349,8 +351,8 @@ public class UiStateTests
     }
 
     /// <summary>
-    /// LastNonCall, ставший Call, превратил бы откат после звонка в возврат в звонок —
-    /// то есть в бесконечный экран разговора, из которого нет выхода.
+    /// A LastNonCall that had become Call would turn the fall-back after a call into a
+    /// return to the call — an endless call screen with no way out of it.
     /// </summary>
     [Fact]
     public void LastNonCallNeverPointsAtTheCall()
@@ -361,8 +363,8 @@ public class UiStateTests
     }
 
     /// <summary>
-    /// Порядок нормализации имеет значение: сначала чинится LastNonCall, потом на него
-    /// падает Route. В обратном порядке Route получил бы Call обратно.
+    /// The order of normalization is load-bearing: LastNonCall is repaired first, and then
+    /// Route falls back onto it. The other way round hands Route its Call straight back.
     /// </summary>
     [Fact]
     public void BothInvariantsAppliedTogetherLandOnTheDialer()
@@ -392,15 +394,15 @@ using OrbitalSIP.Services;
 namespace OrbitalSIP.Models;
 
 /// <summary>
-/// Всё, что определяет вид окна, одной записью.
+/// Everything that decides what the window looks like, in one record.
 ///
-/// Заменяет собой пять независимых переменных MainWindow (_preferredMode,
-/// _isExpanded, _currentTab, _settingsFromLogin и зеркало CallState), произведение
-/// которых давало около двух сотен комбинаций, осмысленных из которых были единицы.
+/// Replaces MainWindow's five independent variables (_preferredMode, _isExpanded,
+/// _currentTab, _settingsFromLogin and a mirror of CallState), whose product came to some
+/// two hundred combinations, a handful of which meant anything.
 ///
-/// CallState здесь отсутствует намеренно: его единственный источник — SipService, и
-/// зеркало состояния звонка внутри UI уже однажды стоило DTMF-панели. Функции,
-/// которым он нужен, получают его параметром.
+/// CallState is deliberately not among them: its one source is SipService, and a mirror of
+/// the call state kept inside the UI has already cost a DTMF panel once. Whatever needs it
+/// takes it as a parameter.
 /// </summary>
 public sealed record UiState(
     Shell    Shell,
@@ -410,8 +412,8 @@ public sealed record UiState(
     bool     StatusPopup)
 {
     /// <summary>
-    /// Состояние на старте процесса. Дом — виджет: приложение всегда открывалось
-    /// свёрнутым, и вход в систему это не меняет.
+    /// The state the process starts in. Home is the widget: the app has always opened
+    /// collapsed, and signing in does not change that.
     /// </summary>
     public static UiState Initial(bool hasCredentials) => new(
         Shell:       hasCredentials ? Shell.Collapsed : Shell.Login,
@@ -421,10 +423,11 @@ public sealed record UiState(
         StatusPopup: false);
 
     /// <summary>
-    /// Приводит состояние к своим инвариантам. Вызывается редьюсером на результате,
-    /// а не на каждой строке таблицы.
+    /// Brings the state back into line with its invariants. The reducer calls this on its
+    /// result, not on every row of the table.
     ///
-    /// Порядок обязателен: LastNonCall чинится первым, потому что Route падает на него.
+    /// The order is not optional: LastNonCall is repaired first, because Route falls back
+    /// onto it.
     /// </summary>
     public UiState Normalize(CallState call)
     {
@@ -476,8 +479,9 @@ using Xunit;
 namespace OrbitalSIP.Tests;
 
 /// <summary>
-/// Переходы, связанные с сессией. Отдельным классом от остальной таблицы, потому что
-/// это единственная её часть, которая может оставить оператора без всего остального.
+/// The transitions the session decides. A class of their own, apart from the rest of the
+/// table, because this is the one part of it that can take everything else away from the
+/// operator.
 /// </summary>
 public class ShellRouterSessionTests
 {
@@ -488,9 +492,9 @@ public class ShellRouterSessionTests
         UiState.Initial(true) with { Shell = Shell.Panel, Route = route, LastNonCall = route, Home = Shell.Panel };
 
     /// <summary>
-    /// Панель на экране звонка. Отдельно от Panel(), потому что LastNonCall обязан
-    /// указывать на не-звонковый route — иначе Normalize его поправит, и сравнение
-    /// «ничего не изменилось» провалится по причине, к тесту не относящейся.
+    /// The panel sitting on the call screen. Kept apart from Panel() because LastNonCall
+    /// has to point at a non-call route — otherwise Normalize repairs it and the "nothing
+    /// changed" comparison fails for a reason that has nothing to do with the test.
     /// </summary>
     private static UiState PanelOnCall(NavRoute cameFrom = NavRoute.Dialer) =>
         UiState.Initial(true) with
@@ -518,9 +522,9 @@ public class ShellRouterSessionTests
     }
 
     /// <summary>
-    /// Из настроек до входа ведёт ровно один выход, и любая кнопка меню — он же.
-    /// Раньше это был флаг, который снимался только на тех выходах, о которых кто-то
-    /// вспомнил, и панель отвеченного звонка могла унаследовать режим логина.
+    /// There is exactly one way out of settings-before-login, and every button on the bar
+    /// is it. This used to be a flag, cleared only on the exits someone thought of, and an
+    /// answered call's panel could inherit login mode from it.
     /// </summary>
     [Theory]
     [InlineData(NavTab.Dialer)]
@@ -565,9 +569,9 @@ public class ShellRouterSessionTests
     }
 
     /// <summary>
-    /// Логин, поставленный поверх идущего разговора, унёс бы кнопки сброса, микрофона и
-    /// удержания у оператора, который ещё говорит. Диспетчер дожидается конца звонка и
-    /// шлёт это же событие повторно — поэтому здесь достаточно ничего не делать.
+    /// Login placed over a call in progress would take hangup, mute and hold away from an
+    /// operator who is still talking. The dispatcher waits for the call to end and raises
+    /// the same event again — so doing nothing here is the whole of it.
     /// </summary>
     [Theory]
     [InlineData(CallState.Ringing)]
@@ -598,13 +602,13 @@ using OrbitalSIP.Services;
 namespace OrbitalSIP.Models;
 
 /// <summary>
-/// Всё, от чего меняется вид окна. Ничего больше: нажатие кнопки, ответ сервиса,
-/// решение оператора.
+/// Everything that changes what the window looks like, and nothing else: a button press,
+/// a service's answer, a decision the operator made.
 ///
-/// Хоткеи сюда не входят намеренно. Они адресуются звонку через SipService, а окно
-/// следует за CallStateChanged, как за любым другим изменением состояния звонка —
-/// единственное исключение расписано в MainWindow, где ответ на входящий поднимает
-/// CallStarted после успешного AnswerAsync.
+/// Hotkeys are deliberately not among them. They are addressed to the call through
+/// SipService, and the window follows CallStateChanged the way it follows any other change
+/// of call state — the one exception is spelled out in MainWindow, where answering an
+/// incoming call raises CallStarted once AnswerAsync has succeeded.
 /// </summary>
 public abstract record UiEvent
 {
@@ -619,7 +623,7 @@ public abstract record UiEvent
     public sealed record IncomingCall              : UiEvent;
     public sealed record IncomingDeclined          : UiEvent;
 
-    /// <summary>Ответ на входящий или начатый исходящий — с точки зрения окна это одно и то же.</summary>
+    /// <summary>An incoming call answered or an outgoing one started — to the window these are the same thing.</summary>
     public sealed record CallStarted               : UiEvent;
 
     public sealed record CallStateChanged(CallState State) : UiEvent;
@@ -636,12 +640,13 @@ using OrbitalSIP.Services;
 namespace OrbitalSIP.Models;
 
 /// <summary>
-/// Единственное место, где состояние UI меняется.
+/// The one place the UI state changes.
 ///
-/// Чистая функция: та же тройка на входе всегда даёт то же состояние на выходе.
-/// Побочные эффекты — CallAsync, Hangup, SetStateAsync, открытие окон — остаются в
-/// MainWindow; здесь о них не знают. Это и делает таблицу переходов проверяемой без
-/// окна, как NavBadgeState и TaskListOutcome в этой же папке.
+/// A pure function: the same three inputs always give the same state back. The side
+/// effects — CallAsync, Hangup, SetStateAsync, opening windows — stay in MainWindow, and
+/// nothing here knows about them. That is what makes the transition table something a test
+/// can reach without building a window, like NavBadgeState next door and TaskListOutcome
+/// over in Services.
 /// </summary>
 public static class ShellRouter
 {
@@ -672,8 +677,8 @@ public static class ShellRouter
         UiEvent.TabPressed when s.Shell == Shell.LoginSettings =>
             s with { Shell = Shell.Login },
 
-        // Живой звонок откладывает логин: диспетчер дождётся Idle и пришлёт это
-        // событие ещё раз.
+        // A live call defers the login: the dispatcher waits for Idle and raises this
+        // event again.
         UiEvent.SessionExpired when call == CallState.Idle =>
             s with { Shell = Shell.Login },
 
@@ -713,7 +718,7 @@ using Xunit;
 
 namespace OrbitalSIP.Tests;
 
-/// <summary>Навигация внутри сессии: четыре таба, разворот и сворачивание окна.</summary>
+/// <summary>Navigation inside a session: the four tabs, expanding the window and collapsing it.</summary>
 public class ShellRouterNavigationTests
 {
     private static UiState Reduce(UiState state, UiEvent e, CallState call = CallState.Idle) =>
@@ -733,9 +738,9 @@ public class ShellRouterNavigationTests
     }
 
     /// <summary>
-    /// Тап по уже горящему табу инертен. Иначе он пересобрал бы экран и унёс всё, что
-    /// на нём не сохранено: host, учётные данные, язык и масштаб в настройках,
-    /// наполовину набранный номер в наборе.
+    /// A tap on the tab that is already lit is inert. Otherwise it rebuilds the screen and
+    /// takes everything on it that was never committed: the host, the credentials, the
+    /// language and the scale in Settings, a half-typed number in the dialer.
     /// </summary>
     [Theory]
     [InlineData(NavTab.Dialer,   NavRoute.Dialer)]
@@ -770,8 +775,9 @@ public class ShellRouterNavigationTests
     }
 
     /// <summary>
-    /// Route переживает уход в виджет: развернувшись обратно, оператор попадает туда,
-    /// где был, а не на набор. Сегодня ReturnToPreferredMode строит набор всегда.
+    /// The route survives the trip into the widget: expanding again puts the operator back
+    /// where they were rather than on the dialer. ReturnToPreferredMode builds the dialer
+    /// every time, whatever they were looking at.
     /// </summary>
     [Fact]
     public void TheRouteSurvivesARoundTripThroughTheWidget()
@@ -783,8 +789,8 @@ public class ShellRouterNavigationTests
     }
 
     /// <summary>
-    /// Всплывашка статусов не переживает смену экрана. Сегодня это побочный эффект
-    /// SetMainContent; здесь — правило, действующее на любом переходе.
+    /// The status popup does not survive a change of screen. Today that is a side effect of
+    /// SetMainContent; here it is a rule that holds on every transition.
     /// </summary>
     [Fact]
     public void ChangingScreensClosesTheStatusPopup()
@@ -806,9 +812,9 @@ public class ShellRouterNavigationTests
     }
 
     /// <summary>
-    /// Дом всегда одна из двух поверхностей, куда можно вернуться. Панель звонка или
-    /// полоска, попавшие сюда опечаткой в одной строке таблицы, дали бы возврат в
-    /// звонок, которого нет.
+    /// Home is always one of the two surfaces there is anything to return to. A call panel
+    /// or a strip landing here through a typo in one row of the table would send the
+    /// operator back into a call that is not there.
     /// </summary>
     [Fact]
     public void HomeIsAlwaysCollapsedOrPanel()
@@ -851,7 +857,7 @@ Expected: FAIL — `ATabPressOpensThePanelOnThatTab` падает на `Assert.E
 В `OrbitalSIP/Models/ShellRouter.cs` добавить отображение таба в route и четыре строки в `Route`, **выше** ветки `_ => s`:
 
 ```csharp
-    /// <summary>Слот меню, который читается как текущий, или null — для экрана звонка.</summary>
+    /// <summary>The bar slot that reads as current, or null — the call screen has none.</summary>
     public static NavTab? TabFor(NavRoute route) => route switch
     {
         NavRoute.Dialer   => NavTab.Dialer,
@@ -928,11 +934,11 @@ using Xunit;
 namespace OrbitalSIP.Tests;
 
 /// <summary>
-/// Звонок как отдельный route, а не как подмена таба «Набор».
+/// The call as a route of its own, not as something the «Набор» tab is quietly swapped for.
 ///
-/// Сегодня ShowDialer() во время разговора отдаёт экран звонка, поэтому «Набор» молча
-/// означает «вернуться в звонок», а взять набор для второй линии или для адреса
-/// перевода негде.
+/// ShowDialer() hands back the call screen while a call is up, so «Набор» silently means
+/// "back to the call" — and there is nowhere left to get a dialpad for a second line or for
+/// a transfer target.
 /// </summary>
 public class ShellRouterCallTests
 {
@@ -943,9 +949,9 @@ public class ShellRouterCallTests
         UiState.Initial(true) with { Shell = Shell.Panel, Route = route, LastNonCall = route, Home = home };
 
     /// <summary>
-    /// Панель на экране звонка. Отдельно от Panel(), потому что LastNonCall обязан
-    /// указывать на не-звонковый route — иначе Normalize его поправит, и сравнение
-    /// «ничего не изменилось» провалится по причине, к тесту не относящейся.
+    /// The panel sitting on the call screen. Kept apart from Panel() because LastNonCall
+    /// has to point at a non-call route — otherwise Normalize repairs it and the "nothing
+    /// changed" comparison fails for a reason that has nothing to do with the test.
     /// </summary>
     private static UiState PanelOnCall(NavRoute cameFrom = NavRoute.Dialer) =>
         UiState.Initial(true) with
@@ -980,8 +986,8 @@ public class ShellRouterCallTests
     }
 
     /// <summary>
-    /// Второй вызов, пришедший во время разговора, не снимает оператора с текущего.
-    /// Что при этом делает SipService — не забота этой таблицы.
+    /// A second call arriving mid-conversation does not take the operator off the one they
+    /// are on. What SipService does with it is not this table's business.
     /// </summary>
     [Fact]
     public void ASecondIncomingCallDoesNotDisturbTheFirst()
@@ -1026,7 +1032,7 @@ public class ShellRouterCallTests
     }
 
     /// <summary>
-    /// Во время звонка «Набор» остаётся набором — вся причина существования этой работы.
+    /// While a call is up, «Набор» stays a dialer — the whole reason this work exists.
     /// </summary>
     [Fact]
     public void TheDialerTabIsStillADialerDuringACall()
@@ -1038,9 +1044,9 @@ public class ShellRouterCallTests
     }
 
     /// <summary>
-    /// Конец звонка на экране звонка возвращает туда, откуда оператор в него ушёл, а не
-    /// в «дом». Сегодня для этого держится список исключений: Login и Settings остаются,
-    /// остальные — нет, и каждый новый экран требует решения, в какой половине он лежит.
+    /// A call ending on the call screen returns the operator to where they left for it, not
+    /// to home. Today that is a list of exceptions: Login and Settings stay put, the rest do
+    /// not, and every new screen has to be assigned to one half or the other.
     /// </summary>
     [Fact]
     public void EndingTheCallReturnsToWhereTheOperatorCameFrom()
@@ -1054,8 +1060,9 @@ public class ShellRouterCallTests
     }
 
     /// <summary>
-    /// А если оператор во время разговора ушёл на другой таб — конец звонка не должен
-    /// его оттуда снимать. Это та строка таблицы, которая заменяет список исключений.
+    /// And if the operator walked off to another tab mid-conversation, the end of the call
+    /// must not pull them off it. This is the row of the table that retires the list of
+    /// exceptions.
     /// </summary>
     [Theory]
     [InlineData(NavRoute.Recents)]
@@ -1094,9 +1101,10 @@ public class ShellRouterCallTests
     }
 
     /// <summary>
-    /// Свернуть во время звонка — тот же жест, что и свернуть без него, и он обязан так
-    /// же переставить «дом». Иначе после конца звонка окно садится в виджет, а Home
-    /// остаётся панелью, и следующий звонок разворачивает панель тому, кто её свернул.
+    /// Collapsing during a call is the same gesture as collapsing without one, and it has to
+    /// move home the same way. Otherwise the window settles into the widget when the call
+    /// ends while Home stays the panel, and the next call opens a panel on the operator who
+    /// collapsed it.
     /// </summary>
     [Fact]
     public void CollapsingDuringACallMovesHomeToo()
@@ -1112,8 +1120,8 @@ public class ShellRouterCallTests
     }
 
     /// <summary>
-    /// Промежуточные состояния звонка экрана не двигают: их дело — надписи и кнопки на
-    /// уже открытом экране.
+    /// The states in the middle of a call do not move the screen: their business is the
+    /// labels and the buttons on a screen that is already open.
     /// </summary>
     [Theory]
     [InlineData(CallState.Ringing)]
@@ -1203,9 +1211,10 @@ using Xunit;
 namespace OrbitalSIP.Tests;
 
 /// <summary>
-/// Плашка «идёт звонок — вернуться» — единственное, что связывает оператора с
-/// разговором, пока он смотрит на другой таб. Погасшая зря, она оставляет его без
-/// пути назад; горящая зря — уводит на экран звонка, которого нет.
+/// The "a call is running, go back to it" strip is the only thing tying the operator to the
+/// conversation while they are looking at another tab. Dark when it should not be, it
+/// leaves them no way back; lit when it should not be, it takes them to a call screen with
+/// no call behind it.
 /// </summary>
 public class ShellRouterStripTests
 {
@@ -1227,7 +1236,7 @@ public class ShellRouterStripTests
         Assert.False(ShellRouter.ShowReturnStrip(Panel(NavRoute.Tasks), CallState.Idle));
     }
 
-    /// <summary>На самом экране звонка возвращаться некуда.</summary>
+    /// <summary>On the call screen itself there is nowhere left to return to.</summary>
     [Fact]
     public void TheCallRouteNeedsNoStrip()
     {
@@ -1237,8 +1246,9 @@ public class ShellRouterStripTests
     }
 
     /// <summary>
-    /// Полоски и виджета плашка не касается — их рисует не PanelShellView. Входящий
-    /// живёт на собственной поверхности, где панели нет вовсе.
+    /// The strip has nothing to say about the call bar or the widget — those are not
+    /// PanelShellView's to draw. An incoming call lives on a surface of its own, where there
+    /// is no panel at all.
     /// </summary>
     [Theory]
     [InlineData(Shell.Collapsed)]
@@ -1266,11 +1276,11 @@ Expected: FAIL — `error CS0117: 'ShellRouter' does not contain a definition fo
 
 ```csharp
     /// <summary>
-    /// Видна ли плашка возврата к звонку.
+    /// Whether the way back to the call is on screen.
     ///
-    /// «Звонок жив» здесь — «не Idle»: исходящий гудок уже даёт оператору что-то, к чему
-    /// можно вернуться. IncomingRinging до этого предиката не доходит — входящий живёт
-    /// на Shell.Incoming, где панели с плашкой нет.
+    /// "The call is live" here means "not Idle": an outgoing ringback already gives the
+    /// operator something to go back to. IncomingRinging never reaches this predicate — an
+    /// incoming call lives on Shell.Incoming, where there is no panel to carry the strip.
     /// </summary>
     public static bool ShowReturnStrip(UiState state, CallState call) =>
         state.Shell == Shell.Panel &&
@@ -1305,9 +1315,9 @@ git commit -m "feat(ui): when the return strip is up, decided where a test can r
 
 ```csharp
         /// <summary>
-        /// Какой таб читается как текущий, или null — когда оператор не находится ни на
-        /// одном из четырёх: экран звонка достижим только через плашку возврата и в меню
-        /// слота не имеет.
+        /// Which tab reads as current, or null when the operator is on none of the four:
+        /// the call screen is reached only through the return strip and has no slot on
+        /// this bar.
         /// </summary>
         public NavTab? ActiveTab
         {
@@ -1361,9 +1371,9 @@ git commit -m "feat(nav): let the bar light nothing at all"
 
 ```csharp
         /// <summary>
-        /// Всё, чем окно является. Меняется только через Dispatch и только на то, что
-        /// вернул ShellRouter — присваивать напрямую нельзя, иначе возвращается ровно
-        /// та россыпь ручных флагов, которую эта работа убирает.
+        /// Everything the window is. Changed only through Dispatch, and only to what
+        /// ShellRouter returned — assign to it directly and back comes exactly the scatter
+        /// of hand-kept flags this work exists to remove.
         /// </summary>
         private UiState _state = UiState.Initial(hasCredentials: false);
 ```
@@ -1372,8 +1382,8 @@ git commit -m "feat(nav): let the bar light nothing at all"
 
 ```csharp
         /// <summary>
-        /// Единственный вход в изменение состояния. Считает следующее состояние, и если
-        /// оно отличается — рисует разницу.
+        /// The one way in to a change of state. Works out the next state, and draws the
+        /// difference when there is one.
         /// </summary>
         private void Dispatch(UiEvent e)
         {
@@ -1386,10 +1396,10 @@ git commit -m "feat(nav): let the bar light nothing at all"
         }
 
         /// <summary>
-        /// Рисует разницу между двумя состояниями. Ничего не решает — все решения уже
-        /// приняты в ShellRouter.
+        /// Draws the difference between two states. Decides nothing — every decision was
+        /// already made in ShellRouter.
         ///
-        /// prev == null означает первую отрисовку: тогда перерисовывается всё.
+        /// prev == null is the first draw, and then everything is drawn.
         /// </summary>
         private void Apply(UiState? prev, UiState next)
         {
@@ -1405,10 +1415,10 @@ git commit -m "feat(nav): let the bar light nothing at all"
 
             if (box.Placement == ShellPlacement.CenterOnScreen)
             {
-                // Экраны входа не анимируются и не держатся за угол: они встают по центру,
-                // как встают при холодном старте без учётных данных. Идущая анимация тут
-                // же гасится — её следующий тик переписал бы геометрию, поставленную ниже,
-                // и оставил бы логин размером с виджет.
+                // The login screens are neither animated nor anchored to the corner: they
+                // centre, the way they do on a cold start with no credentials. An animation
+                // in flight is killed right here — its next tick would overwrite the
+                // geometry set below and leave login the size of the widget.
                 CancelAnimation();
                 if (content != null) SetMainContent(content);
                 PlaceCentered(width, height);
@@ -1428,21 +1438,21 @@ git commit -m "feat(nav): let the bar light nothing at all"
             ApplyStatusPopup(next);
         }
 
-        /// <summary>Экран, соответствующий состоянию. Строится заново на каждой смене пары (Shell, Route).</summary>
+        /// <summary>The screen this state calls for. Rebuilt whenever the (Shell, Route) pair changes.</summary>
         private object BuildContent(UiState s) => s.Shell switch
         {
             Shell.Collapsed => new Views.WidgetView(),
             Shell.Panel     => BuildPanelContent(s.Route),
-            _               => throw new NotSupportedException($"{s.Shell} ещё не переведён на Apply"),
+            _               => throw new NotSupportedException($"{s.Shell} has not moved over to Apply yet"),
         };
 
         private object BuildPanelContent(NavRoute route) => route switch
         {
             NavRoute.Dialer   => CreateDialerView(),
-            _                 => throw new NotSupportedException($"{route} ещё не переведён на Apply"),
+            _                 => throw new NotSupportedException($"{route} has not moved over to Apply yet"),
         };
 
-        /// <summary>Ставит окно по центру рабочей области экрана, на котором оно сейчас.</summary>
+        /// <summary>Centres the window on the work area of the screen it is currently on.</summary>
         private void PlaceCentered(double width, double height)
         {
             var area = (Screens?.ScreenFromWindow(this) ?? Screens?.Primary)?.WorkingArea
@@ -1458,7 +1468,7 @@ git commit -m "feat(nav): let the bar light nothing at all"
             _anchorY = top  + (int)height;
         }
 
-        /// <summary>Гасит идущую анимацию, не досчитывая её.</summary>
+        /// <summary>Kills an animation in flight without letting it finish.</summary>
         private void CancelAnimation()
         {
             _animTimer?.Stop();
@@ -1468,8 +1478,8 @@ git commit -m "feat(nav): let the bar light nothing at all"
         }
 
         /// <summary>
-        /// Раздаёт нижнему меню его состояние. Замена AttachNav: та выводила таб и режим
-        /// логина из типа экрана, здесь и то и другое уже есть в UiState.
+        /// Hands the bottom bar its state. The replacement for AttachNav, which derived the
+        /// tab and the login mode from the screen's type — both are already in UiState here.
         /// </summary>
         private void RefreshChrome(UiState s)
         {
@@ -1568,7 +1578,7 @@ git commit -m "refactor(ui): the window starts rendering a state instead of deci
             Shell.Incoming      => CreateIncomingView(App.SipService.ActiveCallerId),
             Shell.CallBar       => CreateActiveCallWidgetView(),
             Shell.Panel         => BuildPanelContent(s.Route),
-            _ => throw new ArgumentOutOfRangeException(nameof(s), s.Shell, "Поверхность без экрана"),
+            _ => throw new ArgumentOutOfRangeException(nameof(s), s.Shell, "Surface has no screen"),
         };
 
         private object BuildPanelContent(NavRoute route) => route switch
@@ -1578,7 +1588,7 @@ git commit -m "refactor(ui): the window starts rendering a state instead of deci
             NavRoute.Tasks    => CreateTasksView(),
             NavRoute.Settings  => CreateSettingsView(fromLogin: false),
             NavRoute.Call     => CreateActiveCallView(),
-            _ => throw new ArgumentOutOfRangeException(nameof(route), route, "Route без экрана"),
+            _ => throw new ArgumentOutOfRangeException(nameof(route), route, "Route has no screen"),
         };
 ```
 
@@ -1617,9 +1627,9 @@ git commit -m "refactor(ui): the window starts rendering a state instead of deci
 ```csharp
         private void OnCallStateChanged(CallState state)
         {
-            // Отложенный логин: сессия умерла во время разговора, и он ждал его конца.
-            // Повторное SessionExpired, а не CallStateChanged — так решение остаётся
-            // одной строкой таблицы, а не вторым путём к логину.
+            // The deferred login: the session died mid-conversation and has been waiting
+            // for the end of it. SessionExpired again rather than CallStateChanged — that
+            // keeps the decision one row of the table instead of a second path to login.
             if (state == CallState.Idle && _sessionExpiredPending)
             {
                 _sessionExpiredPending = false;
@@ -1628,14 +1638,14 @@ git commit -m "refactor(ui): the window starts rendering a state instead of deci
                 return;
             }
 
-            // Конец звонка — единственный момент, когда счётчик пропущенных мог только
-            // что сдвинуться, и он же момент, когда оператор снова смотрит на меню.
+            // The end of a call is the one moment the missed counter can have just moved,
+            // and the same moment the operator is looking at the bar again.
             if (state == CallState.Idle) _ = App.NavBadges.RefreshNowAsync();
 
             Dispatch(new UiEvent.CallStateChanged(state));
 
-            // Надписи и кнопки на уже открытом экране звонка — не смена экрана, поэтому
-            // мимо Dispatch.
+            // The labels and the buttons on an already-open call screen are not a change
+            // of screen, so they go around Dispatch.
             var host = this.FindControl<ContentControl>("Host");
             bool isOnHold = state == CallState.OnHold;
             if (host?.Content is Views.ActiveCallView av) { av.MarkConnected(); av.SetStatus(isOnHold); }
@@ -1743,11 +1753,12 @@ using Avalonia.Markup.Xaml;
 namespace OrbitalSIP.Views
 {
     /// <summary>
-    /// Хром панели: топбар, плашка возврата к звонку, содержимое и нижнее меню.
+    /// The panel's chrome: the top bar, the return-to-call strip, the content and the
+    /// bottom bar.
     ///
-    /// До этого топбар и меню были продублированы в разметке пяти экранов, и плашка
-    /// потребовала бы шестого дубля — а вместе с ним и пяти мест, где её надо было бы
-    /// научить показываться и прятаться.
+    /// Until now the top bar and the bottom bar were duplicated in the markup of five
+    /// screens, and the strip would have made a sixth copy — and with it five places that
+    /// would each have to be taught when to show it and when to hide it.
     /// </summary>
     public partial class PanelShellView : UserControl
     {
@@ -1813,7 +1824,7 @@ git grep -n "TopBar" -- OrbitalSIP/Views/RecentsView.axaml.cs
             NavRoute.Tasks    => CreateTasksView(),
             NavRoute.Settings => CreateSettingsView(fromLogin: false),
             NavRoute.Call     => CreateActiveCallView(),
-            _ => throw new ArgumentOutOfRangeException(nameof(route), route, "Route без экрана"),
+            _ => throw new ArgumentOutOfRangeException(nameof(route), route, "Route has no screen"),
         };
 ```
 
@@ -1923,12 +1934,12 @@ using Avalonia.Threading;
 namespace OrbitalSIP.Views
 {
     /// <summary>
-    /// «Идёт звонок — вернуться». Единственное, что связывает оператора с разговором,
-    /// пока он смотрит на другой таб.
+    /// "A call is running — go back to it." The only thing tying the operator to the
+    /// conversation while they are looking at another tab.
     ///
-    /// Таймер считает от SipService.ActiveCallStartedAt, а не от собственной точки
-    /// отсчёта: свой счётчик разъехался бы с таймером на экране звонка на всё время,
-    /// что оператор потратил на дорогу до этого таба.
+    /// The timer counts from SipService.ActiveCallStartedAt rather than from a mark of its
+    /// own: a private counter would drift from the one on the call screen by exactly the
+    /// time the operator spent getting to this tab.
     /// </summary>
     public partial class CallReturnStrip : UserControl
     {
@@ -1947,7 +1958,8 @@ namespace OrbitalSIP.Views
             if (this.FindControl<Border>("Root") is { } root)
                 root.PointerPressed += (_, __) => OnReturnRequested?.Invoke(this, EventArgs.Empty);
 
-            // Таймер, переживший свой экран, держал бы ссылку на него до конца процесса.
+            // A timer that outlived its screen would hold a reference to it for the rest
+            // of the process.
             DetachedFromVisualTree += (_, __) => Stop();
         }
 
@@ -2045,7 +2057,7 @@ git commit -m "feat(call): a way back to the call that is not the dialer tab"
 В каждый из трёх лаунчеров добавить:
 
 ```csharp
-        /// <summary>Закрывает открытое окно, если оно есть. Зовётся при истечении сессии.</summary>
+        /// <summary>Closes the open window, if there is one. Called when the session expires.</summary>
         public static void CloseIfOpen() => _current?.Close();
 ```
 
@@ -2057,11 +2069,12 @@ git commit -m "feat(call): a way back to the call that is not the dialer tab"
 
 ```csharp
         /// <summary>
-        /// Закрывает все окна-диалоги. Только при истечении сессии: их содержимое
-        /// принадлежит сессии, которой больше нет, и отправить из них уже нечего.
+        /// Closes every dialog window. Only on a session expiry: what is in them belongs to
+        /// a session that no longer exists, and there is nothing left to send from them.
         ///
-        /// Смена экрана и конец звонка сюда не ходят намеренно — постобработка живёт
-        /// дольше разговора, а недописанный черновик SMS дороже консистентности.
+        /// A change of screen and the end of a call deliberately do not come here — the
+        /// after-call work outlives the conversation, and a half-written SMS draft is worth
+        /// more than consistency.
         /// </summary>
         private void CloseDialogWindows()
         {
@@ -2069,8 +2082,8 @@ git commit -m "feat(call): a way back to the call that is not the dialer tab"
             Views.SurveyWindowLauncher.CloseIfOpen();
             Views.ScriptsWindowLauncher.CloseIfOpen();
 
-            // SMS-окна открываются экранами напрямую, без лаунчера, но владельцем у них
-            // всё равно это окно.
+            // The SMS windows are opened by the screens directly, with no launcher, but
+            // this window is their owner all the same.
             foreach (var owned in OwnedWindows.ToArray())
                 if (owned is Views.SmsComposeDialog) owned.Close();
         }
