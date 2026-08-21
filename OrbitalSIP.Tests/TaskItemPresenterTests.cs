@@ -10,17 +10,30 @@ public class TaskItemPresenterTests
     private static readonly DateTimeOffset Now =
         new(2026, 8, 21, 14, 0, 0, TimeSpan.FromHours(5));
 
-    /// <summary>A second "now", at UTC instead of this dev machine's own UTC+5 — used to
-    /// prove Bucket and TimeText read the offset the caller passed, not the machine's
-    /// zone. UTC is picked because it is the default on most CI runners.</summary>
-    private static readonly DateTimeOffset NowAtUtc =
-        new(2026, 8, 21, 14, 0, 0, TimeSpan.Zero);
+    /// <summary>
+    /// An offset this machine is deliberately not set to.
+    ///
+    /// Hardcoding one — UTC, say — only proves independence on hosts that are not already
+    /// at it, which is the same coincidence that kept the +5 fixtures green while Bucket
+    /// still read TimeZoneInfo.Local. Derived, the gap between the value's offset and the
+    /// machine's is guaranteed to exist wherever this runs.
+    /// </summary>
+    private static readonly TimeSpan ForeignOffset =
+        TimeZoneInfo.Local.BaseUtcOffset == TimeSpan.Zero
+            ? TimeSpan.FromHours(9)
+            : TimeSpan.Zero;
 
-    /// <summary>Near a UTC midnight, so a machine-zone shift — which
+    /// <summary>A second "now", at ForeignOffset instead of this machine's own zone —
+    /// used to prove Bucket and TimeText read the offset the caller passed, not the
+    /// machine's.</summary>
+    private static readonly DateTimeOffset NowAtForeignOffset =
+        new(2026, 8, 21, 14, 0, 0, ForeignOffset);
+
+    /// <summary>Near a midnight at ForeignOffset, so a machine-zone shift — which
     /// DateTimeOffset.ToLocalTime() would apply — can move the due date onto a different
     /// calendar day than this "now"'s own offset would.</summary>
-    private static readonly DateTimeOffset NowNearUtcMidnight =
-        new(2026, 8, 21, 23, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset NowNearForeignMidnight =
+        new(2026, 8, 21, 23, 0, 0, ForeignOffset);
 
     private static TaskItem MakeTask(string? status = "pending", DateTimeOffset? due = null, string? priority = null) =>
         new() { Id = 1, Title = "Перезвонить", Status = status, DueDate = due, Priority = priority };
@@ -108,18 +121,19 @@ public class TaskItemPresenterTests
     }
 
     /// <summary>
-    /// Bucket must resolve "tomorrow" at now's own offset, not the machine's. Near a UTC
-    /// midnight, shifting both instants into this dev machine's UTC+5 first — what
-    /// DateTimeOffset.ToLocalTime() does — lands them on the same calendar day and
-    /// misreports Today instead of Tomorrow. A reviewer proved this by actually running
-    /// the old code here; this fixture reproduces exactly that failure.
+    /// Bucket must resolve "tomorrow" at now's own offset, not the machine's. Near a
+    /// midnight at ForeignOffset, shifting both instants into the machine's zone first —
+    /// what DateTimeOffset.ToLocalTime() does — lands them on the same calendar day and
+    /// misreports Today instead of Tomorrow. ForeignOffset is guaranteed to differ from
+    /// the machine running this, so the fixture cannot pass by coincidence the way a
+    /// hardcoded UTC one would on a UTC host.
     /// </summary>
     [Fact]
     public void DeadlineTomorrowBucketsAsTomorrowRegardlessOfMachineTimeZone()
     {
-        var due = NowNearUtcMidnight.AddHours(1);
+        var due = NowNearForeignMidnight.AddHours(1);
 
-        Assert.Equal(DueBucket.Tomorrow, TaskItemPresenter.Bucket(MakeTask(due: due), NowNearUtcMidnight));
+        Assert.Equal(DueBucket.Tomorrow, TaskItemPresenter.Bucket(MakeTask(due: due), NowNearForeignMidnight));
     }
 
     [Fact]
@@ -193,15 +207,16 @@ public class TaskItemPresenterTests
     }
 
     /// <summary>
-    /// TimeText must format at the offset now carries, not the machine's zone. A reviewer
-    /// proved DateTimeOffset.ToLocalTime() breaks this by running the old code on this dev
-    /// machine (UTC+5): it silently added five hours here, a divergence the original
-    /// UTC+5-only fixture could never have caught since it matched the machine by luck.
+    /// TimeText must format at the offset now carries, not the machine's zone. A
+    /// hardcoded UTC "now" caught this on this dev machine (UTC+5) but would have missed
+    /// it on a UTC host — the exact machine DateTimeOffset.ToLocalTime() would silently
+    /// agree with. ForeignOffset is derived so the gap from the machine's own zone always
+    /// exists, wherever this runs.
     /// </summary>
     [Fact]
     public void SameDayDeadlineShowsOnlyTheTimeRegardlessOfMachineTimeZone()
     {
-        Assert.Equal("16:30", TaskItemPresenter.TimeText(NowAtUtc.AddHours(2).AddMinutes(30), NowAtUtc));
+        Assert.Equal("16:30", TaskItemPresenter.TimeText(NowAtForeignOffset.AddHours(2).AddMinutes(30), NowAtForeignOffset));
     }
 
     [Fact]
