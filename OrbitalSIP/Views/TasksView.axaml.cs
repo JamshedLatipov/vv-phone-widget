@@ -130,13 +130,15 @@ namespace OrbitalSIP.Views
                     var pending = await service.GetMyTasksAsync("pending", ct);
                     if (pending?.Data == null) loaded = false;
 
-                    // Only ask the second time if the first was not refused outright. A role
-                    // without tasks:read draws a banner per request, and one missing
-                    // permission is worth exactly one banner — the same reason
-                    // NavBadgeService stops polling on TasksForbidden rather than asking
-                    // again every two minutes.
+                    // Only ask the second time if the first answered. Half a merge is not
+                    // shown at all — see the loaded flag — so once the pending half is
+                    // missing, the in_progress half is a request whose answer is already
+                    // destined for the bin, and one more banner over the same outage: a
+                    // role without tasks:read draws one per request, and a dead backend
+                    // draws one per request too. The same reason NavBadgeService stops
+                    // polling on TasksForbidden rather than asking again every two minutes.
                     List<TaskItem>? running = null;
-                    if (!service.TasksForbidden)
+                    if (loaded)
                     {
                         var response = await service.GetMyTasksAsync("in_progress", ct);
                         if (response?.Data == null) loaded = false;
