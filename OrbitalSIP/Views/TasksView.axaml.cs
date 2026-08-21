@@ -261,12 +261,15 @@ namespace OrbitalSIP.Views
             // saying the operator cannot see them.
             ReplaceItems(state == TaskListState.Refused ? null : tasks, now);
             _shownOpenOnly = openOnly;
-            ShowError(null);
+
+            // A load that answered supersedes everything either label was carrying: both
+            // of them described a state of affairs this answer has just replaced.
+            ShowError(Note.None);
             ShowMessage(state switch
             {
-                TaskListState.Refused => I18nService.Instance.Get("TasksNoAccess"),
-                TaskListState.Empty   => I18nService.Instance.Get("TasksEmpty"),
-                _                     => null,
+                TaskListState.Refused => Note.NoAccess,
+                TaskListState.Empty   => Note.Empty,
+                _                     => Note.None,
             });
         }
 
@@ -279,10 +282,8 @@ namespace OrbitalSIP.Views
         {
             RevertFilterChip();
 
-            var failed = I18nService.Instance.Get("TasksLoadFailed");
-
-            if (_items.Count == 0) { ShowError(null); ShowMessage(failed); }
-            else { ShowMessage(null); ShowError(failed); }
+            if (_items.Count == 0) { ShowError(Note.None); ShowMessage(Note.LoadFailed); }
+            else { ShowMessage(Note.None); ShowError(Note.LoadFailed); }
         }
 
         /// <summary>
@@ -302,14 +303,46 @@ namespace OrbitalSIP.Views
                 _items.Add(new TaskItemViewModel(task, now));
         }
 
-        /// <summary>What the list is doing when it has nothing to show: empty, or refused.</summary>
-        private void ShowMessage(string? message)
+        /// <summary>
+        /// Which sentence a label is carrying, so that taking one down can be about the
+        /// sentence rather than about the label. Both labels are shared — the bottom one
+        /// carries a failed load and a failed tap — and clearing by control rather than by
+        /// meaning wiped whatever the other feature had put there.
+        /// </summary>
+        private enum Note
         {
+            None,
+            Empty,
+            NoAccess,
+            LoadFailed,
+            DoneFailed,
+        }
+
+        /// <summary>What the centred label is saying. Only ever set over an empty list.</summary>
+        private Note _message = Note.None;
+
+        /// <summary>What the bottom label is saying.</summary>
+        private Note _error = Note.None;
+
+        private static string TextOf(Note note) => note switch
+        {
+            Note.Empty      => I18nService.Instance.Get("TasksEmpty"),
+            Note.NoAccess   => I18nService.Instance.Get("TasksNoAccess"),
+            Note.LoadFailed => I18nService.Instance.Get("TasksLoadFailed"),
+            Note.DoneFailed => I18nService.Instance.Get("TaskDoneFailed"),
+            _               => string.Empty,
+        };
+
+        /// <summary>What the list is doing when it has nothing to show: empty, or refused.</summary>
+        private void ShowMessage(Note note)
+        {
+            _message = note;
+
             var label = this.FindControl<TextBlock>("TasksMessageLabel");
             if (label == null) return;
 
-            label.Text = message ?? string.Empty;
-            label.IsVisible = message != null;
+            label.Text = TextOf(note);
+            label.IsVisible = note != Note.None;
         }
 
         /// <summary>
@@ -317,13 +350,15 @@ namespace OrbitalSIP.Views
         /// thing from what <see cref="ShowMessage"/> says about the list itself, and can be
         /// on screen at the same time as a list that is perfectly good.
         /// </summary>
-        private void ShowError(string? message)
+        private void ShowError(Note note)
         {
+            _error = note;
+
             var label = this.FindControl<TextBlock>("TasksErrorLabel");
             if (label == null) return;
 
-            label.Text = message ?? string.Empty;
-            label.IsVisible = !string.IsNullOrWhiteSpace(message);
+            label.Text = TextOf(note);
+            label.IsVisible = note != Note.None;
         }
 
         /// <summary>
@@ -340,9 +375,13 @@ namespace OrbitalSIP.Views
 
             var generation = _listGeneration;
 
-            ShowError(null);
+            // Only a previous tap's failure, never a load's. That one is still true — the
+            // last load really did fail — and if this tap succeeds nothing would ever put
+            // it back.
+            if (_error == Note.DoneFailed) ShowError(Note.None);
+
             _items.RemoveAt(index);
-            if (_items.Count == 0) ShowMessage(I18nService.Instance.Get("TasksEmpty"));
+            if (_items.Count == 0) ShowMessage(Note.Empty);
 
             if (await App.TaskService.SetStatusAsync(row.Id, "done"))
             {
@@ -359,10 +398,16 @@ namespace OrbitalSIP.Views
                 if (generation == _listGeneration)
                 {
                     _items.Insert(Math.Min(index, _items.Count), row);
-                    ShowMessage(null);
+
+                    // The centred label only ever belongs over an empty list, and the list
+                    // is not empty any more — so it goes, whether it was the "no tasks"
+                    // this tap put there or a load that failed underneath it since. The
+                    // failure below replaces it either way, and both would be saying the
+                    // same thing about the same backend.
+                    ShowMessage(Note.None);
                 }
 
-                ShowError(I18nService.Instance.Get("TaskDoneFailed"));
+                ShowError(Note.DoneFailed);
             });
         }
     }
