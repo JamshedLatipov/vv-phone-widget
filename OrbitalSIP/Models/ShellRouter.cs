@@ -70,8 +70,39 @@ public static class ShellRouter
         UiEvent.ExpandRequested when s.Shell == Shell.Collapsed =>
             s with { Shell = Shell.Panel, Home = Shell.Panel },
 
+        UiEvent.IncomingCall when call is CallState.Idle or CallState.IncomingRinging =>
+            s with { Shell = Shell.Incoming },
+
+        UiEvent.IncomingDeclined =>
+            s with { Shell = s.Home },
+
+        UiEvent.CallStarted =>
+            s.Home == Shell.Panel
+                ? s with { Shell = Shell.Panel, Route = NavRoute.Call }
+                : s with { Shell = Shell.CallBar },
+
+        UiEvent.ReturnStripPressed when call != CallState.Idle =>
+            s with { Shell = Shell.Panel, Route = NavRoute.Call },
+
+        UiEvent.ExpandRequested when s.Shell == Shell.CallBar =>
+            s with { Shell = Shell.Panel, Route = NavRoute.Call, Home = Shell.Panel },
+
+        // Above the general CollapseRequested arm from Task 4. The compiler enforces that
+        // much on its own — an unguarded arm ahead of a guarded one of the same type is
+        // CS8510, not a warning — so this note is here for the reason, which CS8510 does
+        // not give: below it, a live call would collapse to the widget and take hangup,
+        // mute and hold away from an operator who is still talking.
+        UiEvent.CollapseRequested when call != CallState.Idle =>
+            s with { Shell = Shell.CallBar, Home = Shell.Collapsed },
+
         UiEvent.CollapseRequested =>
             s with { Shell = Shell.Collapsed, Home = Shell.Collapsed },
+
+        UiEvent.CallStateChanged { State: CallState.Idle } when s.Shell == Shell.CallBar =>
+            s with { Shell = Shell.Collapsed },
+
+        UiEvent.CallStateChanged { State: CallState.Idle } when s.Shell == Shell.Incoming =>
+            s with { Shell = s.Home },
 
         UiEvent.StatusPopupToggled p => s with { StatusPopup = p.Open },
 
