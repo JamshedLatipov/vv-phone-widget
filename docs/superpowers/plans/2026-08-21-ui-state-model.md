@@ -1003,6 +1003,18 @@ Expected: FAIL — `ATabPressOpensThePanelOnThatTab` падает на `Assert.E
 
 Строка `TabPressed` для `LoginSettings` из Task 3 обязана остаться **выше** обеих новых строк с `TabPressed`: в режиме логина таб уводит на вход, а не открывает панель.
 
+Про первую из новых строк — ту, что гасит нажатие на уже горящий таб, — известно, что она
+не меняет поведения ни на одном достижимом состоянии, и это выяснено дважды независимо.
+`Route` и `LastNonCall` расходятся только когда `Route == Call`, а тогда условие этой
+строки ложно; во всех остальных состояниях общая строка ниже запишет ровно те же три
+поля, которые guard сохранил бы бездействием. Значит `PressingTheLitTabChangesNothing`
+пинает гарантию, а не эту строку: удалить её — все тесты останутся зелёными.
+
+Строка тем не менее остаётся. Она называет правило спека вслух, стоит одну строчку, и
+станет живой в тот день, когда общая строка начнёт писать что-то ещё. А настоящая защита
+от пересборки экрана на повторном нажатии живёт не здесь, а в `Dispatch` из Task 8:
+`if (next == _state) return;` — равная запись означает, что рисовать нечего.
+
 Заодно, пока `Route` ещё читается целиком, зафиксировать два правила комментариями — оба
 станут неочевидны, когда веток станет восемнадцать.
 
@@ -1532,6 +1544,11 @@ git commit -m "feat(nav): let the bar light nothing at all"
         private void Dispatch(UiEvent e)
         {
             var next = ShellRouter.Reduce(_state, e, App.SipService.State);
+
+            // Record equality, and it carries more weight than it looks: this is what makes
+            // a press on the already-lit tab free. ShellRouter has an arm for that case, but
+            // the arm is belt-and-braces — the general arm below it returns an equal record
+            // anyway, and this line is what turns "equal" into "do not rebuild the screen".
             if (next == _state) return;
 
             var prev = _state;
