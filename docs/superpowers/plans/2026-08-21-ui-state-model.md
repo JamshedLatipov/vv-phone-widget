@@ -1603,12 +1603,32 @@ git commit -m "feat(nav): let the bar light nothing at all"
 
 ---
 
-## Task 8: `Dispatch` и `Apply` для виджета и панели
+## Task 8: `Dispatch` и `Apply` для всего, кроме звонка
 
 **Files:**
 - Modify: `OrbitalSIP/MainWindow.axaml.cs`
 
-Самая аккуратная задача плана. Новая машинерия ставится **рядом** со старыми `Show*`, и на неё переводятся только две поверхности из шести. Остальные пока ходят по-старому.
+Шов проходит между «звонка нет» и «звонок идёт». Эта задача переводит первую половину
+целиком: `Login`, `LoginSettings`, `Collapsed` и `Panel` со всеми четырьмя табами. Звонок
+— входящий, полоска, экран разговора — остаётся на старом пути до Task 9.
+
+**Почему не меньше.** Первая редакция плана переводила только виджет и набор, оставляя
+остальные табы на `ShowRecents`/`ShowTasks`/`ShowSettings`. Это тупик, и не один:
+
+- `Password` помечен `[JsonIgnore]` и не переживает перезапуск — комментарий в
+  `SipSettings.cs` говорит об этом прямо. Значит ветка конструктора, ведущая сразу к
+  виджету, практически недостижима: **каждый холодный старт идёт через логин**, а к
+  `Shell.Collapsed` ведёт только `login.OnLoginSuccess`. Оставь его на старом пути — и
+  после входа на экране виджет, а `_state.Shell` всё ещё `Login`, после чего
+  `ExpandOnDoubleTap` молча отказывается разворачивать панель. Приложение становится
+  тупиком на каждом запуске.
+- Уйти на «Историю» старым путём и нажать «Набор»: `_state.Route` всё ещё `Dialer`,
+  редьюсер возвращает равную запись, `Dispatch` ничего не делает. Таб мёртв.
+- Открыть настройки из логина старым путём: `_settingsFromLogin` стоит, а `_state.Shell`
+  — `Login`, и нажатие таба откроет панель оператору без сессии.
+
+Все три — одна и та же болезнь: две переменные описывают одно и то же и расходятся.
+Лечится не заплатками, а переводом всей половины разом.
 
 - [ ] **Step 1: Завести состояние и диспетчер**
 
@@ -1703,14 +1723,19 @@ git commit -m "feat(nav): let the bar light nothing at all"
         /// <summary>The screen this state calls for. Rebuilt whenever the (Shell, Route) pair changes.</summary>
         private object BuildContent(UiState s) => s.Shell switch
         {
-            Shell.Collapsed => new Views.WidgetView(),
-            Shell.Panel     => BuildPanelContent(s.Route),
-            _               => throw new NotSupportedException($"{s.Shell} has not moved over to Apply yet"),
+            Shell.Login         => CreateLoginView(),
+            Shell.LoginSettings => CreateSettingsView(fromLogin: true),
+            Shell.Collapsed     => new Views.WidgetView(),
+            Shell.Panel         => BuildPanelContent(s.Route),
+            _                   => throw new NotSupportedException($"{s.Shell} has not moved over to Apply yet"),
         };
 
         private object BuildPanelContent(NavRoute route) => route switch
         {
             NavRoute.Dialer   => CreateDialerView(),
+            NavRoute.Recents  => CreateRecentsView(),
+            NavRoute.Tasks    => CreateTasksView(),
+            NavRoute.Settings => CreateSettingsView(fromLogin: false),
             _                 => throw new NotSupportedException($"{route} has not moved over to Apply yet"),
         };
 
@@ -1798,18 +1823,73 @@ git commit -m "feat(nav): let the bar light nothing at all"
         private void CollapseWidget() => Dispatch(new UiEvent.CollapseRequested());
 ```
 
-`NavigateTo(NavTab tab)` заменить на `Dispatch(new UiEvent.TabPressed(tab))` — но пока только для `NavTab.Dialer`; для остальных трёх оставить старые `ShowRecents()`, `ShowTasks()`, `ShowSettings()`, иначе `BuildPanelContent` бросит. Task 9 снимет эту заглушку.
-
-`ShowStatusPopup` вызывается из четырёх экранов через `OnAvatarClicked` — эти вызовы заменить на `Dispatch(new UiEvent.StatusPopupToggled(true))`, а `popup.OnCloseRequested` — на `Dispatch(new UiEvent.StatusPopupToggled(false))`. Внутри самих `ShowStatusPopup`/`HideStatusPopup` `Dispatch` не звать: они теперь исполнители, а не решения.
-
-В конструкторе, в ветке «есть учётные данные», заменить `SetMainContent(new Views.WidgetView())` на:
+`NavigateTo(NavTab tab)` исчезает целиком; `OnNavTabSelected` становится
 
 ```csharp
-                _state = UiState.Initial(hasCredentials: true);
+        private void OnNavTabSelected(object? sender, NavTab tab) => Dispatch(new UiEvent.TabPressed(tab));
+```
+
+`ShowLogin`, `ShowRecents`, `ShowTasks`, `ShowSettings` разбираются надвое: сборка с
+подписками остаётся и переименовывается в `Create*`, возвращая экран; всё, что трогало
+геометрию, `_isExpanded` и `SetMainContent`, удаляется — это теперь работа `Apply`.
+`CreateDialerView` уже такой и служит образцом. `CreateSettingsView(bool fromLogin)`
+сохраняет параметр: он решает, куда уходит `OnSaveRequested`, но `_settingsFromLogin`
+больше не пишет.
+
+Обработчики внутри них переводятся на `Dispatch`:
+
+| Было | Стало |
+|---|---|
+| `login.OnLoginSuccess` -> анимация в виджет | `App.NavBadges.Start(); Dispatch(new UiEvent.LoginSucceeded());` |
+| `login.OnSettingsRequested` | `Dispatch(new UiEvent.LoginSettingsRequested())` |
+| `settingsView.OnMinimizeRequested` | `Dispatch(new UiEvent.CollapseRequested())` |
+| `settingsView.OnSaveRequested` -> `ShowLogin()` / `ShowDialer()` | сохранение и `RescaleWindow` как есть, затем `Dispatch(new UiEvent.SettingsSaved())` |
+| `r.OnCloseRequested`, `tasks.OnCloseRequested` | `Dispatch(new UiEvent.CollapseRequested())` |
+| `OnAvatarClicked` на трёх экранах | `Dispatch(new UiEvent.StatusPopupToggled(true))` |
+| `popup.OnCloseRequested` | `Dispatch(new UiEvent.StatusPopupToggled(false))` |
+| `OnStatusUpdateRequested` -> `HideStatusPopup()` | `Dispatch(new UiEvent.StatusPopupToggled(false))` |
+
+Последняя строка — не косметика: `HideStatusPopup()` напрямую убирает попап с экрана, но
+`_state.StatusPopup` остаётся `true`, и следующий клик по аватару редуцируется в равную
+запись, после чего попап уже не открывается никогда.
+
+Внутри самих `ShowStatusPopup`/`HideStatusPopup` `Dispatch` не звать: они исполнители, а
+не решения.
+
+В конструкторе обе ветки — и с учётными данными, и без — сводятся к
+
+```csharp
+                _state = UiState.Initial(hasCredentials);
                 Apply(null, _state);
 ```
 
-оставив расчёт стартовой позиции виджета выше как есть.
+Ручной расчёт геометрии в обеих ветках удаляется: центрирование логина делает
+`PlaceCentered` внутри `Apply`, а стартовую позицию виджета в нижне-правом углу надо
+выставить **до** первого `Apply` — там же, где она считается сейчас, но без установки
+`Width`/`Height`.
+
+`ShowLoginAfterSessionExpiry` уходит вместе с ними, а значит `OnSessionExpired` надо
+перевести здесь же: ветку с отложенным флагом
+(`if (App.SipService.State != CallState.Idle) { _sessionExpiredPending = true; return; }`)
+оставить как есть, а вызов `ShowLoginAfterSessionExpiry()` заменить на
+`Dispatch(new UiEvent.SessionExpired())` и `CloseDialogWindows()` (метод появится в
+Task 12; пока завести пустым). Центрирование логина и гашение анимации, ради которых тот
+метод существовал, теперь делает `Apply`.
+
+`_sessionExpiredPending` — единственное поле, которое эта работа оставляет на
+`MainWindow` вручную, хотя вся её суть в том, чтобы такие поля убрать. Так и задумано:
+оно описывает не то, чем окно является, а то, что одно событие пришло слишком рано и его
+придётся послать ещё раз. `UiState` отвечает на вопрос «что нарисовать», и флаг «а ещё
+где-то ждёт своей очереди истёкшая сессия» вернул бы в запись ровно ту скрытую связность,
+ради удаления которой она заведена. Снаружи держать безопасно: читается в одном месте и
+сбрасывается там же, на первом же `Idle`. Добавить этот абзац комментарием к полю.
+
+Отложенную ветку дочитывает `OnCallStateChanged`, который остаётся на старом пути до
+Task 9 — там она и переедет.
+
+Удалить как оставшееся без хозяина: `_settingsFromLogin`, `_currentTab`, `NavigateTo`,
+`ShowDialer`, `ExpandWidget`, `ShowLoginAfterSessionExpiry`. `_isExpanded` и
+`_preferredMode` **остаются** — их читают пути звонка, которые переводит Task 9.
 
 - [ ] **Step 3: Собрать**
 
@@ -1820,12 +1900,18 @@ Expected: SUCCESS, 0 errors.
 
 Run: `dotnet run --project OrbitalSIP/OrbitalSIP.csproj`
 
-Пройти по списку:
-- Приложение открывается виджетом 96×96 в нижне-правом углу.
-- Двойной клик по виджету разворачивает панель с набором; размер анимируется.
+Пройти по списку. Звонки в этой задаче не проверяются — они ещё на старом пути.
+
+- Холодный старт открывает логин по центру экрана.
+- «Настройки» из логина; любая кнопка нижнего меню возвращает на логин.
+- Вход — виджет; размер анимируется.
+- Двойной клик по виджету разворачивает панель с набором.
+- Все четыре таба переключаются, подсветка следует за экраном.
 - Кнопка «свернуть» в топбаре возвращает виджет.
-- Развернуть, уйти на «Историю» (старым путём), свернуть, развернуть — открывается «История», а не набор. Это новое поведение и главный видимый признак, что состояние работает.
-- Клик по аватару открывает всплывашку статусов; уход на другой таб её гасит.
+- Развернуть, уйти на «Историю», свернуть, развернуть — открывается «История», а не
+  набор. Это новое поведение и главный видимый признак, что состояние работает.
+- Клик по аватару открывает всплывашку статусов; уход на другой таб её гасит; выбор
+  статуса её закрывает, и следующий клик по аватару открывает её снова.
 
 - [ ] **Step 5: Закоммитить**
 
@@ -1836,10 +1922,15 @@ git commit -m "refactor(ui): the window starts rendering a state instead of deci
 
 ---
 
-## Task 9: Остальные четыре поверхности и снос флагов
+## Task 9: Звонок переезжает на `Apply`, последние два флага уходят
 
 **Files:**
 - Modify: `OrbitalSIP/MainWindow.axaml.cs`
+
+Task 8 перевёл всё, где звонка нет. Здесь переезжают три оставшиеся поверхности —
+`Incoming`, `CallBar` и `Panel{Route=Call}` — и вместе с ними исчезают `_isExpanded` и
+`_preferredMode`, последние две переменные, которые описывали то, что теперь описывает
+`UiState`.
 
 - [ ] **Step 1: Достроить `BuildContent`**
 
@@ -1868,26 +1959,28 @@ git commit -m "refactor(ui): the window starts rendering a state instead of deci
         };
 ```
 
-- [ ] **Step 2: Превратить `Show*` в `Create*`**
+- [ ] **Step 2: Превратить оставшиеся `Show*` в `Create*`**
 
-Каждый из `ShowLogin`, `ShowRecents`, `ShowTasks`, `ShowSettings`, `ShowIncomingCall`, `ShowActiveCallWidgetView`, `ShowActiveCallView` разбирается на две части: сборка с подпиской остаётся и переименовывается в `Create*`, возвращая экран; всё, что трогало геометрию, `_isExpanded`, `_preferredMode` и `SetMainContent`, — удаляется, потому что это теперь работа `Apply`.
+`ShowIncomingCall`, `ShowActiveCallWidgetView` и `ShowActiveCallView` разбираются надвое,
+как это уже сделано в Task 8 для остальных: сборка с подписками остаётся и
+переименовывается в `Create*`, возвращая экран; всё, что трогало геометрию, `_isExpanded`,
+`_preferredMode` и `SetMainContent`, удаляется — это работа `Apply`.
 
-`CreateDialerView` уже такой — он образец.
+`CreateIncomingView(string callerId)` берёт номер параметром, потому что `BuildContent`
+достаёт его из `App.SipService.ActiveCallerId`. `CreateActiveCallView` и
+`CreateActiveCallWidgetView` продолжают засеивать себя из сервиса — `ActiveCallerId`,
+`ActiveCallStartedAt`, `IsMuted`, `IsOnHold`, — как делают сегодня: панель, пересобранная
+посреди разговора, не должна начинать с нуля.
 
 Событийные обработчики внутри них переводятся на `Dispatch`:
 
 | Было | Стало |
 |---|---|
-| `login.OnLoginSuccess` → анимация в виджет | `App.NavBadges.Start(); Dispatch(new UiEvent.LoginSucceeded());` |
-| `login.OnSettingsRequested` | `Dispatch(new UiEvent.LoginSettingsRequested())` |
-| `settingsView.OnMinimizeRequested` | `Dispatch(new UiEvent.CollapseRequested())` |
-| `settingsView.OnSaveRequested` → `ShowLogin()` / `ShowDialer()` | сохранение и `RescaleWindow` как есть, затем `Dispatch(new UiEvent.SettingsSaved())` |
-| `incoming.OnDecline` → `ReturnToPreferredMode()` | `App.SipService.Decline(); Dispatch(new UiEvent.IncomingDeclined());` |
-| `incoming.OnAnswer` → ветвление по `_preferredMode` | после успешного `AnswerAsync` — `Dispatch(new UiEvent.CallStarted())`, затем `MaybeAutoOpenSurveyAsync` |
+| `incoming.OnDecline` -> `ReturnToPreferredMode()` | `App.SipService.Decline(); Dispatch(new UiEvent.IncomingDeclined());` |
+| `incoming.OnAnswer` -> ветвление по `_preferredMode` | после успешного `AnswerAsync` — `Dispatch(new UiEvent.CallStarted())`, затем `MaybeAutoOpenSurveyAsync` |
 | `widget.OnExpandRequested`, `widget.OnTransferRequested` | `Dispatch(new UiEvent.ExpandRequested())` |
 | `callView.OnMinimizeRequested` | `Dispatch(new UiEvent.CollapseRequested())` |
-| `callView.OnHangup`, `widget.OnHangup` → `ReturnToPreferredMode()` | только `App.SipService.Hangup()`; экран сменит `CallStateChanged` |
-| `r.OnCloseRequested`, `tasks.OnCloseRequested` | `Dispatch(new UiEvent.CollapseRequested())` |
+| `callView.OnHangup`, `widget.OnHangup` -> `ReturnToPreferredMode()` | только `App.SipService.Hangup()`; экран сменит `CallStateChanged` |
 
 Плюс одно место вне `Create*`: `HotkeyHangup` (строка 359) в своей последней ветке —
 той, что срабатывает, когда ни одного экрана звонка на виду нет, — зовёт
@@ -1933,11 +2026,11 @@ git commit -m "refactor(ui): the window starts rendering a state instead of deci
 
 `StartOutgoingCall` — оставить проверку `State != CallState.Idle` и `CallAsync`, а ветвление по `_preferredMode` заменить на `Dispatch(new UiEvent.CallStarted())` **до** `await CallAsync`, чтобы экран поднялся сразу.
 
-`OnSessionExpired` — ветку `if (App.SipService.State != CallState.Idle) { _sessionExpiredPending = true; return; }` оставить; вместо `ShowLoginAfterSessionExpiry()` вызвать `Dispatch(new UiEvent.SessionExpired())` и `CloseDialogWindows()` (метод появится в Task 12; пока завести пустым).
+`OnSessionExpired` и `_sessionExpiredPending` уже переведены в Task 8 — трогать не надо.
+Здесь переезжает вторая половина той же истории: отложенная ветка внутри
+`OnCallStateChanged` выше.
 
-`_sessionExpiredPending` — единственное поле, которое эта работа оставляет на `MainWindow` вручную, хотя вся её суть в том, чтобы такие поля убрать. Так и задумано, и вот почему: оно описывает не то, чем окно является, а то, что одно событие пришло слишком рано и его придётся послать ещё раз. `UiState` отвечает на вопрос «что нарисовать», и добавление в него флага «а ещё где-то ждёт своей очереди истёкшая сессия» вернуло бы в запись ровно тот вид скрытой связности, ради удаления которого она заведена. Держать его снаружи безопасно потому, что читается он в одном месте и сбрасывается там же, на первом же `Idle`. Добавить этот абзац комментарием к полю.
 
-`ShowLoginAfterSessionExpiry` удалить целиком — центрирование теперь делает `PlaceCentered` из `Apply`, гашение анимации — `CancelAnimation`.
 
 Конструктор, ветка без учётных данных: удалить ручную геометрию и `ShowLogin()`, оставить
 
@@ -1948,7 +2041,14 @@ git commit -m "refactor(ui): the window starts rendering a state instead of deci
 
 - [ ] **Step 4: Удалить то, что осталось без хозяина**
 
-Удалить целиком: `_isExpanded`, `_preferredMode`, `enum PreferredMode`, `_settingsFromLogin`, `_currentTab`, `AttachNav`, `NavigateTo`, `ReturnToPreferredMode`, `ExpandWidget`, `ShowDialer`, `RefreshNavCallState`, константы `BaseWidgetSize`, `BaseExpandedWidth`, `BaseExpandedHeight`, `BaseIncomingWidth`, `BaseIncomingHeight` и свойства `WidgetSize`, `ExpandedWidth`, `ExpandedHeight`, `IncomingWidth`, `IncomingHeight` (их заменил `ShellGeometry`).
+Удалить целиком: `_isExpanded`, `_preferredMode`, `enum PreferredMode`, `AttachNav`,
+`ReturnToPreferredMode`, `RefreshNavCallState`, константы `BaseWidgetSize`,
+`BaseExpandedWidth`, `BaseExpandedHeight`, `BaseIncomingWidth`, `BaseIncomingHeight` и
+свойства `WidgetSize`, `ExpandedWidth`, `ExpandedHeight`, `IncomingWidth`,
+`IncomingHeight` — их заменил `ShellGeometry`.
+
+`_settingsFromLogin`, `_currentTab`, `NavigateTo`, `ShowDialer`, `ExpandWidget` и
+`ShowLoginAfterSessionExpiry` ушли ещё в Task 8; проверить, что их действительно нет.
 
 `OnNavTabSelected` теряет `NavigateTo` и становится:
 
