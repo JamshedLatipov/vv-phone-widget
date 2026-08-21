@@ -80,13 +80,13 @@
                  VerticalAlignment="Center" HorizontalAlignment="Center" Margin="14,0"
                  FontSize="12" Foreground="#6E859D" TextWrapping="Wrap" TextAlignment="Center" />
 
-      <!-- A failed action, not the state of the list, so it gets its own label rather than
-           sharing TasksMessageLabel: that one is centred over the rows and stays until the
-           next load, so "could not change the task's status" would have sat across the
-           middle of a list that is perfectly fine. Same place and same idiom as
-           RecentsView's SmsComposeErrorLabel — bottom of the list, red, cleared by the
-           next load or the next tap. -->
-      <TextBlock Grid.Row="2" Name="TaskActionErrorLabel" IsVisible="False"
+      <!-- Something went wrong just now, as opposed to the state of the list above, so it
+           gets its own label: TasksMessageLabel is centred over the rows and stays until
+           the next load, so "could not change the task's status" — or a refresh that
+           failed over a list that is perfectly fine — would have sat across the middle of
+           it. Same place and same idiom as RecentsView's SmsComposeErrorLabel — bottom of
+           the list, red, cleared by the next load that succeeds or the next tap. -->
+      <TextBlock Grid.Row="2" Name="TasksErrorLabel" IsVisible="False"
                  VerticalAlignment="Bottom" Margin="14,0,14,10"
                  FontSize="11" Foreground="#FCA5A5" TextWrapping="Wrap"
                  TextAlignment="Center" />

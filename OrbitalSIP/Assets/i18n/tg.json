@@ -139,6 +139,7 @@
   "TasksAll": "Ҳама",
   "TasksEmpty": "Вазифаҳо нестанд",
   "TasksNoAccess": "Дастрасӣ ба вазифаҳо нест",
+  "TasksLoadFailed": "Боркунии вазифаҳо ноком шуд",
   "TaskDone": "Иҷро шуд",
   "TaskDoneFailed": "Ҳолати вазифаро тағйир додан нашуд",
   "TaskDueToday": "имрӯз",

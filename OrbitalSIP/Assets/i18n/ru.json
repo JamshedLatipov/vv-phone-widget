@@ -149,6 +149,7 @@
   "TasksAll": "Все",
   "TasksEmpty": "Задач нет",
   "TasksNoAccess": "Нет доступа к задачам",
+  "TasksLoadFailed": "Не удалось загрузить задачи",
   "TaskDone": "Выполнено",
   "TaskDoneFailed": "Не удалось изменить статус задачи",
   "TaskDueToday": "сегодня",

@@ -118,11 +118,19 @@ namespace OrbitalSIP.Views
 
             try
             {
+                // "The requests I made all answered", which is not the same as "there are
+                // tasks". GetMyTasksAsync returns null for a failure and a response with an
+                // empty Data for a genuinely empty list, and the screen must not conflate
+                // the two: an operator whose backend is down would be told they have
+                // nothing to do, by the tab that exists to stop work being forgotten.
+                var loaded = true;
                 var tasks = new List<TaskItem>();
+
                 if (openOnly)
                 {
                     var pending = await service.GetMyTasksAsync("pending", ct);
-                    if (pending?.Data != null) tasks.AddRange(pending.Data);
+                    if (pending?.Data == null) loaded = false;
+                    else tasks.AddRange(pending.Data);
 
                     // Only ask the second time if the first was not refused outright. A role
                     // without tasks:read draws a banner per request, and one missing
@@ -132,9 +140,14 @@ namespace OrbitalSIP.Views
                     if (!service.TasksForbidden)
                     {
                         var running = await service.GetMyTasksAsync("in_progress", ct);
-                        if (running?.Data != null) tasks.AddRange(running.Data);
+                        if (running?.Data == null) loaded = false;
+                        else tasks.AddRange(running.Data);
                     }
 
+                    // Half an answer counts as none — see the loaded flag above. Merged and
+                    // shown, a pending-only response would quietly be missing every task the
+                    // operator had already started, which is the disagreement with the badge
+                    // that asking twice exists to prevent, except silent.
                     tasks = tasks
                         .GroupBy(t => t.Id)
                         .Select(g => g.First())
@@ -144,7 +157,8 @@ namespace OrbitalSIP.Views
                 else
                 {
                     var all = await service.GetMyTasksAsync(null, ct);
-                    if (all?.Data != null) tasks.AddRange(all.Data);
+                    if (all?.Data == null) loaded = false;
+                    else tasks.AddRange(all.Data);
                 }
 
                 await Dispatcher.UIThread.InvokeAsync(() =>
@@ -156,15 +170,36 @@ namespace OrbitalSIP.Views
                     // list it was told to abandon, under the other chip.
                     if (ct.IsCancellationRequested) return;
 
-                    _listGeneration++;
-                    _items.Clear();
-                    foreach (var task in tasks)
-                        _items.Add(new TaskItemViewModel(task, now));
+                    var i18n = I18nService.Instance;
 
-                    ShowActionError(null);
-                    ShowMessage(tasks.Count > 0
-                        ? null
-                        : I18nService.Instance.Get(service.TasksForbidden ? "TasksNoAccess" : "TasksEmpty"));
+                    // Refused is an answer, and a definite one, so it replaces the list
+                    // rather than leaving stale rows under a sentence that says the
+                    // operator cannot see them.
+                    if (service.TasksForbidden)
+                    {
+                        ReplaceItems(tasks: null, now);
+                        ShowError(null);
+                        ShowMessage(i18n.Get("TasksNoAccess"));
+                        return;
+                    }
+
+                    // Nothing was learned, so nothing is claimed: what is already on screen
+                    // stays — a stale list is a smaller lie than an empty one, the same
+                    // trade NavBadgeService.LoadMissedCallsAsync makes with its counters —
+                    // and the failure is said out loud rather than left to the HTTP banner,
+                    // which is gone in six seconds while a sentence in the middle of the
+                    // screen is what the operator is left looking at.
+                    if (!loaded)
+                    {
+                        var failed = i18n.Get("TasksLoadFailed");
+                        if (_items.Count == 0) { ShowError(null); ShowMessage(failed); }
+                        else ShowError(failed);
+                        return;
+                    }
+
+                    ReplaceItems(tasks, now);
+                    ShowError(null);
+                    ShowMessage(tasks.Count > 0 ? null : i18n.Get("TasksEmpty"));
                 });
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -184,6 +219,23 @@ namespace OrbitalSIP.Views
             }
         }
 
+        /// <summary>
+        /// Rebuilds the list from a response, or empties it when there is no list to show.
+        ///
+        /// The one place rows are replaced, so that "the list was rebuilt" and "the
+        /// generation moved" cannot come apart — <see cref="OnTaskDoneClicked"/> decides
+        /// whether restoring a row is a restore or a duplicate by comparing them.
+        /// </summary>
+        private void ReplaceItems(IReadOnlyList<TaskItem>? tasks, DateTimeOffset now)
+        {
+            _listGeneration++;
+            _items.Clear();
+
+            if (tasks == null) return;
+            foreach (var task in tasks)
+                _items.Add(new TaskItemViewModel(task, now));
+        }
+
         /// <summary>What the list is doing when it has nothing to show: empty, or refused.</summary>
         private void ShowMessage(string? message)
         {
@@ -194,10 +246,14 @@ namespace OrbitalSIP.Views
             label.IsVisible = message != null;
         }
 
-        /// <summary>An action that did not work, which is a different thing from an empty list.</summary>
-        private void ShowActionError(string? message)
+        /// <summary>
+        /// Something that did not work just now — a load, or a tap — which is a different
+        /// thing from what <see cref="ShowMessage"/> says about the list itself, and can be
+        /// on screen at the same time as a list that is perfectly good.
+        /// </summary>
+        private void ShowError(string? message)
         {
-            var label = this.FindControl<TextBlock>("TaskActionErrorLabel");
+            var label = this.FindControl<TextBlock>("TasksErrorLabel");
             if (label == null) return;
 
             label.Text = message ?? string.Empty;
@@ -218,7 +274,7 @@ namespace OrbitalSIP.Views
 
             var generation = _listGeneration;
 
-            ShowActionError(null);
+            ShowError(null);
             _items.RemoveAt(index);
             if (_items.Count == 0) ShowMessage(I18nService.Instance.Get("TasksEmpty"));
 
@@ -240,7 +296,7 @@ namespace OrbitalSIP.Views
                     ShowMessage(null);
                 }
 
-                ShowActionError(I18nService.Instance.Get("TaskDoneFailed"));
+                ShowError(I18nService.Instance.Get("TaskDoneFailed"));
             });
         }
     }

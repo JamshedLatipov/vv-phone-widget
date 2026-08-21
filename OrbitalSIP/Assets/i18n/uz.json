@@ -139,6 +139,7 @@
   "TasksAll": "Barchasi",
   "TasksEmpty": "Vazifalar yo'q",
   "TasksNoAccess": "Vazifalarga ruxsat yo'q",
+  "TasksLoadFailed": "Vazifalarni yuklab bo'lmadi",
   "TaskDone": "Bajarildi",
   "TaskDoneFailed": "Vazifa holatini o'zgartirib bo'lmadi",
   "TaskDueToday": "bugun",
