@@ -3161,8 +3161,13 @@ dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 - [ ] **Сборка релизной конфигурации**
 
 ```bash
-dotnet build OrbitalSIP/OrbitalSIP.csproj -c Release --nologo
+dotnet build vv-phone-widget.sln -c Release --nologo
 ```
+
+Решение целиком, а не `OrbitalSIP/OrbitalSIP.csproj`: тестовый проект тоже компилируется и
+тоже обязан быть чистым. Ровно на этом один раз разошлись отчёт и реальность — приложение
+собиралось без предупреждений, два `CS8620` жили в тестах, и «0/0» было правдой про не тот
+проект.
 
 Ожидаемо: 0 errors, 0 warnings. Особенно — ни одного `CS0067` («event is never used»): такое предупреждение означает осиротевшее событие, которое надо было удалить.
 
