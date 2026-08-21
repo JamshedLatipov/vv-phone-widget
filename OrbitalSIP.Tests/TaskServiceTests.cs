@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -12,6 +13,38 @@ namespace OrbitalSIP.Tests;
 
 public class TaskServiceTests
 {
+    [Fact]
+    public async Task GetTaskTypesAsync_FiltersInactiveAndOrdersBySortOrderThenName()
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse("""
+            [
+              { "id": 3, "name": "Б", "sortOrder": 1, "isActive": true },
+              { "id": 1, "name": "А", "sortOrder": 1, "isActive": true },
+              { "id": 2, "name": "Скрытый", "sortOrder": 0, "isActive": false },
+              { "id": 4, "name": "В", "sortOrder": 2, "isActive": true }
+            ]
+            """));
+        using var service = CreateService(handler);
+
+        var types = await service.GetTaskTypesAsync();
+
+        // id 2 is inactive and must be gone; the two sortOrder-1 survivors (3 then 1 in
+        // the wire order) must come back by Name, not by their original position.
+        Assert.Equal(new[] { 1, 3, 4 }, types.Select(t => t.Id));
+    }
+
+    [Fact]
+    public async Task GetTaskTypesAsync_ReturnsEmptyListRatherThanNullOnFailure()
+    {
+        using var handler = new RecordingHandler(_ => ErrorResponse(HttpStatusCode.InternalServerError));
+        using var service = CreateService(handler);
+
+        var types = await service.GetTaskTypesAsync();
+
+        Assert.NotNull(types);
+        Assert.Empty(types);
+    }
+
     [Fact]
     public async Task GetMyTasksAsync_AsksForTheOperatorsOwnTasksWithBearerToken()
     {
@@ -77,6 +110,36 @@ public class TaskServiceTests
         var result = await service.GetMyTasksAsync("pending");
 
         Assert.Null(result);
+        Assert.False(service.TasksForbidden);
+    }
+
+    /// <summary>
+    /// TaskService is a process-lifetime singleton (App.TaskService), but a session
+    /// inside that process is not: MainWindow.ShowLoginAfterSessionExpiry returns to the
+    /// login screen without restarting the app, so a token refresh or a handoff to a
+    /// different operator on a shared terminal must not inherit a latch tripped by the
+    /// token before it.
+    /// </summary>
+    [Fact]
+    public async Task GetMyTasksAsync_ForbiddenLatchClearsWhenTheSessionTokenChanges()
+    {
+        var token = "widget-token";
+        using var handler = new RecordingHandler(_ => ErrorResponse(HttpStatusCode.Forbidden));
+        using var service = new TaskService(
+            new HttpClient(handler),
+            () => new SipSettings
+            {
+                BackendUrl = "https://crm.example/",
+                AccessToken = token,
+                DecodedToken = new JwtPayload { Sub = "42" },
+            },
+            ownsHttpClient: true);
+
+        await service.GetMyTasksAsync("pending");
+        Assert.True(service.TasksForbidden);
+
+        token = "a-different-sessions-token";
+
         Assert.False(service.TasksForbidden);
     }
 
@@ -160,6 +223,33 @@ public class TaskServiceTests
         Assert.Equal(1, stats.Overdue);
     }
 
+    /// <summary>
+    /// NavBadgeService polls this every two minutes for a whole shift (Task 7). A banner
+    /// on every failed poll is exactly what StatusService's ShouldReportFailure exists to
+    /// avoid on the presence poll — a badge count is not worth interrupting a call over.
+    /// </summary>
+    [Fact]
+    public async Task GetMyStatsAsync_FailsSilentlyWithoutRaisingTheErrorBanner()
+    {
+        using var handler = new RecordingHandler(_ => ErrorResponse(HttpStatusCode.InternalServerError));
+        using var service = CreateService(handler);
+        string? notification = null;
+        Action<string> capture = message => notification = message;
+        HttpErrorNotifier.ErrorOccurred += capture;
+
+        try
+        {
+            var stats = await service.GetMyStatsAsync();
+
+            Assert.Null(stats);
+            Assert.Null(notification);
+        }
+        finally
+        {
+            HttpErrorNotifier.ErrorOccurred -= capture;
+        }
+    }
+
     [Fact]
     public async Task SetStatusAsync_PatchesTheTaskAndReportsSuccess()
     {
@@ -201,6 +291,25 @@ public class TaskServiceTests
         service.Dispose();
 
         await Assert.ThrowsAsync<ObjectDisposedException>(() => client.GetAsync("https://crm.example/health"));
+    }
+
+    /// <summary>
+    /// The BackendHttpTests sibling case only exercises the parameterless constructor
+    /// against the global BackendHttp.Client; this pins the constructor path itself, the
+    /// direction that matters most since App.TaskService hands out the process-wide
+    /// client and a flipped default would dispose it out from under the whole app.
+    /// </summary>
+    [Fact]
+    public async Task Dispose_DoesNotDisposeExternallyProvidedHttpClient()
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse("{}"));
+        using var client = new HttpClient(handler);
+        var service = new TaskService(client, SettingsProvider);
+
+        service.Dispose();
+        using var response = await client.GetAsync("https://crm.example/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private static TaskService CreateService(HttpMessageHandler handler) => new(

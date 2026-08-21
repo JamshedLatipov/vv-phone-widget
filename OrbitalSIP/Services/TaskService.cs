@@ -49,16 +49,35 @@ namespace OrbitalSIP.Services
             _ownsHttpClient = ownsHttpClient;
         }
 
+        /// <summary>The access token that drew the 403 behind <see cref="TasksForbidden"/>, or null if none has yet.</summary>
+        private string? _forbiddenForToken;
+
         /// <summary>
-        /// Latched by the first 403 from the tasks API.
+        /// True when the access token currently in play already drew a 403 from the tasks
+        /// API.
         ///
         /// tasks:read is a separate ability from the tasks:create this widget already
         /// relies on, so a role without it is a live possibility rather than a hypothesis.
         /// The screen shows "no access" on this instead of an empty list, and the badge
         /// poll stops for the session — a permission that is missing now will still be
         /// missing in two minutes.
+        ///
+        /// Keyed on the token rather than a plain bool: TaskService is a process-lifetime
+        /// singleton (see App.TaskService), but MainWindow.ShowLoginAfterSessionExpiry
+        /// returns to the login screen without restarting the app — an expired token and a
+        /// handoff to a different operator on a shared terminal both land there. A bool
+        /// latch would survive both: an operator without tasks:read would trip it, log
+        /// out, and the next operator — who might have the ability — would see "no access"
+        /// until someone restarted the widget. Comparing against the session's current
+        /// token means a new session always gets to try again.
+        ///
+        /// A token refresh also mints a new token, so this re-probes once per refresh even
+        /// for an operator who genuinely lacks tasks:read. That is the right trade: one
+        /// extra 403 an hour costs nothing, and it fails in the direction that
+        /// self-corrects rather than the one that sticks.
         /// </summary>
-        public bool TasksForbidden { get; private set; }
+        public bool TasksForbidden =>
+            _forbiddenForToken != null && _forbiddenForToken == _settingsProvider()?.AccessToken;
 
         /// <summary>Creates a task via POST /api/tasks. Returns true on 2xx.</summary>
         public async Task<bool> CreateTaskAsync(CreateTaskRequest task)
@@ -102,16 +121,33 @@ namespace OrbitalSIP.Services
             return await SendAsync<TaskListResponse>(HttpMethod.Get, path, ct: ct);
         }
 
-        /// <summary>Counters behind the Tasks badge.</summary>
+        /// <summary>
+        /// Counters behind the Tasks badge.
+        ///
+        /// Passes notifyErrors: false — NavBadgeService polls this every two minutes for a
+        /// whole shift (Task 7), and StatusService's presence poll already showed what an
+        /// unattended poll does to the failure banner otherwise: see its
+        /// ShouldReportFailure, which exists because a struggling host used to draw three
+        /// identical banners a minute for the rest of the shift. The log line still fires
+        /// on every failure, so support can still see it — a badge count is just not worth
+        /// interrupting whatever the operator is doing over.
+        /// </summary>
         public async Task<TaskStats?> GetMyStatsAsync(CancellationToken ct = default)
         {
             var assignee = AssignedToId();
             if (assignee == null) return null;
 
-            return await SendAsync<TaskStats>(HttpMethod.Get, $"/api/tasks/stats?assigneeId={assignee}", ct: ct);
+            return await SendAsync<TaskStats>(HttpMethod.Get, $"/api/tasks/stats?assigneeId={assignee}",
+                ct: ct, notifyErrors: false);
         }
 
-        /// <summary>Moves one task to a new status via PATCH /api/tasks/{id}.</summary>
+        /// <summary>
+        /// Moves one task to a new status via PATCH /api/tasks/{id}.
+        ///
+        /// No CancellationToken, unlike the reads above: this fires once per tap as a
+        /// direct user action, not a cancellable background load, so there is nothing
+        /// in flight for a caller to cancel out from under.
+        /// </summary>
         public async Task<bool> SetStatusAsync(int taskId, string status)
         {
             var response = await SendAsync(HttpMethod.Patch, $"/api/tasks/{taskId}", new { status });
@@ -137,9 +173,8 @@ namespace OrbitalSIP.Services
         /// apart from a dead backend read <see cref="TasksForbidden"/>.
         /// </summary>
         private async Task<string?> SendAsync(HttpMethod method, string path, object? body = null,
-                                              CancellationToken ct = default)
+                                              CancellationToken ct = default, bool notifyErrors = true)
         {
-            var url = string.Empty;
             try
             {
                 var settings = _settingsProvider();
@@ -148,7 +183,7 @@ namespace OrbitalSIP.Services
                 if (string.IsNullOrEmpty(backendUrl) || string.IsNullOrEmpty(settings?.AccessToken))
                     return null;
 
-                url = backendUrl + path;
+                var url = backendUrl + path;
 
                 using var request = new HttpRequestMessage(method, url);
                 request.Headers.Authorization =
@@ -162,11 +197,12 @@ namespace OrbitalSIP.Services
                     return await response.Content.ReadAsStringAsync(ct);
 
                 if (response.StatusCode == HttpStatusCode.Forbidden)
-                    TasksForbidden = true;
+                    _forbiddenForToken = settings.AccessToken;
 
                 var errorBody = await response.Content.ReadAsStringAsync(ct);
                 AppLogger.Log("TaskService", $"{method} {path} failed. Status: {response.StatusCode}. Body: {errorBody}");
-                HttpErrorNotifier.NotifyHttpError("TaskService", url, response.StatusCode, errorBody);
+                if (notifyErrors)
+                    HttpErrorNotifier.NotifyHttpError("TaskService", url, response.StatusCode, errorBody);
                 return null;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -183,7 +219,8 @@ namespace OrbitalSIP.Services
                     details += $" | Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
                 details += $" | StackTrace: {ex.StackTrace}";
                 AppLogger.Log("TaskService", details);
-                HttpErrorNotifier.NotifyException("TaskService", ex);
+                if (notifyErrors)
+                    HttpErrorNotifier.NotifyException("TaskService", ex);
                 return null;
             }
         }
@@ -193,9 +230,9 @@ namespace OrbitalSIP.Services
         /// not an empty result: an empty 200 used to surface as "you have no tasks".
         /// </summary>
         private async Task<T?> SendAsync<T>(HttpMethod method, string path, object? body = null,
-                                            CancellationToken ct = default) where T : class
+                                            CancellationToken ct = default, bool notifyErrors = true) where T : class
         {
-            var raw = await SendAsync(method, path, body, ct);
+            var raw = await SendAsync(method, path, body, ct, notifyErrors);
             if (string.IsNullOrWhiteSpace(raw)) return null;
 
             try
