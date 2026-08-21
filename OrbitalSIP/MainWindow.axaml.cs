@@ -117,10 +117,10 @@ namespace OrbitalSIP
             this.KeyDown += MainWindow_KeyDown;
 
             // Wire global hotkeys (work even when app is not focused)
-            App.GlobalHotkeys.MuteToggleRequested += (_, __) => DispatchHotkey(h => h.TriggerMute(), null);
-            App.GlobalHotkeys.HoldToggleRequested += (_, __) => DispatchHotkey(h => h.TriggerHold(), null);
-            App.GlobalHotkeys.HangupPressed       += (_, __) => DispatchHotkey(h => h.TriggerHangup(), iv => iv.TriggerDecline());
-            App.GlobalHotkeys.AnswerPressed        += (_, __) => DispatchHotkey(null, iv => iv.TriggerAnswer());
+            App.GlobalHotkeys.MuteToggleRequested += (_, __) => HotkeyMute();
+            App.GlobalHotkeys.HoldToggleRequested += (_, __) => HotkeyHold();
+            App.GlobalHotkeys.HangupPressed       += (_, __) => HotkeyHangup();
+            App.GlobalHotkeys.AnswerPressed       += (_, __) => HotkeyAnswer();
 
             // Repaint the badges of whatever bar is on screen when a poll changes a number.
             // AttachNav covers the other direction — a bar built after the numbers arrived.
@@ -310,53 +310,99 @@ namespace OrbitalSIP
         // Escape  → hangup (active call) or decline (incoming)
         // Enter   → answer incoming call
 
-        /// <summary>Dispatches a hotkey action to whichever call-related view is active.</summary>
-        private void DispatchHotkey(Action<Views.ActiveCallView>? onActive,
-                                    Action<Views.IncomingView>?    onIncoming)
-        {
-            var host = this.FindControl<ContentControl>("Host");
-            if (host == null) return;
+        // These follow the call, not the screen. They used to be dispatched to Host.Content
+        // and did nothing unless a call view was in front, which on main was nearly
+        // harmless: the call panel's bar could only reach Settings. Every tab works from
+        // every screen now, so an operator can be on Recents, Tasks or Settings mid-call —
+        // and on all three, all four of these were silently dead. Global hangup is
+        // documented as working even when the app is not focused, so an operator who has
+        // navigated away and cannot end the call by the means they were told to use is the
+        // one that matters.
 
-            if (onActive  != null && host.Content is Views.ActiveCallView  cv) onActive(cv);
-            if (onIncoming != null && host.Content is Views.IncomingView   iv) onIncoming(iv);
+        /// <summary>True while there is a call to act on at all, whatever is on screen.</summary>
+        private static bool HasCall => App.SipService.State != CallState.Idle;
+
+        /// <summary>True while a call is up far enough to be muted or held.</summary>
+        private static bool IsTalking => App.SipService.State is CallState.Active or CallState.OnHold;
+
+        /// <summary>Whatever is in Host, when it is a <typeparamref name="T"/>.</summary>
+        private T? HostContent<T>() where T : class =>
+            this.FindControl<ContentControl>("Host")?.Content as T;
+
+        /// <summary>
+        /// Mute and hold go through a call view when one is in front, because both views
+        /// hold their own _muted and _onHold and paint their buttons from it — told only
+        /// the service, they would keep drawing the state before the press. Off screen
+        /// there is no button to keep honest, so the service is told directly and the next
+        /// panel built seeds itself from it, which is what ShowActiveCallView already does.
+        /// </summary>
+        private void HotkeyMute()
+        {
+            if (HostContent<Views.ActiveCallView>() is { } panel) { panel.TriggerMute(); return; }
+            if (HostContent<Views.ActiveCallWidgetView>() is { } mini) { mini.TriggerMute(); return; }
+            if (IsTalking) App.SipService.SetMuted(!App.SipService.IsMuted);
         }
 
+        private void HotkeyHold()
+        {
+            if (HostContent<Views.ActiveCallView>() is { } panel) { panel.TriggerHold(); return; }
+            if (HostContent<Views.ActiveCallWidgetView>() is { } mini) { mini.TriggerHold(); return; }
+            if (IsTalking) App.SipService.SetHold(!App.SipService.IsOnHold);
+        }
+
+        /// <summary>
+        /// Ends whatever is going on. A view in front does its own teardown first — a
+        /// retired timer, an invalidated SMS draft — and raises the event that hangs up and
+        /// restores the window. Off screen there is no teardown to do, so this does both
+        /// halves itself rather than leaving the operator holding a call they cannot end.
+        /// </summary>
+        private void HotkeyHangup()
+        {
+            if (HostContent<Views.IncomingView>() is { } incoming) { incoming.TriggerDecline(); return; }
+            if (HostContent<Views.ActiveCallView>() is { } panel) { panel.TriggerHangup(); return; }
+            if (HostContent<Views.ActiveCallWidgetView>() is { } mini) { mini.TriggerHangup(); return; }
+            if (!HasCall) return;
+
+            if (App.SipService.State == CallState.IncomingRinging) App.SipService.Decline();
+            else App.SipService.Hangup();
+            ReturnToPreferredMode();
+        }
+
+        /// <summary>
+        /// The one of the four that genuinely needs its view, and says so by doing nothing
+        /// without it. Answering runs the geometry, the campaign survey and the choice of
+        /// screen that follows, all of which live in the handler wired to
+        /// IncomingView.OnAnswer. It is also the one that cannot be stranded: the incoming
+        /// panel has no bottom bar, so there is no way to navigate off a ringing call.
+        /// </summary>
+        private void HotkeyAnswer() => HostContent<Views.IncomingView>()?.TriggerAnswer();
+
+        /// <summary>
+        /// The focused-window half of the same four actions, routed the same way. Gated on
+        /// there being a call rather than on a call view being in front, for the reason
+        /// above — but still gated, so Escape stays unhandled on the screens where nothing
+        /// is going on and whatever else wants it can have it.
+        /// </summary>
         private void MainWindow_KeyDown(object? sender, KeyEventArgs e)
         {
-            var host = this.FindControl<ContentControl>("Host");
-            if (host == null) return;
-
-            if (host.Content is Views.ActiveCallView callView)
+            switch (e.Key)
             {
-                switch (e.Key)
-                {
-                    case Key.M when e.KeyModifiers == KeyModifiers.Control:
-                        callView.TriggerMute();
-                        e.Handled = true;
-                        break;
-                    case Key.H when e.KeyModifiers == KeyModifiers.Control:
-                        callView.TriggerHold();
-                        e.Handled = true;
-                        break;
-                    case Key.Escape:
-                        callView.TriggerHangup();
-                        e.Handled = true;
-                        break;
-                }
-            }
-            else if (host.Content is Views.IncomingView incomingView)
-            {
-                switch (e.Key)
-                {
-                    case Key.Enter:
-                        incomingView.TriggerAnswer();
-                        e.Handled = true;
-                        break;
-                    case Key.Escape:
-                        incomingView.TriggerDecline();
-                        e.Handled = true;
-                        break;
-                }
+                case Key.M when e.KeyModifiers == KeyModifiers.Control && IsTalking:
+                    HotkeyMute();
+                    e.Handled = true;
+                    break;
+                case Key.H when e.KeyModifiers == KeyModifiers.Control && IsTalking:
+                    HotkeyHold();
+                    e.Handled = true;
+                    break;
+                case Key.Escape when HasCall:
+                    HotkeyHangup();
+                    e.Handled = true;
+                    break;
+                case Key.Enter when HostContent<Views.IncomingView>() != null:
+                    HotkeyAnswer();
+                    e.Handled = true;
+                    break;
             }
         }
 
@@ -743,6 +789,18 @@ namespace OrbitalSIP
 
             if (state == CallState.Idle && _isExpanded)
             {
+                // Returning to the preferred mode is the default, and the exceptions are a
+                // rule rather than a list: a screen is left alone when going back would
+                // destroy work the operator has not committed, or would land them somewhere
+                // that makes no sense. Settings holds edited host, credentials, language and
+                // scale that only OnSaveRequested writes; Login has no session to return a
+                // dialer to.
+                //
+                // Tasks and Recents meet neither test — nothing on them is uncommitted, and
+                // a tab press brings either straight back — so they go back with everything
+                // else, which is also what keeps a Widget-preferring operator's window
+                // collapsing after a call the way it always has. Decided when Tasks was
+                // added, rather than left to whichever list it fell into.
                 var host = this.FindControl<ContentControl>("Host");
                 if (!(host?.Content is Views.LoginView) && !(host?.Content is Views.SettingsView))
                 {
@@ -849,6 +907,14 @@ namespace OrbitalSIP
             var host = this.FindControl<ContentControl>("Host");
             if (overlay != null) { overlay.Content = nextContent; overlay.Opacity = 0; overlay.IsVisible = true; }
             if (host != null) host.Opacity = 1;
+
+            // Here rather than only at the end of the swap: the incoming screen is visible
+            // for the whole 280 ms fade, and a bar attached at completion spends that fade
+            // painting its markup defaults — a blue Dialpad on a call screen that then snaps
+            // to the green PhoneInTalk, badges popping in at the last frame. CompleteAnimated-
+            // ContentSwap calls this again on the same bar, which the idempotent subscription
+            // in AttachNav makes free, and which re-reads any state that moved during the fade.
+            AttachNav(nextContent);
 
             _animOverlay = overlay;
             _animHost = host;
@@ -980,6 +1046,12 @@ namespace OrbitalSIP
                 return;
             }
 
+            // -= first, like every other subscription in this lifecycle. AttachNav now runs
+            // twice over the same bar on the animated path — once when the content is
+            // parked in the overlay, once when the swap completes — and "no bar reaches
+            // here twice" was in any case a property of statement order at nineteen call
+            // sites, asserted nowhere.
+            nav.TabSelected -= OnNavTabSelected;
             nav.TabSelected += OnNavTabSelected;
             nav.ActiveTab = _currentTab;
             nav.SetInCall(App.SipService.State is CallState.Active or CallState.OnHold);
@@ -1052,10 +1124,17 @@ namespace OrbitalSIP
                 return;
             }
 
+            // No MarkRecentsSeen here. The tap is not what "seen" means — the list arriving
+            // in front of the operator is, and RecentsView marks it there, on the load that
+            // actually produced rows. Clearing on the press instead cleared the badge over
+            // a CDR fetch that then failed silently, and those calls stayed under the
+            // watermark for the rest of the day. RecentsView and NavBadgeState.SetMissed
+            // both argue the badge must fail lit rather than dark; this line was the last
+            // of the old rule disagreeing with them.
             switch (tab)
             {
                 case NavTab.Dialer:   ShowDialer();   break;
-                case NavTab.Recents:  App.NavBadges.MarkRecentsSeen(); ShowRecents();  break;
+                case NavTab.Recents:  ShowRecents();  break;
                 case NavTab.Tasks:    ShowTasks();    break;
                 case NavTab.Settings: ShowSettings(); break;
             }
