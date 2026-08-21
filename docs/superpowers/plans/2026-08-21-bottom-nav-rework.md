@@ -2144,7 +2144,7 @@ namespace OrbitalSIP.Services
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~TaskServiceTests"
 ```
 
-Ожидаемо: PASS, 14 тестов — 10 из списка выше плюс четыре, которые добавила проверка: не-числовой `sub` (две теории), проброс отмены и `Dispose` при `ownsHttpClient: true`.
+Ожидаемо: PASS, 19 тестов — 10 из списка выше плюс девять, которые добавила проверка: не-числовой `sub` (две теории), проброс отмены, `Dispose` в обе стороны, сброс защёлки при смене токена, молчание `GetMyStatsAsync` и два на `GetTaskTypesAsync`.
 
 - [ ] **Step 5: Прогнать весь набор — `CreateTaskAsync` и `GetTaskTypesAsync` переписаны, они под тестами в `TaskModelsTests`**
 
@@ -2152,7 +2152,7 @@ dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "Ful
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: PASS, 579 тестов.
+Ожидаемо: PASS, 584 теста.
 
 - [ ] **Step 6: Коммит**
 
@@ -2470,7 +2470,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 579 тестов зелёные. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
+Ожидаемо: сборка чистая, 584 теста зелёные. Если `OperatorDetailsResponse` окажется недоступен из `Services` (он объявлен рядом с `OperatorStats`) — проверить пространство имён:
 
 ```bash
 grep -rn "class OperatorDetailsResponse" OrbitalSIP/Models/OperatorStats.cs
@@ -2922,7 +2922,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка без ошибок, 579 тестов зелёные.
+Ожидаемо: сборка без ошибок, 584 теста зелёные.
 
 - [ ] **Step 7: Проверить руками**
 
@@ -3078,7 +3078,7 @@ dotnet build OrbitalSIP/OrbitalSIP.csproj --nologo
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: сборка чистая, 579 тестов зелёные.
+Ожидаемо: сборка чистая, 584 теста зелёные.
 
 - [ ] **Step 6: Проверить руками**
 
@@ -3101,7 +3101,7 @@ git commit -m "fix(call): send DTMF from the keypad button instead of rebuilding
 dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q
 ```
 
-Ожидаемо: 579 тестов, 0 упавших.
+Ожидаемо: 584 теста, 0 упавших.
 
 - [ ] **Сборка релизной конфигурации**
 
