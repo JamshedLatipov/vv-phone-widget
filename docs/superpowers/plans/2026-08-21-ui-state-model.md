@@ -960,9 +960,15 @@ Expected: FAIL — `ATabPressOpensThePanelOnThatTab` падает на `Assert.E
     };
 ```
 
-и в `Route`:
+и в `Route`, где первая из трёх новых строк несёт комментарий о порядке. Требование
+«эта ветка обязана стоять ниже той» до сих пор жило только в прозе плана — компилятор о
+нём не предупредит, потому что гварды не исчерпывающи, а тест поймает не всякую
+перестановку. Комментарий должен быть в самом файле, рядом с ветками, которых касается:
 
 ```csharp
+        // Below the LoginSettings arm above, and that order is load-bearing: in login mode
+        // a tab press goes back to login, and a general TabPressed arm placed higher would
+        // swallow it and open a panel to an operator with no session.
         UiEvent.TabPressed t when s.Shell == Shell.Panel && RouteFor(t.Tab) == s.Route => s,
 
         UiEvent.TabPressed t => s with
@@ -983,6 +989,28 @@ Expected: FAIL — `ATabPressOpensThePanelOnThatTab` падает на `Assert.E
 
 Строка `TabPressed` для `LoginSettings` из Task 3 обязана остаться **выше** обеих новых строк с `TabPressed`: в режиме логина таб уводит на вход, а не открывает панель.
 
+Заодно, пока `Route` ещё читается целиком, зафиксировать два правила комментариями — оба
+станут неочевидны, когда веток станет восемнадцать.
+
+Над самим `Route`:
+
+```csharp
+    // The shape of an arm says whether its payload is used further: a bare type pattern
+    // when the event carries nothing (ten of the thirteen do), a property pattern when the
+    // payload is only tested, a capture when it goes into the result. Three styles on
+    // purpose — do not flatten them into one.
+```
+
+И над `CallStateChanged` в `OrbitalSIP/Models/UiEvent.cs`:
+
+```csharp
+    /// <summary>
+    /// The call state the window is being told about. Must be the same value the dispatcher
+    /// passes to Reduce as its third argument — both come from App.SipService.State, read
+    /// once, and nothing in the type system holds them together.
+    /// </summary>
+```
+
 - [ ] **Step 4: Запустить и убедиться, что проходит**
 
 Run: `dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~ShellRouter"`
@@ -991,7 +1019,7 @@ Expected: PASS — все три класса тестов роутера: Sessi
 - [ ] **Step 5: Закоммитить**
 
 ```bash
-git add OrbitalSIP/Models/ShellRouter.cs OrbitalSIP.Tests/ShellRouterNavigationTests.cs
+git add OrbitalSIP/Models/ShellRouter.cs OrbitalSIP/Models/UiEvent.cs OrbitalSIP.Tests/ShellRouterNavigationTests.cs
 git commit -m "feat(ui): tabs, expand, collapse — and a route that survives the widget"
 ```
 
