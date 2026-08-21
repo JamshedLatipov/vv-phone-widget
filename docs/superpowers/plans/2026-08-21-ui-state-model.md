@@ -1190,10 +1190,20 @@ public class ShellRouterCallTests
         Assert.Equal(home, s.Shell);
     }
 
-    [Fact]
-    public void TheReturnStripBringsTheCallBack()
+    /// <summary>
+    /// The strip is the way back, and it works for every shape of live call — an outgoing
+    /// ringback and a call on hold are both something to return to, not just a connected one.
+    /// Driving only Active here would let CallIsLive narrow to Active without a single test
+    /// noticing, which is exactly what a mutation of it did once the two arms and the strip
+    /// predicate started sharing that one definition.
+    /// </summary>
+    [Theory]
+    [InlineData(CallState.Ringing)]
+    [InlineData(CallState.Active)]
+    [InlineData(CallState.OnHold)]
+    public void TheReturnStripBringsTheCallBack(CallState call)
     {
-        var s = Reduce(Panel(NavRoute.Tasks), new UiEvent.ReturnStripPressed(), CallState.Active);
+        var s = Reduce(Panel(NavRoute.Tasks), new UiEvent.ReturnStripPressed(), call);
 
         Assert.Equal(NavRoute.Call, s.Route);
     }
@@ -1277,15 +1287,21 @@ public class ShellRouterCallTests
 
     /// <summary>
     /// Collapsing during a call is the same gesture as collapsing without one, and it has to
-    /// move home the same way. Otherwise the window settles into the widget when the call
-    /// ends while Home stays the panel, and the next call opens a panel on the operator who
+    /// move Home the same way. Otherwise the window settles into the widget when the call ends
+    /// while Home still says Panel, and the next call unfolds a panel at the operator who just
     /// collapsed it.
+    ///
+    /// Every live call state, for the reason given on TheReturnStripBringsTheCallBack: this
+    /// arm shares its guard with the strip predicate now.
     /// </summary>
-    [Fact]
-    public void CollapsingDuringACallMovesHomeToo()
+    [Theory]
+    [InlineData(CallState.Ringing)]
+    [InlineData(CallState.Active)]
+    [InlineData(CallState.OnHold)]
+    public void CollapsingDuringACallMovesHomeToo(CallState call)
     {
-        var s = Reduce(Panel(NavRoute.Dialer), new UiEvent.CallStarted(), CallState.Active);
-        s = Reduce(s, new UiEvent.CollapseRequested(), CallState.Active);
+        var s = Reduce(Panel(NavRoute.Dialer), new UiEvent.CallStarted(), call);
+        s = Reduce(s, new UiEvent.CollapseRequested(), call);
 
         Assert.Equal(Shell.CallBar, s.Shell);
         Assert.Equal(Shell.Collapsed, s.Home);
