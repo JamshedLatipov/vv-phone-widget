@@ -49,10 +49,11 @@ public sealed class NavBadgeState
     /// coughed would be a worse lie than a stale number. Unknown is not remembered
     /// either, or the real id arriving on the next poll would itself read as a handover.
     /// </summary>
-    public void SetOperator(string? operatorId)
+    /// <returns>true when the operator changed and everything was cleared.</returns>
+    public bool SetOperator(string? operatorId)
     {
-        if (string.IsNullOrEmpty(operatorId)) return;
-        if (operatorId == _operatorId) return;
+        if (string.IsNullOrEmpty(operatorId)) return false;
+        if (operatorId == _operatorId) return false;
 
         _operatorId = operatorId;
 
@@ -60,6 +61,7 @@ public sealed class NavBadgeState
         HasOverdueTasks = false;
         _missedCalls = 0;
         _seenMissed = 0;
+        return true;
     }
 
     public void SetTasks(int pending, int inProgress, int overdue)

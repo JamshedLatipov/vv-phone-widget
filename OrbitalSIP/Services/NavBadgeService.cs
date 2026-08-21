@@ -106,7 +106,15 @@ namespace OrbitalSIP.Services
             // Before anything else writes to _state, not after: a handover on a shared
             // terminal keeps the same process, and the numbers this poll is about to fetch
             // belong to whoever is signed in now.
-            _state.SetOperator(OperatorIdOf(App.SipService?.CurrentSettings ?? SipSettings.Load()));
+            //
+            // OperatorStats goes with them. It is a field here rather than part of the
+            // state, but its lifetime is the same session, and left behind it would hand
+            // the incoming operator the outgoing one's call figures the moment they
+            // expanded the dialer. Cleared on the answer SetOperator already gives rather
+            // than on a comparison of our own, so there is one definition of "the operator
+            // changed" and no second copy to drift against it.
+            if (_state.SetOperator(OperatorIdOf(App.SipService?.CurrentSettings ?? SipSettings.Load())))
+                OperatorStats = null;
 
             // Ask TaskService rather than keeping a latch of our own. Its TasksForbidden is
             // scoped to the access token that drew the 403, so it clears itself when the

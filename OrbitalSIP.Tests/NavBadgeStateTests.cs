@@ -266,11 +266,37 @@ public class NavBadgeStateTests
         state.SetMissed(10);
         state.MarkRecentsSeen();
 
-        state.SetOperator(unknown);
+        Assert.False(state.SetOperator(unknown));
         Assert.Equal(0, state.NewMissed);
 
         state.SetOperator("alice");
         state.SetMissed(10);
         Assert.Equal(0, state.NewMissed);
+    }
+
+    /// <summary>
+    /// The answer, not just the effect: NavBadgeService clears its cached OperatorStats on
+    /// a true, which is how the incoming operator stops inheriting the outgoing one's call
+    /// figures in the dialer's panel. The service reads this rather than comparing ids
+    /// itself, so a second definition of "the operator changed" cannot drift against this
+    /// one — and the return value is a separate output from the clearing, so it needs its
+    /// own two cases rather than riding on the watermark assertions above.
+    /// </summary>
+    [Fact]
+    public void TheSameOperatorReportsNoChange()
+    {
+        var state = new NavBadgeState();
+        state.SetOperator("alice");
+
+        Assert.False(state.SetOperator("alice"));
+    }
+
+    [Fact]
+    public void ADifferentOperatorReportsTheChange()
+    {
+        var state = new NavBadgeState();
+        state.SetOperator("alice");
+
+        Assert.True(state.SetOperator("bob"));
     }
 }
