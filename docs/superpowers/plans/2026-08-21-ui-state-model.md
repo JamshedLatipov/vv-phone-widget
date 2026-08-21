@@ -765,7 +765,15 @@ public static class ShellRouter
 - [ ] **Step 4: Запустить и убедиться, что проходит**
 
 Run: `dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~ShellRouterSessionTests"`
-Expected: PASS, 17 тестов — 4 `[Fact]` плюс три `[Theory]` по четыре случая каждая.
+Expected: PASS, 16 тестов — 4 `[Fact]` плюс три `[Theory]` по четыре случая каждая.
+
+Отдельно проверить конвейер `Reduce`, который этот фильтр не захватывает:
+
+```bash
+dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~ShellRouterPipelineTests"
+```
+
+Expected: PASS, 1 тест.
 
 - [ ] **Step 5: Закоммитить**
 
@@ -978,7 +986,7 @@ Expected: FAIL — `ATabPressOpensThePanelOnThatTab` падает на `Assert.E
 - [ ] **Step 4: Запустить и убедиться, что проходит**
 
 Run: `dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~ShellRouter"`
-Expected: PASS — оба класса тестов роутера.
+Expected: PASS — все три класса тестов роутера: Session, Pipeline и новый Navigation.
 
 - [ ] **Step 5: Закоммитить**
 
@@ -1255,7 +1263,7 @@ Expected: FAIL — `APanelHomeAnswersTheCallOnTheCallRoute` падает: `Route
 - [ ] **Step 4: Запустить и убедиться, что проходит**
 
 Run: `dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~ShellRouter"`
-Expected: PASS — все три класса тестов роутера.
+Expected: PASS — все четыре класса тестов роутера: Session, Pipeline, Navigation и новый Call.
 
 - [ ] **Step 5: Закоммитить**
 
