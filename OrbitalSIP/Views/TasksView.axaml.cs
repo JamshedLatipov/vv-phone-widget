@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OrbitalSIP.Models;
@@ -117,46 +118,53 @@ namespace OrbitalSIP.Views
 
             try
             {
-                // "The requests I made all answered", which is not the same as "there are
-                // tasks". GetMyTasksAsync returns null for a failure and a response with an
-                // empty Data for a genuinely empty list, and the screen must not conflate
-                // the two: an operator whose backend is down would be told they have
-                // nothing to do, by the tab that exists to stop work being forgotten.
-                var loaded = true;
                 var tasks = new List<TaskItem>();
+                var first = TaskFetch.Skipped;
+                var second = TaskFetch.Skipped;
 
-                if (openOnly)
+                // Neither of these changes before the session does, so neither is worth a
+                // request. Asking anyway would draw a fresh banner over an answer already
+                // given — one per visit to the tab, since every press of it builds this
+                // screen anew, and one more per filter switch, right next to a sentence
+                // telling the operator they have no access. NavBadgeService stops polling
+                // on the same signal for the same reason. Both are scoped to the access
+                // token, so a refresh or a re-login gets to try again.
+                if (!service.TasksForbidden && !service.TasksUnassignable)
                 {
-                    var pending = await service.GetMyTasksAsync("pending", ct);
-                    if (pending?.Data == null) loaded = false;
-
-                    // Only ask the second time if the first answered. Half a merge is not
-                    // shown at all — see the loaded flag — so once the pending half is
-                    // missing, the in_progress half is a request whose answer is already
-                    // destined for the bin, and one more banner over the same outage: a
-                    // role without tasks:read draws one per request, and a dead backend
-                    // draws one per request too. The same reason NavBadgeService stops
-                    // polling on TasksForbidden rather than asking again every two minutes.
-                    List<TaskItem>? running = null;
-                    if (loaded)
+                    if (openOnly)
                     {
-                        var response = await service.GetMyTasksAsync("in_progress", ct);
-                        if (response?.Data == null) loaded = false;
-                        else running = response.Data;
-                    }
+                        var pending = await service.GetMyTasksAsync("pending", ct);
+                        first = FetchOf(pending);
 
-                    // Half an answer counts as none — see the loaded flag above. Merged and
-                    // shown, a pending-only response would quietly be missing every task the
-                    // operator had already started, which is the disagreement with the badge
-                    // that asking twice exists to prevent, except silent.
-                    tasks = OpenTaskList.From(pending?.Data, running);
+                        // Only ask the second time if the first answered. Half a merge is
+                        // not shown at all, so once the pending half is missing the
+                        // in_progress half is a request whose answer is already destined
+                        // for the bin — and one more banner over the same outage.
+                        List<TaskItem>? running = null;
+                        if (first == TaskFetch.Answered)
+                        {
+                            var response = await service.GetMyTasksAsync("in_progress", ct);
+                            second = FetchOf(response);
+                            running = response?.Data;
+                        }
+
+                        tasks = OpenTaskList.From(pending?.Data, running);
+                    }
+                    else
+                    {
+                        var all = await service.GetMyTasksAsync(null, ct);
+                        first = FetchOf(all);
+
+                        // Left in the backend's own order, unlike the open pair, which has
+                        // to be merged before it means anything. Null rows are dropped for
+                        // the same reason OpenTaskList.From drops them: "data": [null].
+                        if (all?.Data != null)
+                            tasks.AddRange(all.Data.Where(task => task is not null));
+                    }
                 }
-                else
-                {
-                    var all = await service.GetMyTasksAsync(null, ct);
-                    if (all?.Data == null) loaded = false;
-                    else tasks.AddRange(all.Data);
-                }
+
+                var state = TaskListOutcome.Of(new[] { first, second }, tasks.Count,
+                                               service.TasksForbidden, service.TasksUnassignable);
 
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
@@ -167,36 +175,7 @@ namespace OrbitalSIP.Views
                     // list it was told to abandon, under the other chip.
                     if (ct.IsCancellationRequested) return;
 
-                    var i18n = I18nService.Instance;
-
-                    // Refused is an answer, and a definite one, so it replaces the list
-                    // rather than leaving stale rows under a sentence that says the
-                    // operator cannot see them.
-                    if (service.TasksForbidden)
-                    {
-                        ReplaceItems(tasks: null, now);
-                        ShowError(null);
-                        ShowMessage(i18n.Get("TasksNoAccess"));
-                        return;
-                    }
-
-                    // Nothing was learned, so nothing is claimed: what is already on screen
-                    // stays — a stale list is a smaller lie than an empty one, the same
-                    // trade NavBadgeService.LoadMissedCallsAsync makes with its counters —
-                    // and the failure is said out loud rather than left to the HTTP banner,
-                    // which is gone in six seconds while a sentence in the middle of the
-                    // screen is what the operator is left looking at.
-                    if (!loaded)
-                    {
-                        var failed = i18n.Get("TasksLoadFailed");
-                        if (_items.Count == 0) { ShowError(null); ShowMessage(failed); }
-                        else ShowError(failed);
-                        return;
-                    }
-
-                    ReplaceItems(tasks, now);
-                    ShowError(null);
-                    ShowMessage(tasks.Count > 0 ? null : i18n.Get("TasksEmpty"));
+                    Apply(state, tasks, now);
                 });
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -207,13 +186,72 @@ namespace OrbitalSIP.Views
             }
             catch (Exception ex)
             {
+                // Whatever this was, the load did not answer, and the operator is owed the
+                // same sentence as any other failure. Logged and otherwise silent, this was
+                // a fourth state hiding behind the three above: stale rows, or a stale "no
+                // tasks", with nothing on screen to say anything had happened.
                 AppLogger.Log("TasksView", $"Error loading tasks: {ex.GetType().Name}: {ex.Message}");
+
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (ct.IsCancellationRequested) return;
+                    Fail();
+                });
             }
             finally
             {
                 if (ReferenceEquals(_loadCts, cts)) _loadCts = null;
                 cts.Dispose();
             }
+        }
+
+        /// <summary>
+        /// What one request came back with. A response whose Data did not parse counts as
+        /// a failure and not as an empty list — TaskService already reads an empty body
+        /// that way, and "you have no tasks" is not a thing to say on a guess.
+        /// </summary>
+        private static TaskFetch FetchOf(TaskListResponse? response) =>
+            response?.Data != null ? TaskFetch.Answered : TaskFetch.Failed;
+
+        /// <summary>
+        /// Puts one load's answer on screen: the rows, and the sentence that goes with
+        /// them. Which answer it is was decided by <see cref="TaskListOutcome"/>, out where
+        /// a test can reach it; this is only the mapping onto controls.
+        /// </summary>
+        private void Apply(TaskListState state, IReadOnlyList<TaskItem> tasks, DateTimeOffset now)
+        {
+            if (state == TaskListState.Failed)
+            {
+                // Nothing was learned, so nothing is claimed: whatever is on screen stays,
+                // which is the trade NavBadgeService.LoadMissedCallsAsync already makes
+                // with its counters — a stale list is a smaller lie than an empty one.
+                Fail();
+                return;
+            }
+
+            // Refused replaces the list rather than leaving stale rows under a sentence
+            // saying the operator cannot see them.
+            ReplaceItems(state == TaskListState.Refused ? null : tasks, now);
+            ShowError(null);
+            ShowMessage(state switch
+            {
+                TaskListState.Refused => I18nService.Instance.Get("TasksNoAccess"),
+                TaskListState.Empty   => I18nService.Instance.Get("TasksEmpty"),
+                _                     => null,
+            });
+        }
+
+        /// <summary>
+        /// Says a load did not answer, in the place that suits what is on screen: centred
+        /// when there is nothing else there, and under the rows when there are rows, since
+        /// the centred label lies across them.
+        /// </summary>
+        private void Fail()
+        {
+            var failed = I18nService.Instance.Get("TasksLoadFailed");
+
+            if (_items.Count == 0) { ShowError(null); ShowMessage(failed); }
+            else { ShowMessage(null); ShowError(failed); }
         }
 
         /// <summary>
