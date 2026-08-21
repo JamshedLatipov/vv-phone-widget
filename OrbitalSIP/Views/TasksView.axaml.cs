@@ -5,7 +5,6 @@ using Avalonia.Threading;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OrbitalSIP.Models;
@@ -130,29 +129,25 @@ namespace OrbitalSIP.Views
                 {
                     var pending = await service.GetMyTasksAsync("pending", ct);
                     if (pending?.Data == null) loaded = false;
-                    else tasks.AddRange(pending.Data);
 
                     // Only ask the second time if the first was not refused outright. A role
                     // without tasks:read draws a banner per request, and one missing
                     // permission is worth exactly one banner — the same reason
                     // NavBadgeService stops polling on TasksForbidden rather than asking
                     // again every two minutes.
+                    List<TaskItem>? running = null;
                     if (!service.TasksForbidden)
                     {
-                        var running = await service.GetMyTasksAsync("in_progress", ct);
-                        if (running?.Data == null) loaded = false;
-                        else tasks.AddRange(running.Data);
+                        var response = await service.GetMyTasksAsync("in_progress", ct);
+                        if (response?.Data == null) loaded = false;
+                        else running = response.Data;
                     }
 
                     // Half an answer counts as none — see the loaded flag above. Merged and
                     // shown, a pending-only response would quietly be missing every task the
                     // operator had already started, which is the disagreement with the badge
                     // that asking twice exists to prevent, except silent.
-                    tasks = tasks
-                        .GroupBy(t => t.Id)
-                        .Select(g => g.First())
-                        .OrderByDescending(t => t.CreatedAt ?? DateTimeOffset.MinValue)
-                        .ToList();
+                    tasks = OpenTaskList.From(pending?.Data, running);
                 }
                 else
                 {
