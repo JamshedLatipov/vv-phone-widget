@@ -65,6 +65,7 @@
                         Width="32" Height="32"
                         Background="Transparent" BorderThickness="0" Padding="6" Cursor="Hand"
                         Click="OnTaskDoneClicked"
+                        IsVisible="{Binding CanComplete}"
                         Tag="{Binding}"
                         ToolTip.Tip="{i18n:I18n TaskDone}"
                         VerticalAlignment="Center">

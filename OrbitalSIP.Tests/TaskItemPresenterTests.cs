@@ -231,4 +231,43 @@ public class TaskItemPresenterTests
     {
         Assert.Equal(string.Empty, TaskItemPresenter.TimeText(null, Now));
     }
+
+    [Theory]
+    [InlineData("done")]
+    [InlineData("completed")]
+    public void ClosedStatusIsFinished(string status)
+    {
+        Assert.True(TaskItemPresenter.IsFinished(status));
+    }
+
+    /// <summary>
+    /// Everything that is not one of the two closed statuses is open, including "overdue"
+    /// — which is a backend view over open tasks, not a third closed state — and including
+    /// the null older rows carry.
+    /// </summary>
+    [Theory]
+    [InlineData("pending")]
+    [InlineData("in_progress")]
+    [InlineData("overdue")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void OpenOrAbsentStatusIsNotFinished(string? status)
+    {
+        Assert.False(TaskItemPresenter.IsFinished(status));
+    }
+
+    /// <summary>
+    /// The ordinal match is deliberate, so pin it: an unrecognised casing is treated as
+    /// still open, never as silently finished. Getting this wrong in the lenient direction
+    /// would drop a genuinely open task out of the overdue view and take its tick-off
+    /// button with it, which is the one failure the row cannot recover from on its own.
+    /// </summary>
+    [Theory]
+    [InlineData("Done")]
+    [InlineData("DONE")]
+    [InlineData("Completed")]
+    public void UnrecognisedCasingIsNotFinished(string status)
+    {
+        Assert.False(TaskItemPresenter.IsFinished(status));
+    }
 }

@@ -21,12 +21,24 @@ namespace OrbitalSIP.ViewModels
         public string PriorityColor { get; }
         public string SubtitleColor { get; }
 
+        /// <summary>
+        /// Whether this row offers the tick-off button.
+        ///
+        /// The All filter shows finished tasks too, and on those the button did two wrong
+        /// things at once: it "completed" a task that was already complete, and — because
+        /// the row is removed optimistically — the task came back on the next refresh,
+        /// which reads as the operator's tap having been undone. Neither survives the
+        /// button not being there.
+        /// </summary>
+        public bool CanComplete { get; }
+
         public TaskItemViewModel(TaskItem task, DateTimeOffset now)
         {
             Task = task;
 
             Title = string.IsNullOrWhiteSpace(task.Title) ? "—" : task.Title.Trim();
             PriorityColor = TaskItemPresenter.PriorityColor(task.Priority);
+            CanComplete = !TaskItemPresenter.IsFinished(task.Status);
 
             var i18n = I18nService.Instance;
             var bucket = TaskItemPresenter.Bucket(task, now);

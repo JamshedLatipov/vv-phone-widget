@@ -109,13 +109,23 @@ namespace OrbitalSIP.Services
             instant.ToOffset(now.Offset).Date;
 
         /// <summary>
+        /// Whether the backend considers this task closed.
+        ///
         /// Ordinal, deliberately: mirrors the backend's own case-sensitive SQL predicate.
         /// An unrecognised casing such as "Done" is treated as still open, never as
         /// silently finished — a closed task mislabelled overdue is a cosmetic annoyance,
         /// but a genuinely open task mislabelled finished would vanish from the operator's
         /// overdue view entirely.
+        ///
+        /// Public because the row's tick-off button asks the same question, and the answer
+        /// has to be the same one: a second copy of this status list somewhere in the view
+        /// is a pair that drifts, and it would drift into a task the list calls overdue and
+        /// the button calls done. The asymmetry above holds for the button too — an
+        /// unrecognised casing leaves it offered, which costs an idempotent PATCH, while
+        /// hiding it from a genuinely open task would strand that task with no way to
+        /// close it from here.
         /// </summary>
-        private static bool IsFinished(string? status) =>
+        public static bool IsFinished(string? status) =>
             status is "done" or "completed";
     }
 }
