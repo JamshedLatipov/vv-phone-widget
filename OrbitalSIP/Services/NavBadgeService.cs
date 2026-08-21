@@ -39,6 +39,14 @@ namespace OrbitalSIP.Services
         private int _consecutiveFailures;
         private TimeSpan _interval = Healthy;
 
+        /// <summary>
+        /// Which session's polls count. Bumped by <see cref="Stop"/>, captured by every
+        /// poll as it starts, and checked again after each await before anything is
+        /// written — because a poll already past the gate does not stop when the session
+        /// does, and its writes would land in the next one.
+        /// </summary>
+        private int _generation;
+
         public NavBadgeService()
             : this(BackendHttp.Client,
                    () => App.SipService?.CurrentSettings ?? SipSettings.Load(),
@@ -108,6 +116,14 @@ namespace OrbitalSIP.Services
             _timer?.Stop();
             _timer = null;
 
+            // Stopping the timer stops the *next* poll, not the one already running: a slow
+            // backend makes that window seconds wide, and the poll on the other side of it
+            // would then write the outgoing operator's missed total, re-open the streak this
+            // method just reset, and set the interval on a _timer that by then belongs to
+            // the next session. The reset below says the streak ends with the session; this
+            // is what makes that true of the poll in flight as well.
+            _generation++;
+
             // The streak describes how badly the backend is answering *this* session, so it
             // ends with the session — same reason StatusService.StopPolling calls
             // ResetBackoff. Carried over, a streak run up while an expired token was still
@@ -137,10 +153,15 @@ namespace OrbitalSIP.Services
             // after a newer one reads as a midnight rollover: the watermark goes to zero
             // and every call of the day shows as new. Contention is rare at two-minute
             // intervals, and waiting for the other poll costs nothing.
+            // Captured before the wait, not after: a poll queued behind another one can sit
+            // here across the whole handover, and it belongs to the session it was asked
+            // for rather than the one it happens to wake up in.
+            var generation = _generation;
+
             await _pollGate.WaitAsync();
             try
             {
-                await PollOnceAsync();
+                await PollOnceAsync(generation);
             }
             finally
             {
@@ -148,8 +169,13 @@ namespace OrbitalSIP.Services
             }
         }
 
-        private async Task PollOnceAsync()
+        /// <summary>Nothing this poll learned belongs to the session now in play.</summary>
+        private bool Superseded(int generation) => generation != _generation;
+
+        private async Task PollOnceAsync(int generation)
         {
+            if (Superseded(generation)) return;
+
             var ok = true;
 
             // Both halves below read the session, and there is an await between them. Read
@@ -194,6 +220,8 @@ namespace OrbitalSIP.Services
             else if (!tasks.TasksForbidden)
             {
                 var stats = await tasks.GetMyStatsAsync();
+                if (Superseded(generation)) return;
+
                 if (stats != null)
                 {
                     _state.SetTasks(stats.Pending, stats.InProgress, stats.Overdue);
@@ -211,8 +239,14 @@ namespace OrbitalSIP.Services
                 }
             }
 
-            var missed = await LoadMissedCallsAsync(settings);
-            if (missed.HasValue) _state.SetMissed(missed.Value);
+            var operatorStats = await LoadMissedCallsAsync(settings);
+            if (Superseded(generation)) return;
+
+            if (operatorStats != null)
+            {
+                OperatorStats = operatorStats;
+                _state.SetMissed(operatorStats.MissedCalls);
+            }
             else ok = false;
 
             // Failures are logged, never raised as a banner. A badge is not worth
@@ -236,8 +270,12 @@ namespace OrbitalSIP.Services
         /// The same endpoint OperatorStatsControl used to call on its own timer. Returns
         /// null on any failure, so the badge keeps its last known value: a stale number is
         /// a smaller lie than a zero.
+        ///
+        /// Hands the figures back rather than assigning OperatorStats itself, so every
+        /// write this poll makes happens in one place the caller can gate on the session —
+        /// this method is on the far side of an await, and the session can end across it.
         /// </summary>
-        private async Task<int?> LoadMissedCallsAsync(SipSettings settings)
+        private async Task<OperatorStats?> LoadMissedCallsAsync(SipSettings settings)
         {
             try
             {
@@ -262,10 +300,7 @@ namespace OrbitalSIP.Services
                 }
 
                 var data = await response.Content.ReadFromJsonAsync<OperatorDetailsResponse>();
-                if (data?.Stats == null) return null;
-
-                OperatorStats = data.Stats;
-                return data.Stats.MissedCalls;
+                return data?.Stats;
             }
             catch (Exception ex)
             {

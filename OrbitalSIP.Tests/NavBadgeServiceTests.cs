@@ -172,6 +172,63 @@ public class NavBadgeServiceTests
         Assert.Equal(TimeSpan.FromMinutes(4), service.PollInterval);
     }
 
+    /// <summary>
+    /// Stop() ends the session, and a poll already past the gate must not write into the
+    /// next one. Held open at the details endpoint, stopped underneath, then released: the
+    /// failure it comes back with belonged to a session that is over, so it may not re-open
+    /// the streak Stop() just reset, and the total it carries may not reach the badge.
+    ///
+    /// Without the generation check the interval comes back four minutes and the outgoing
+    /// operator's missed calls land on the incoming operator's bar — and _timer, by then,
+    /// could be the next session's.
+    /// </summary>
+    [Fact]
+    public async Task Stop_DisownsAPollThatWasAlreadyInFlight()
+    {
+        var settings = Settings();
+        var reached = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+
+        using var handler = new StubHandler(async req =>
+        {
+            if (!IsDetails(req)) return Json(BodyFor(req, missed: 0));
+            reached.TrySetResult();
+            await release.Task;
+            return Error(HttpStatusCode.InternalServerError);
+        });
+        using var http = new HttpClient(handler);
+        using var service = Service(http, () => settings);
+
+        var poll = service.RefreshNowAsync();
+        await reached.Task;
+
+        service.Stop();
+        release.SetResult();
+        await poll;
+
+        Assert.Equal(TimeSpan.FromMinutes(2), service.PollInterval);
+        Assert.Equal(0, service.NewMissed);
+    }
+
+    /// <summary>
+    /// The other direction, so the test above cannot pass on a build that ignores every
+    /// poll: the same failing poll, nobody stopping anything, does move the streak.
+    /// </summary>
+    [Fact]
+    public async Task APollNobodyStoppedStillCounts()
+    {
+        var settings = Settings();
+        using var handler = new StubHandler(req =>
+            IsDetails(req) ? Error(HttpStatusCode.InternalServerError) : Json(BodyFor(req, missed: 0)));
+        using var http = new HttpClient(handler);
+        using var service = Service(http, () => settings);
+
+        await service.RefreshNowAsync();
+        await service.RefreshNowAsync();
+
+        Assert.Equal(TimeSpan.FromMinutes(4), service.PollInterval);
+    }
+
     // ── Harness ───────────────────────────────────────────────────────
 
     private static NavBadgeService Service(HttpClient http, Func<SipSettings> settings) =>
