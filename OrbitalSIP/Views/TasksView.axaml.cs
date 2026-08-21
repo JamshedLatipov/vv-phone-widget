@@ -27,6 +27,12 @@ namespace OrbitalSIP.Views
         private bool _shownOpenOnly = true;
 
         /// <summary>
+        /// True when a detach cancelled a load that had not finished, so the re-attach can
+        /// ask for it again. See <see cref="OnDetachedFromVisualTree"/>.
+        /// </summary>
+        private bool _reloadOnAttach;
+
+        /// <summary>
         /// The load still in flight, so a newer one can call it off.
         ///
         /// Not an _isLoading flag that turns the newer load away. The chips light before
@@ -63,6 +69,37 @@ namespace OrbitalSIP.Views
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+
+        /// <summary>
+        /// Calls off a load the operator has walked away from.
+        ///
+        /// Navigating away discards this screen, so a response still in flight would be
+        /// parsed, merged and drawn into a list nobody can see — one orphaned round trip
+        /// per visit. Cancelling is silent by design, so nothing is said about it.
+        ///
+        /// The animated content swap moves this same instance from the overlay to the
+        /// host, which detaches and re-attaches it — on a screen that is about to come
+        /// straight back, and typically while the constructor's own load is still in
+        /// flight. Remembering that the cancel happened is what stops that swap from
+        /// leaving the screen permanently empty.
+        /// </summary>
+        protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            base.OnDetachedFromVisualTree(e);
+
+            _reloadOnAttach = _loadCts != null;
+            _loadCts?.Cancel();
+        }
+
+        protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            base.OnAttachedToVisualTree(e);
+
+            if (!_reloadOnAttach) return;
+
+            _reloadOnAttach = false;
+            _ = LoadAsync();
+        }
 
         private void WireButtons()
         {
