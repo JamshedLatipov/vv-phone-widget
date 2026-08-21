@@ -53,8 +53,17 @@ namespace OrbitalSIP.Services
         private string? _forbiddenForToken;
 
         /// <summary>
-        /// True when the access token currently in play already drew a 403 from the tasks
-        /// API.
+        /// True when the access token currently in play already drew a 403 from a call that
+        /// reads the operator's tasks.
+        ///
+        /// From those calls only — see the latchForbidden opt-in on <see cref="SendAsync"/>.
+        /// The readers of this flag are asking "may this operator see their tasks", and a
+        /// 403 from anything else does not answer that question: tasks:update is a separate
+        /// ability, so an operator who may read but not close a task used to tick one off,
+        /// fail honestly, and then have the tasks screen replace a list it had just fetched
+        /// successfully with "no access" — for the rest of the session, since the flag lives
+        /// as long as the token. GET /api/task-types is a different resource with its own
+        /// ability again, and never had any business setting this either.
         ///
         /// tasks:read is a separate ability from the tasks:create this widget already
         /// relies on, so a role without it is a live possibility rather than a hypothesis.
@@ -139,7 +148,7 @@ namespace OrbitalSIP.Services
             if (!string.IsNullOrWhiteSpace(status))
                 path += $"&status={Uri.EscapeDataString(status)}";
 
-            return await SendAsync<TaskListResponse>(HttpMethod.Get, path, ct: ct);
+            return await SendAsync<TaskListResponse>(HttpMethod.Get, path, ct: ct, latchForbidden: true);
         }
 
         /// <summary>
@@ -159,7 +168,7 @@ namespace OrbitalSIP.Services
             if (assignee == null) return null;
 
             return await SendAsync<TaskStats>(HttpMethod.Get, $"/api/tasks/stats?assigneeId={assignee}",
-                ct: ct, notifyErrors: false);
+                ct: ct, notifyErrors: false, latchForbidden: true);
         }
 
         /// <summary>
@@ -202,9 +211,15 @@ namespace OrbitalSIP.Services
         ///
         /// Returns null for every failure. Callers that need to tell a missing permission
         /// apart from a dead backend read <see cref="TasksForbidden"/>.
+        ///
+        /// <paramref name="latchForbidden"/> is opt-in, and only the two calls that read the
+        /// operator's tasks ask for it. A 403 from a write, or from another resource
+        /// entirely, is not an answer to the question that flag is asked — see its own
+        /// remarks for what conflating them cost.
         /// </summary>
         private async Task<string?> SendAsync(HttpMethod method, string path, object? body = null,
-                                              CancellationToken ct = default, bool notifyErrors = true)
+                                              CancellationToken ct = default, bool notifyErrors = true,
+                                              bool latchForbidden = false)
         {
             try
             {
@@ -227,7 +242,7 @@ namespace OrbitalSIP.Services
                 if (response.IsSuccessStatusCode)
                     return await response.Content.ReadAsStringAsync(ct);
 
-                if (response.StatusCode == HttpStatusCode.Forbidden)
+                if (latchForbidden && response.StatusCode == HttpStatusCode.Forbidden)
                     _forbiddenForToken = settings.AccessToken;
 
                 var errorBody = await response.Content.ReadAsStringAsync(ct);
@@ -261,9 +276,10 @@ namespace OrbitalSIP.Services
         /// not an empty result: an empty 200 used to surface as "you have no tasks".
         /// </summary>
         private async Task<T?> SendAsync<T>(HttpMethod method, string path, object? body = null,
-                                            CancellationToken ct = default, bool notifyErrors = true) where T : class
+                                            CancellationToken ct = default, bool notifyErrors = true,
+                                            bool latchForbidden = false) where T : class
         {
-            var raw = await SendAsync(method, path, body, ct, notifyErrors);
+            var raw = await SendAsync(method, path, body, ct, notifyErrors, latchForbidden);
             if (string.IsNullOrWhiteSpace(raw)) return null;
 
             try

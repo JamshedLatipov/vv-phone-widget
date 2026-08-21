@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using OrbitalSIP.Models;
 using OrbitalSIP.Services;
 using Xunit;
 
@@ -98,6 +99,67 @@ public class TaskServiceTests
         var result = await service.GetMyTasksAsync("pending");
 
         Assert.Null(result);
+        Assert.True(service.TasksForbidden);
+    }
+
+    /// <summary>
+    /// tasks:update is a separate ability from tasks:read, and only the reads answer the
+    /// question TasksForbidden is asked. An operator who may see their tasks but not close
+    /// one used to tick a task off, watch it fail honestly, and then have the tasks screen
+    /// replace a list it had just fetched successfully with "no access" — for the rest of
+    /// the session, since the flag lives as long as the token. TasksView is the only
+    /// production caller of SetStatusAsync, which is why the path only became reachable
+    /// when it was written.
+    /// </summary>
+    [Fact]
+    public async Task SetStatusAsync_ForbiddenDoesNotLatchTheNoAccessFlag()
+    {
+        using var handler = new RecordingHandler(_ => ErrorResponse(HttpStatusCode.Forbidden));
+        using var service = CreateService(handler);
+
+        var ok = await service.SetStatusAsync(7, "done");
+
+        Assert.False(ok);
+        Assert.False(service.TasksForbidden);
+    }
+
+    /// <summary>
+    /// Same rule from the other side: a task the operator may not create says nothing
+    /// about the ones they may read.
+    /// </summary>
+    [Fact]
+    public async Task CreateTaskAsync_ForbiddenDoesNotLatchTheNoAccessFlag()
+    {
+        using var handler = new RecordingHandler(_ => ErrorResponse(HttpStatusCode.Forbidden));
+        using var service = CreateService(handler);
+
+        var ok = await service.CreateTaskAsync(new CreateTaskRequest { Title = "Перезвонить" });
+
+        Assert.False(ok);
+        Assert.False(service.TasksForbidden);
+    }
+
+    /// <summary>GET /api/task-types is a different resource with its own ability again.</summary>
+    [Fact]
+    public async Task GetTaskTypesAsync_ForbiddenDoesNotLatchTheNoAccessFlag()
+    {
+        using var handler = new RecordingHandler(_ => ErrorResponse(HttpStatusCode.Forbidden));
+        using var service = CreateService(handler);
+
+        await service.GetTaskTypesAsync();
+
+        Assert.False(service.TasksForbidden);
+    }
+
+    /// <summary>The badge poll reads the same tasks, so its 403 does latch.</summary>
+    [Fact]
+    public async Task GetMyStatsAsync_ForbiddenLatchesTheNoAccessFlag()
+    {
+        using var handler = new RecordingHandler(_ => ErrorResponse(HttpStatusCode.Forbidden));
+        using var service = CreateService(handler);
+
+        await service.GetMyStatsAsync();
+
         Assert.True(service.TasksForbidden);
     }
 
