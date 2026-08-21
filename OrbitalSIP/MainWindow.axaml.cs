@@ -463,11 +463,11 @@ namespace OrbitalSIP
 
         private void ShowTasks()
         {
-            // TODO(task-8): replace with the real TasksView, and add its arm to the switch
-            // in AttachNav. Until then this shows a dialer, and AttachNav lights the Dialer
-            // tab because that is what is actually on screen — a lit Tasks tab over a
-            // dialpad would be the lying highlight this rework exists to remove.
-            SetMainContent(CreateDialerView());
+            var tasks = new Views.TasksView();
+            tasks.OnCloseRequested += (_, __) => ToggleExpanded();
+            tasks.OnExitAppRequested += (_, __) => ShutdownApp();
+
+            SetMainContent(tasks);
         }
 
         private void ShowDialer()
@@ -959,8 +959,8 @@ namespace OrbitalSIP
             _currentTab = content switch
             {
                 Views.RecentsView  => NavTab.Recents,
+                Views.TasksView    => NavTab.Tasks,
                 Views.SettingsView => NavTab.Settings,
-                // TasksView joins this list with task 8 — see ShowTasks.
                 _                  => NavTab.Dialer,
             };
 
