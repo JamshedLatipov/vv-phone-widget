@@ -81,6 +81,15 @@ public static class ShellRouter
                 ? s with { Shell = Shell.Panel, Route = NavRoute.Call }
                 : s with { Shell = Shell.CallBar },
 
+        // The guard is belt-and-braces, not the source of correctness: without it this arm
+        // would still hand back the same state, because Normalize walks Route off Call the
+        // moment the call is Idle, and every arm that leaves Route on a tab sets LastNonCall
+        // to that same tab — so the fall-back lands where the operator already was. Review
+        // found the guard mutable to `true` against all 728 tests, and could only observe it
+        // by hand-building a state with LastNonCall out of step with Route, which no arm of
+        // this table produces. Kept because the strip's own predicate asks the same question,
+        // and an arm that answers it out loud is cheaper to read than one that relies on a
+        // repair two files away.
         UiEvent.ReturnStripPressed when CallIsLive(call) =>
             s with { Shell = Shell.Panel, Route = NavRoute.Call },
 

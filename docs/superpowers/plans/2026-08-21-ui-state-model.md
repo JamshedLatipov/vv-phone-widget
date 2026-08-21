@@ -1731,6 +1731,10 @@ git commit -m "feat(nav): let the bar light nothing at all"
             nav.TabSelected -= OnNavTabSelected;
             nav.TabSelected += OnNavTabSelected;
             nav.ActiveTab = ShellRouter.TabFor(s.Route);
+            // Active or OnHold, and deliberately not "any live call": this lamp says the
+            // operator is in a conversation, while ShellRouter.ShowReturnStrip asks whether
+            // there is anything to go back to and counts an outgoing ringback too. Two
+            // neighbouring notions of "on a call" that are not the same notion.
             nav.SetInCall(App.SipService.State is CallState.Active or CallState.OnHold);
             nav.SetLoginMode(s.Shell == Shell.LoginSettings);
             ApplyBadges(nav);
