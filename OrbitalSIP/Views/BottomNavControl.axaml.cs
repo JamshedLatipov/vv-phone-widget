@@ -25,7 +25,7 @@ namespace OrbitalSIP.Views
         public event EventHandler<NavTab>? TabSelected;
 
         private readonly Dictionary<NavTab, Button> _buttons = new();
-        private NavTab _activeTab = NavTab.Dialer;
+        private NavTab? _activeTab;
         private bool _inCall;
         private bool _loginMode;
 
@@ -108,15 +108,19 @@ namespace OrbitalSIP.Views
             }
         }
 
-        /// <summary>Which tab reads as current. Set by MainWindow, never inferred here.</summary>
-        public NavTab ActiveTab
+        /// <summary>
+        /// Which tab reads as current, or null when the operator is on none of the four:
+        /// the call screen is reached only through the return strip and has no slot on
+        /// this bar.
+        /// </summary>
+        public NavTab? ActiveTab
         {
             get => _activeTab;
             set
             {
                 _activeTab = value;
                 foreach (var (tab, button) in _buttons)
-                    button.Classes.Set("active", tab == value);
+                    button.Classes.Set("active", value.HasValue && tab == value.Value);
                 RefreshTabVisuals();
             }
         }
@@ -167,7 +171,7 @@ namespace OrbitalSIP.Views
             // shout in a tooltip. Assigned rather than bound; see the comment on DialerBtn.
             ToolTip.SetTip(dialerBtn, I18nService.Instance.Get(NavTabIcon.TooltipKeyFor(kind)));
 
-            SetPulse(dialerBtn, NavPulse.ShouldPulse(inCall, _activeTab));
+            SetPulse(dialerBtn, _activeTab.HasValue && NavPulse.ShouldPulse(inCall, _activeTab.Value));
         }
 
         /// <summary>
