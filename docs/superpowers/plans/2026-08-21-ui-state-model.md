@@ -467,7 +467,7 @@ public sealed record UiState(
 - [ ] **Step 4: Запустить и убедиться, что проходит**
 
 Run: `dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~UiStateTests"`
-Expected: PASS, 6 тестов.
+Expected: PASS, 7 тестов.
 
 - [ ] **Step 5: Закоммитить**
 
@@ -710,7 +710,7 @@ public static class ShellRouter
 - [ ] **Step 4: Запустить и убедиться, что проходит**
 
 Run: `dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~ShellRouterSessionTests"`
-Expected: PASS, 14 тестов (`[Theory]` разворачивается в набор случаев).
+Expected: PASS, 16 тестов — 4 `[Fact]` плюс три `[Theory]` по четыре случая каждая.
 
 - [ ] **Step 5: Закоммитить**
 
