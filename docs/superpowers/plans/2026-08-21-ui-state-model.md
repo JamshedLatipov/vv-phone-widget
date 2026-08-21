@@ -1158,22 +1158,36 @@ public class ShellRouterCallTests
         Assert.Equal(before, Reduce(before, new UiEvent.IncomingCall(), CallState.Active));
     }
 
-    [Fact]
-    public void DecliningGoesBackHome()
+    /// <summary>
+    /// Declining puts the operator back where the ringing interrupted them. Both Home values
+    /// on purpose: with a single one, an arm that had stopped reading Home and hardcoded that
+    /// same surface would pass — which is exactly what a mutation of this arm did, against all
+    /// 712 tests, before this test was widened.
+    /// </summary>
+    [Theory]
+    [InlineData(Shell.Collapsed)]
+    [InlineData(Shell.Panel)]
+    public void DecliningGoesBackHome(Shell home)
     {
-        var s = Reduce(UiState.Initial(true) with { Shell = Shell.Incoming, Home = Shell.Collapsed },
+        var s = Reduce(UiState.Initial(true) with { Shell = Shell.Incoming, Home = home },
                        new UiEvent.IncomingDeclined(), CallState.Idle);
 
-        Assert.Equal(Shell.Collapsed, s.Shell);
+        Assert.Equal(home, s.Shell);
     }
 
-    [Fact]
-    public void AMissedCallGoesBackHomeToo()
+    /// <summary>
+    /// A call that rings out and is never answered goes back the same way a declined one does.
+    /// Both Home values, for the reason spelled out on DecliningGoesBackHome above.
+    /// </summary>
+    [Theory]
+    [InlineData(Shell.Collapsed)]
+    [InlineData(Shell.Panel)]
+    public void AMissedCallGoesBackHomeToo(Shell home)
     {
-        var s = Reduce(UiState.Initial(true) with { Shell = Shell.Incoming, Home = Shell.Panel },
+        var s = Reduce(UiState.Initial(true) with { Shell = Shell.Incoming, Home = home },
                        new UiEvent.CallStateChanged(CallState.Idle), CallState.Idle);
 
-        Assert.Equal(Shell.Panel, s.Shell);
+        Assert.Equal(home, s.Shell);
     }
 
     [Fact]

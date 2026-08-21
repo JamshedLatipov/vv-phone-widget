@@ -14,6 +14,11 @@ namespace OrbitalSIP.Models;
 /// takes it as a parameter.
 ///
 /// LastNonCall is where Route falls back to when the call it was showing ends.
+///
+/// Home is written only by the expand and collapse gestures, and read by the
+/// call-interruption arms as where to land when the interruption ends. Those are the same
+/// value today only because nothing moves Shell away from Home while an incoming call is
+/// ringing.
 /// </summary>
 public sealed record UiState(
     Shell    Shell,
