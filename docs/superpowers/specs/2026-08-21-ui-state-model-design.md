@@ -112,7 +112,6 @@ public static class ShellRouter
 ```csharp
 public abstract record UiEvent
 {
-    public sealed record Started(bool HasCredentials)  : UiEvent;
     public sealed record LoginSucceeded                : UiEvent;
     public sealed record SessionExpired                : UiEvent;
     public sealed record LoginSettingsRequested        : UiEvent;
@@ -135,8 +134,8 @@ public abstract record UiEvent
 
 | Событие | Условие | Результат |
 |---|---|---|
-| `Started` | нет учётных данных | `Login` |
-| `Started` | есть | `Collapsed`, `Home=Collapsed`, `Route=LastNonCall=Dialer` |
+| *старт процесса* | нет учётных данных | `Login` |
+| *старт процесса* | есть | `Collapsed`, `Home=Collapsed`, `Route=LastNonCall=Dialer` |
 | `LoginSucceeded` | — | `Collapsed`, `Home=Collapsed`, `Route=LastNonCall=Dialer` |
 | `SessionExpired` | `call == Idle` | `Login`; окна-диалоги закрыть |
 | `SessionExpired` | звонок жив | состояние не меняется, событие отложено до `CallStateChanged(Idle)` |
@@ -163,6 +162,11 @@ public abstract record UiEvent
 | `CallStateChanged(Idle)` | `Shell == Incoming` | `Home` |
 | `CallStateChanged(_)` | прочее | без изменений |
 | `StatusPopupToggled(v)` | — | `StatusPopup = v` |
+
+Первые две строки — не событие. У старта процесса нет предыдущего состояния, которое
+редьюсер мог бы взять на вход, поэтому он выражается фабрикой `UiState.Initial(bool
+hasCredentials)`, а не проходит через `Reduce`. В таблице они стоят потому, что
+описывают то же самое: с чего начинается окно.
 
 Поверх таблицы действуют три инварианта, которые редьюсер применяет к своему
 результату, а не к каждой строке по отдельности:
