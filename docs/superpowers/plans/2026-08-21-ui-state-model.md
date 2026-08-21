@@ -1231,6 +1231,22 @@ public class ShellRouterCallTests
     }
 
     /// <summary>
+    /// The other direction of the status-popup rule. ShellRouterPipelineTests pins a call
+    /// ending that moves the route out from under an open popup and takes the popup with
+    /// it; this pins that a call ending which moves nothing leaves the popup alone. Without
+    /// it, clearing the popup unconditionally would pass every other test in the suite.
+    /// </summary>
+    [Fact]
+    public void ACallEndingSomewhereElseLeavesTheStatusPopupOpen()
+    {
+        var before = Panel(NavRoute.Tasks) with { StatusPopup = true };
+
+        var after = Reduce(before, new UiEvent.CallStateChanged(CallState.Idle), CallState.Idle);
+
+        Assert.True(after.StatusPopup);
+    }
+
+    /// <summary>
     /// The states in the middle of a call do not move the screen: their business is the
     /// labels and the buttons on a screen that is already open.
     /// </summary>
@@ -1274,6 +1290,9 @@ Expected: FAIL — `APanelHomeAnswersTheCallOnTheCallRoute` падает: `Route
         UiEvent.ExpandRequested when s.Shell == Shell.CallBar =>
             s with { Shell = Shell.Panel, Route = NavRoute.Call, Home = Shell.Panel },
 
+        // Above the general CollapseRequested arm from Task 4, and that order is
+        // load-bearing: the general one would answer first and collapse a live call to the
+        // widget, losing hangup, mute and hold to an operator who is still talking.
         UiEvent.CollapseRequested when call != CallState.Idle =>
             s with { Shell = Shell.CallBar, Home = Shell.Collapsed },
 
