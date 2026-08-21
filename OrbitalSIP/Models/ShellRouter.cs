@@ -81,7 +81,7 @@ public static class ShellRouter
                 ? s with { Shell = Shell.Panel, Route = NavRoute.Call }
                 : s with { Shell = Shell.CallBar },
 
-        UiEvent.ReturnStripPressed when call != CallState.Idle =>
+        UiEvent.ReturnStripPressed when CallIsLive(call) =>
             s with { Shell = Shell.Panel, Route = NavRoute.Call },
 
         UiEvent.ExpandRequested when s.Shell == Shell.CallBar =>
@@ -92,7 +92,7 @@ public static class ShellRouter
         // CS8510, not a warning — so this note is here for the reason, which CS8510 does
         // not give: below it, a live call would collapse to the widget and take hangup,
         // mute and hold away from an operator who is still talking.
-        UiEvent.CollapseRequested when call != CallState.Idle =>
+        UiEvent.CollapseRequested when CallIsLive(call) =>
             s with { Shell = Shell.CallBar, Home = Shell.Collapsed },
 
         UiEvent.CollapseRequested =>
@@ -108,6 +108,28 @@ public static class ShellRouter
 
         _ => s,
     };
+
+    /// <summary>
+    /// Whether there is a call to go back to.
+    ///
+    /// Not Idle, and nothing finer: an outgoing ringback is already something the operator
+    /// can return to, and so is a call on hold. Named because three separate places ask it —
+    /// the ReturnStripPressed arm, the call-gated CollapseRequested arm, and the predicate
+    /// below — and three copies of the same comparison drift apart the day "live" needs a
+    /// narrower definition.
+    /// </summary>
+    private static bool CallIsLive(CallState call) => call != CallState.Idle;
+
+    /// <summary>
+    /// Whether the way back to the call is on screen.
+    ///
+    /// IncomingRinging never reaches this predicate — an incoming call lives on
+    /// Shell.Incoming, where there is no panel to carry the strip.
+    /// </summary>
+    public static bool ShowReturnStrip(UiState state, CallState call) =>
+        state.Shell == Shell.Panel &&
+        state.Route != NavRoute.Call &&
+        CallIsLive(call);
 
     /// <summary>The bar slot that reads as current, or null — the call screen has none.</summary>
     public static NavTab? TabFor(NavRoute route) => route switch
