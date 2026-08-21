@@ -397,7 +397,7 @@ public class UiStateTests
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
 Run: `dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~UiStateTests"`
-Expected: FAIL — `error CS0246: The type or namespace name 'UiState' could not be found`.
+Expected: FAIL — `error CS0103: The name 'UiState' does not exist in the current context`, once per `UiState.Initial(...)`. CS0103 rather than the CS0246 of the previous task because this test never names the type in a type position: it only calls a static member on it, and Roslyn reports an unresolved simple name in an expression as CS0103.
 
 - [ ] **Step 3: Написать минимальную реализацию**
 
@@ -1678,6 +1678,8 @@ git commit -m "refactor(ui): the window starts rendering a state instead of deci
 `StartOutgoingCall` — оставить проверку `State != CallState.Idle` и `CallAsync`, а ветвление по `_preferredMode` заменить на `Dispatch(new UiEvent.CallStarted())` **до** `await CallAsync`, чтобы экран поднялся сразу.
 
 `OnSessionExpired` — ветку `if (App.SipService.State != CallState.Idle) { _sessionExpiredPending = true; return; }` оставить; вместо `ShowLoginAfterSessionExpiry()` вызвать `Dispatch(new UiEvent.SessionExpired())` и `CloseDialogWindows()` (метод появится в Task 12; пока завести пустым).
+
+`_sessionExpiredPending` — единственное поле, которое эта работа оставляет на `MainWindow` вручную, хотя вся её суть в том, чтобы такие поля убрать. Так и задумано, и вот почему: оно описывает не то, чем окно является, а то, что одно событие пришло слишком рано и его придётся послать ещё раз. `UiState` отвечает на вопрос «что нарисовать», и добавление в него флага «а ещё где-то ждёт своей очереди истёкшая сессия» вернуло бы в запись ровно тот вид скрытой связности, ради удаления которого она заведена. Держать его снаружи безопасно потому, что читается он в одном месте и сбрасывается там же, на первом же `Idle`. Добавить этот абзац комментарием к полю.
 
 `ShowLoginAfterSessionExpiry` удалить целиком — центрирование теперь делает `PlaceCentered` из `Apply`, гашение анимации — `CancelAnimation`.
 
