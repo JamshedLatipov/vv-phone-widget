@@ -26,6 +26,10 @@ public static class ShellRouter
         return next;
     }
 
+    // The shape of an arm says whether its payload is used further: a bare type pattern
+    // when the event carries nothing (ten of the thirteen do), a property pattern when the
+    // payload is only tested, a capture when it goes into the result. Three styles on
+    // purpose — do not flatten them into one.
     private static UiState Route(UiState s, UiEvent e, CallState call) => e switch
     {
         UiEvent.LoginSucceeded => s with
@@ -50,6 +54,45 @@ public static class ShellRouter
         UiEvent.SessionExpired when call == CallState.Idle =>
             s with { Shell = Shell.Login },
 
+        // Below the LoginSettings arm above, and that order is load-bearing: in login mode
+        // a tab press goes back to login, and a general TabPressed arm placed higher would
+        // swallow it and open a panel to an operator with no session.
+        UiEvent.TabPressed t when s.Shell == Shell.Panel && RouteFor(t.Tab) == s.Route => s,
+
+        UiEvent.TabPressed t => s with
+        {
+            Shell       = Shell.Panel,
+            Route       = RouteFor(t.Tab),
+            LastNonCall = RouteFor(t.Tab),
+        },
+
+        UiEvent.ExpandRequested when s.Shell == Shell.Collapsed =>
+            s with { Shell = Shell.Panel, Home = Shell.Panel },
+
+        UiEvent.CollapseRequested =>
+            s with { Shell = Shell.Collapsed, Home = Shell.Collapsed },
+
+        UiEvent.StatusPopupToggled p => s with { StatusPopup = p.Open },
+
         _ => s,
+    };
+
+    /// <summary>The bar slot that reads as current, or null — the call screen has none.</summary>
+    public static NavTab? TabFor(NavRoute route) => route switch
+    {
+        NavRoute.Dialer   => NavTab.Dialer,
+        NavRoute.Recents  => NavTab.Recents,
+        NavRoute.Tasks    => NavTab.Tasks,
+        NavRoute.Settings => NavTab.Settings,
+        _                 => null,
+    };
+
+    private static NavRoute RouteFor(NavTab tab) => tab switch
+    {
+        NavTab.Dialer   => NavRoute.Dialer,
+        NavTab.Recents  => NavRoute.Recents,
+        NavTab.Tasks    => NavRoute.Tasks,
+        NavTab.Settings => NavRoute.Settings,
+        _               => NavRoute.Dialer,
     };
 }

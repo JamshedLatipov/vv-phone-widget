@@ -27,6 +27,11 @@ public abstract record UiEvent
     /// <summary>An incoming call answered or an outgoing one started — to the window these are the same thing.</summary>
     public sealed record CallStarted               : UiEvent;
 
+    /// <summary>
+    /// The call state the window is being told about. Must be the same value the dispatcher
+    /// passes to Reduce as its third argument — both come from App.SipService.State, read
+    /// once, and nothing in the type system holds them together.
+    /// </summary>
     public sealed record CallStateChanged(CallState State) : UiEvent;
 
     public sealed record StatusPopupToggled(bool Open)     : UiEvent;
