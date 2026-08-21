@@ -2520,6 +2520,22 @@ git commit -m "feat(nav): poll badge counts once per session instead of once per
 
 ## Task 8: Экран `TasksView`
 
+> **Две ошибки в тексте ниже, найденные при выполнении.**
+>
+> - Ключи `DueToday`/`DueTomorrow`/`DueOverdue` переименованы в `TaskDue*`. `DueTomorrow`
+>   уже занят во всех четырёх файлах — это пресет срока в `TaskDialog` («Завтра, 09:00»).
+>   Дубликат не падает: `Dictionary<string,string>` молча берёт последнее значение, и
+>   пикер срока тихо потерял бы своё.
+> - `if (_isLoading) return;` в `LoadAsync` **отбрасывал новую загрузку**, а не отменял
+>   старую. Чип «Все» загорелся бы над списком открытых задач, и поправить это было бы
+>   уже нечем. Заменено на отмену предыдущей загрузки через `CancellationToken` — ради
+>   чего `TaskService.SendAsync` и прокидывает отмену наружу вместо того, чтобы о ней
+>   докладывать.
+>
+> Плюс `_currentTab` в `ShowTasks` не присваивается — он выводится из типа контента в
+> `AttachNav` начиная с Task 4.
+
+
 > **Открытый вопрос, оставленный Task 7.** «Просмотрено» для бейджа «История» — это переход
 > на вкладку, а нажатие на уже активную вкладку `NavigateTo` намеренно делает инертным.
 > Значит пропущенный звонок, пришедший пока оператор **уже стоит** в «Истории», зажигает
@@ -2547,9 +2563,9 @@ git commit -m "feat(nav): poll badge counts once per session instead of once per
   "TasksNoAccess": "Нет доступа к задачам",
   "TaskDone": "Выполнено",
   "TaskDoneFailed": "Не удалось изменить статус задачи",
-  "DueToday": "сегодня",
-  "DueTomorrow": "завтра",
-  "DueOverdue": "просрочено",
+  "TaskDueToday": "сегодня",
+  "TaskDueTomorrow": "завтра",
+  "TaskDueOverdue": "просрочено",
 ```
 
 `uz.json`:
@@ -2632,9 +2648,9 @@ namespace OrbitalSIP.ViewModels
 
             var due = bucket switch
             {
-                DueBucket.Overdue  => $"{i18n.Get("DueOverdue")} {time}".Trim(),
-                DueBucket.Today    => $"{i18n.Get("DueToday")} {time}".Trim(),
-                DueBucket.Tomorrow => $"{i18n.Get("DueTomorrow")} {time}".Trim(),
+                DueBucket.Overdue  => $"{i18n.Get("TaskDueOverdue")} {time}".Trim(),
+                DueBucket.Today    => $"{i18n.Get("TaskDueToday")} {time}".Trim(),
+                DueBucket.Tomorrow => $"{i18n.Get("TaskDueTomorrow")} {time}".Trim(),
                 DueBucket.Later    => time,
                 _                  => string.Empty,
             };
