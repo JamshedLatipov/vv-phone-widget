@@ -493,6 +493,7 @@ git commit -m "feat(ui): the whole window as one record, with two invariants"
 - Create: `OrbitalSIP/Models/UiEvent.cs`
 - Create: `OrbitalSIP/Models/ShellRouter.cs`
 - Test: `OrbitalSIP.Tests/ShellRouterSessionTests.cs`
+- Test: `OrbitalSIP.Tests/ShellRouterPipelineTests.cs`
 
 Первая треть таблицы: старт, вход, настройки до входа, истечение сессии.
 
@@ -616,6 +617,46 @@ public class ShellRouterSessionTests
 }
 ```
 
+Создать `OrbitalSIP.Tests/ShellRouterPipelineTests.cs`:
+
+```csharp
+using OrbitalSIP.Models;
+using OrbitalSIP.Services;
+using Xunit;
+
+namespace OrbitalSIP.Tests;
+
+/// <summary>
+/// What Reduce does around the transition table, rather than in it: normalizing the result
+/// and closing the status popup when the screen moves. Both are easy to lose — dropping the
+/// Normalize call from Reduce left all 675 tests of the day green, and the popup rule was
+/// being asked before normalization instead of after, so a route that moved only by
+/// normalization did not count as a screen change.
+/// </summary>
+public class ShellRouterPipelineTests
+{
+    /// <summary>
+    /// The call screen with the status popup open, and the far side hangs up. There is no
+    /// transition row for this on purpose — Normalize is the whole mechanism — so this is
+    /// also the test that proves Reduce still calls it.
+    /// </summary>
+    [Fact]
+    public void ACallEndingUnderTheStatusPopupTakesBothTheRouteAndThePopupWithIt()
+    {
+        var onCall = UiState.Initial(true) with
+        {
+            Shell = Shell.Panel, Route = NavRoute.Call, LastNonCall = NavRoute.Tasks,
+            Home = Shell.Panel, StatusPopup = true,
+        };
+
+        var after = ShellRouter.Reduce(onCall, new UiEvent.CallStateChanged(CallState.Idle), CallState.Idle);
+
+        Assert.Equal(NavRoute.Tasks, after.Route);
+        Assert.False(after.StatusPopup);
+    }
+}
+```
+
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
 Run: `dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~ShellRouterSessionTests"`
@@ -681,10 +722,15 @@ public static class ShellRouter
 {
     public static UiState Reduce(UiState state, UiEvent e, CallState call)
     {
-        var next = Route(state, e, call);
+        // Normalize before the comparison, not after: it is Normalize that walks the route
+        // off Call when a call ends, and a route that moves only by normalization is still
+        // a screen change. Asking the question first left the status popup open across it.
+        var next = Route(state, e, call).Normalize(call);
+
         if (next.Shell != state.Shell || next.Route != state.Route)
             next = next with { StatusPopup = false };
-        return next.Normalize(call);
+
+        return next;
     }
 
     private static UiState Route(UiState s, UiEvent e, CallState call) => e switch
@@ -719,7 +765,7 @@ public static class ShellRouter
 - [ ] **Step 4: Запустить и убедиться, что проходит**
 
 Run: `dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q --filter "FullyQualifiedName~ShellRouterSessionTests"`
-Expected: PASS, 16 тестов — 4 `[Fact]` плюс три `[Theory]` по четыре случая каждая.
+Expected: PASS, 17 тестов — 4 `[Fact]` плюс три `[Theory]` по четыре случая каждая.
 
 - [ ] **Step 5: Закоммитить**
 

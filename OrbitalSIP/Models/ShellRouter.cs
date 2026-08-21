@@ -15,10 +15,15 @@ public static class ShellRouter
 {
     public static UiState Reduce(UiState state, UiEvent e, CallState call)
     {
-        var next = Route(state, e, call);
+        // Normalize before the comparison, not after: it is Normalize that walks the route
+        // off Call when a call ends, and a route that moves only by normalization is still
+        // a screen change. Asking the question first left the status popup open across it.
+        var next = Route(state, e, call).Normalize(call);
+
         if (next.Shell != state.Shell || next.Route != state.Route)
             next = next with { StatusPopup = false };
-        return next.Normalize(call);
+
+        return next;
     }
 
     private static UiState Route(UiState s, UiEvent e, CallState call) => e switch
