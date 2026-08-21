@@ -224,6 +224,7 @@ namespace OrbitalSIP.Views
         {
             _onHold = isOnHold;
             UpdateHoldUI();
+            UpdateDtmfPadEnabled();
 
             var label = this.FindControl<TextBlock>("StatusLabel");
             var dot = this.FindControl<Ellipse>("StatusDot");
@@ -267,7 +268,7 @@ namespace OrbitalSIP.Views
 
             var keypad = this.FindControl<Button>("KeypadBtn");
             if (keypad != null)
-                keypad.Click += (_, __) => OnKeypadRequested?.Invoke(this, EventArgs.Empty);
+                keypad.Click += (_, __) => ToggleDtmfPanel();
 
             var scriptBtn = this.FindControl<Button>("ScriptBtn");
             if (scriptBtn != null)
@@ -1107,6 +1108,7 @@ namespace OrbitalSIP.Views
         {
             _onHold = !_onHold;
             UpdateHoldUI();
+            UpdateDtmfPadEnabled();
             OnHoldToggled?.Invoke(this, _onHold);
         }
 
@@ -1153,7 +1155,6 @@ namespace OrbitalSIP.Views
         public event EventHandler<bool>?  OnMuteToggled;      // arg = isMuted
         public event EventHandler<bool>?  OnHoldToggled;      // arg = isOnHold
         public event EventHandler<string>? OnTransferRequested; // arg = destination
-        public event EventHandler?        OnKeypadRequested;
         public event EventHandler?        OnMinimizeRequested;
         public event EventHandler?        OnAvatarClicked;
         public event EventHandler?        OnExitAppRequested;

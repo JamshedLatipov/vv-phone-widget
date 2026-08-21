@@ -716,7 +716,6 @@ namespace OrbitalSIP
             // The state the view asked for, not a blind flip — see SipService.SetHold.
             callView.OnHoldToggled += (_, onHold) => App.SipService.SetHold(onHold);
             callView.OnTransferRequested += async (_, dest) => await App.SipService.BlindTransferAsync(dest);
-            callView.OnKeypadRequested += (_, __) => ShowDialer();
             callView.OnAvatarClicked += (_, __) => ShowStatusPopup();
         }
 

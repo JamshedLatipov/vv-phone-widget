@@ -146,6 +146,22 @@
             </StackPanel>
           </Border>
 
+          <!-- In-call DTMF pad. Digit buttons are built in code (see
+               ActiveCallView.Dtmf.cs) since they all share one Click handler;
+               the hold hint stays XAML because it is static text. -->
+          <Border Name="DtmfPanel" IsVisible="False"
+                  Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1"
+                  CornerRadius="14" Padding="14,12">
+            <StackPanel Spacing="8">
+              <TextBlock Name="DtmfEchoLabel" Text="" FontSize="14" FontWeight="SemiBold"
+                         Foreground="#F8FAFC" HorizontalAlignment="Center" MinHeight="18" />
+              <TextBlock Name="DtmfHoldHintLabel" IsVisible="False"
+                         Text="{i18n:I18n DtmfHoldHint}" FontSize="11" Foreground="#F59E0B"
+                         HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+              <UniformGrid Name="DtmfGrid" Columns="3" Rows="4" />
+            </StackPanel>
+          </Border>
+
           <!-- Active-lead panel. Visibility of every block below is driven from
                LeadCallPanelPresenter.SelectState — never from lead == null. -->
           <Border Name="LeadPanel" IsVisible="False"
