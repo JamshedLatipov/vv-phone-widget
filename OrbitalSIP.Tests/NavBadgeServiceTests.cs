@@ -174,13 +174,15 @@ public class NavBadgeServiceTests
 
     /// <summary>
     /// Stop() ends the session, and a poll already past the gate must not write into the
-    /// next one. Held open at the details endpoint, stopped underneath, then released: the
-    /// failure it comes back with belonged to a session that is over, so it may not re-open
-    /// the streak Stop() just reset, and the total it carries may not reach the badge.
+    /// next one. Held open at the details endpoint, stopped underneath, then released with
+    /// a perfectly good answer: those are the outgoing operator's missed calls, and the
+    /// session they were asked for is over, so nothing they say may land.
     ///
-    /// Without the generation check the interval comes back four minutes and the outgoing
-    /// operator's missed calls land on the incoming operator's bar — and _timer, by then,
-    /// could be the next session's.
+    /// The answer has to succeed for this to test anything. A failing one moves neither
+    /// the badge nor — on a single failure — the interval, because PollBackoff's first step
+    /// is the healthy interval itself, so the assertions hold whether the guard is there or
+    /// not. That is exactly how the first version of this test passed against a build with
+    /// the guard neutered.
     /// </summary>
     [Fact]
     public async Task Stop_DisownsAPollThatWasAlreadyInFlight()
@@ -194,7 +196,7 @@ public class NavBadgeServiceTests
             if (!IsDetails(req)) return Json(BodyFor(req, missed: 0));
             reached.TrySetResult();
             await release.Task;
-            return Error(HttpStatusCode.InternalServerError);
+            return Json(BodyFor(req, missed: 7));
         });
         using var http = new HttpClient(handler);
         using var service = Service(http, () => settings);
@@ -206,27 +208,26 @@ public class NavBadgeServiceTests
         release.SetResult();
         await poll;
 
-        Assert.Equal(TimeSpan.FromMinutes(2), service.PollInterval);
         Assert.Equal(0, service.NewMissed);
+        Assert.Null(service.OperatorStats);
     }
 
     /// <summary>
-    /// The other direction, so the test above cannot pass on a build that ignores every
-    /// poll: the same failing poll, nobody stopping anything, does move the streak.
+    /// The mirror, so the test above cannot pass on a build that drops every poll: the same
+    /// answer, nobody stopping anything, does reach the badge.
     /// </summary>
     [Fact]
-    public async Task APollNobodyStoppedStillCounts()
+    public async Task APollNobodyStoppedStillLands()
     {
         var settings = Settings();
-        using var handler = new StubHandler(req =>
-            IsDetails(req) ? Error(HttpStatusCode.InternalServerError) : Json(BodyFor(req, missed: 0)));
+        using var handler = new StubHandler(req => Json(BodyFor(req, missed: 7)));
         using var http = new HttpClient(handler);
         using var service = Service(http, () => settings);
 
         await service.RefreshNowAsync();
-        await service.RefreshNowAsync();
 
-        Assert.Equal(TimeSpan.FromMinutes(4), service.PollInterval);
+        Assert.Equal(7, service.NewMissed);
+        Assert.Equal(7, service.OperatorStats?.MissedCalls);
     }
 
     // ── Harness ───────────────────────────────────────────────────────
