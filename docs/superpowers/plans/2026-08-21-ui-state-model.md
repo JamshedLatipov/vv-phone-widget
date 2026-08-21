@@ -1468,21 +1468,36 @@ Expected: FAIL — `error CS0117: 'ShellRouter' does not contain a definition fo
 
 - [ ] **Step 3: Написать минимальную реализацию**
 
-В `ShellRouter`:
+В `ShellRouter` — сначала имя для условия, которое здесь появилось бы третьим по счёту:
 
 ```csharp
     /// <summary>
+    /// Whether there is a call to go back to.
+    ///
+    /// Not Idle, and nothing finer: an outgoing ringback is already something the operator
+    /// can return to, and so is a call on hold. Named because three separate places ask it —
+    /// the ReturnStripPressed arm, the call-gated CollapseRequested arm, and the predicate
+    /// below — and three copies of the same comparison drift apart the day "live" needs a
+    /// narrower definition.
+    /// </summary>
+    private static bool CallIsLive(CallState call) => call != CallState.Idle;
+
+    /// <summary>
     /// Whether the way back to the call is on screen.
     ///
-    /// "The call is live" here means "not Idle": an outgoing ringback already gives the
-    /// operator something to go back to. IncomingRinging never reaches this predicate — an
-    /// incoming call lives on Shell.Incoming, where there is no panel to carry the strip.
+    /// IncomingRinging never reaches this predicate — an incoming call lives on
+    /// Shell.Incoming, where there is no panel to carry the strip.
     /// </summary>
     public static bool ShowReturnStrip(UiState state, CallState call) =>
         state.Shell == Shell.Panel &&
         state.Route != NavRoute.Call &&
-        call != CallState.Idle;
+        CallIsLive(call);
 ```
+
+Затем заменить обе уже написанные проверки на вызов: в ветке `UiEvent.ReturnStripPressed`
+и в call-gated `UiEvent.CollapseRequested` вместо `call != CallState.Idle` вызвать
+`CallIsLive(call)`. Тесты Task 5 не должны при этом дрогнуть — поведение то же, меняется
+только то, что условие теперь названо.
 
 - [ ] **Step 4: Запустить и убедиться, что проходит**
 
@@ -1583,7 +1598,17 @@ git commit -m "feat(nav): let the bar light nothing at all"
         /// </summary>
         private void Dispatch(UiEvent e)
         {
-            var next = ShellRouter.Reduce(_state, e, App.SipService.State);
+            // The event's own payload wins over the live property when it has one. Both come
+            // from App.SipService.State, but at different moments: SIP events arrive on
+            // background threads and reach here through InvokeAsync, so the property can have
+            // moved on by the time this runs. A CallStateChanged(Idle) still queued when the
+            // next call starts ringing would otherwise be reduced against IncomingRinging —
+            // the arm matching the payload would fire while Normalize, reading the parameter,
+            // decided the call was still alive and left the route on the call screen. One
+            // reduction, two answers to "is there a call".
+            var call = e is UiEvent.CallStateChanged changed ? changed.State : App.SipService.State;
+
+            var next = ShellRouter.Reduce(_state, e, call);
 
             // Record equality, and it carries more weight than it looks: this is what makes
             // a press on the already-lit tab free. ShellRouter has an arm for that case, but
