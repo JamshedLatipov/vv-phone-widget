@@ -75,6 +75,20 @@ public class OpenTaskListTests
         Assert.Equal(1, merged.Count(task => task.Id == 7));
     }
 
+    /// <summary>
+    /// A "data": [null] is what System.Text.Json makes of a null row, and grouping by
+    /// task.Id would dereference it. The promise is that an absent thing contributes
+    /// nothing rather than throwing on the way past — an element is no different from a
+    /// response in that respect.
+    /// </summary>
+    [Fact]
+    public void NullRowsContributeNothing()
+    {
+        var merged = OpenTaskList.From(new[] { Task(1), null, Task(2) }, new TaskItem?[] { null });
+
+        Assert.Equal(new[] { 1, 2 }, merged.Select(t => t.Id).OrderBy(id => id));
+    }
+
     [Fact]
     public void NewestCreatedComesFirst()
     {
