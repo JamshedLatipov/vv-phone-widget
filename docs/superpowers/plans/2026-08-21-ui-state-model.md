@@ -351,6 +351,21 @@ public class UiStateTests
     }
 
     /// <summary>
+    /// A call ending while the operator is on some other tab must leave them there. This is
+    /// the guarantee the transition table has no row for — Task 5 leaves it to Normalize on
+    /// purpose — and it is the only case that tells "fall back when Route is Call" apart
+    /// from "fall back whenever the call is over". Review caught it missing by deleting the
+    /// Route check and watching all 658 tests stay green.
+    /// </summary>
+    [Fact]
+    public void ANonCallRouteSurvivesTheCallEndingUnderIt()
+    {
+        var s = UiState.Initial(true) with { Route = NavRoute.Tasks, LastNonCall = NavRoute.Recents };
+
+        Assert.Equal(NavRoute.Tasks, s.Normalize(CallState.Idle).Route);
+    }
+
+    /// <summary>
     /// A LastNonCall that had become Call would turn the fall-back after a call into a
     /// return to the call — an endless call screen with no way out of it.
     /// </summary>
@@ -403,6 +418,8 @@ namespace OrbitalSIP.Models;
 /// CallState is deliberately not among them: its one source is SipService, and a mirror of
 /// the call state kept inside the UI has already cost a DTMF panel once. Whatever needs it
 /// takes it as a parameter.
+///
+/// LastNonCall is where Route falls back to when the call it was showing ends.
 /// </summary>
 public sealed record UiState(
     Shell    Shell,
@@ -428,6 +445,9 @@ public sealed record UiState(
     ///
     /// The order is not optional: LastNonCall is repaired first, because Route falls back
     /// onto it.
+    ///
+    /// Dialer, not some other route: it is what Initial starts on, so a state whose
+    /// fall-back has been lost lands where a fresh one would.
     /// </summary>
     public UiState Normalize(CallState call)
     {
