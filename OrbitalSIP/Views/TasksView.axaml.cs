@@ -23,13 +23,19 @@ namespace OrbitalSIP.Views
         private readonly ObservableCollection<TaskItemViewModel> _items = new();
         private bool _openOnly = true;
 
+        /// <summary>Which filter the rows currently on screen were fetched for.</summary>
+        private bool _shownOpenOnly = true;
+
         /// <summary>
         /// The load still in flight, so a newer one can call it off.
         ///
-        /// Not an _isLoading flag that turns the newer load away: the chips change
-        /// <see cref="_openOnly"/> before they ask for a load, so a refused load leaves the
-        /// All chip lit over a list of open tasks — the screen would be lying about what it
-        /// is showing, and nothing would ever correct it.
+        /// Not an _isLoading flag that turns the newer load away. The chips light before
+        /// the load they ask for has answered, so a load dropped on the floor would leave
+        /// the All chip lit over the open list with nothing to put it right: no request was
+        /// made, so no answer and no failure is coming, and the operator's last tap simply
+        /// did not happen. Cancelling instead means the newest tap always wins, and a load
+        /// that fails hands the chip back through <see cref="RevertFilterChip"/> — between
+        /// them, the chip describes the rows.
         /// </summary>
         private CancellationTokenSource? _loadCts;
 
@@ -80,12 +86,34 @@ namespace OrbitalSIP.Views
         private void SetFilter(bool openOnly)
         {
             if (_openOnly == openOnly) return;
-            _openOnly = openOnly;
 
-            this.FindControl<Button>("OpenFilterBtn")?.Classes.Set("selected", openOnly);
-            this.FindControl<Button>("AllFilterBtn")?.Classes.Set("selected", !openOnly);
+            _openOnly = openOnly;
+            DrawFilterChips();
 
             _ = LoadAsync();
+        }
+
+        private void DrawFilterChips()
+        {
+            this.FindControl<Button>("OpenFilterBtn")?.Classes.Set("selected", _openOnly);
+            this.FindControl<Button>("AllFilterBtn")?.Classes.Set("selected", !_openOnly);
+        }
+
+        /// <summary>
+        /// Hands the chip back to the filter the rows on screen belong to.
+        ///
+        /// The chip lights on the tap rather than on the answer, because one that waited
+        /// for the network would read as a dead button. When the load it asked for fails
+        /// the rows stay — deliberately, they are the only tasks anyone has — so without
+        /// this the All chip would sit lit over the open list, describing a set of tasks
+        /// that is not on screen and is not coming.
+        /// </summary>
+        private void RevertFilterChip()
+        {
+            if (_openOnly == _shownOpenOnly) return;
+
+            _openOnly = _shownOpenOnly;
+            DrawFilterChips();
         }
 
         /// <summary>
@@ -175,7 +203,7 @@ namespace OrbitalSIP.Views
                     // list it was told to abandon, under the other chip.
                     if (ct.IsCancellationRequested) return;
 
-                    Apply(state, tasks, now);
+                    Apply(state, tasks, openOnly, now);
                 });
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -218,7 +246,7 @@ namespace OrbitalSIP.Views
         /// them. Which answer it is was decided by <see cref="TaskListOutcome"/>, out where
         /// a test can reach it; this is only the mapping onto controls.
         /// </summary>
-        private void Apply(TaskListState state, IReadOnlyList<TaskItem> tasks, DateTimeOffset now)
+        private void Apply(TaskListState state, IReadOnlyList<TaskItem> tasks, bool openOnly, DateTimeOffset now)
         {
             if (state == TaskListState.Failed)
             {
@@ -232,6 +260,7 @@ namespace OrbitalSIP.Views
             // Refused replaces the list rather than leaving stale rows under a sentence
             // saying the operator cannot see them.
             ReplaceItems(state == TaskListState.Refused ? null : tasks, now);
+            _shownOpenOnly = openOnly;
             ShowError(null);
             ShowMessage(state switch
             {
@@ -248,6 +277,8 @@ namespace OrbitalSIP.Views
         /// </summary>
         private void Fail()
         {
+            RevertFilterChip();
+
             var failed = I18nService.Instance.Get("TasksLoadFailed");
 
             if (_items.Count == 0) { ShowError(null); ShowMessage(failed); }
