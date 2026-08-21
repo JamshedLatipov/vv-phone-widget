@@ -2,6 +2,7 @@ using Avalonia.Threading;
 using System;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using OrbitalSIP.Models;
 using OrbitalSIP.Views;
@@ -26,6 +27,7 @@ namespace OrbitalSIP.Services
 
         private readonly NavBadgeState _state = new();
         private readonly HttpClient _httpClient = BackendHttp.Client;
+        private readonly SemaphoreSlim _pollGate = new(1, 1);
         private DispatcherTimer? _timer;
         private int _consecutiveFailures;
 
@@ -78,7 +80,33 @@ namespace OrbitalSIP.Services
 
         private async Task PollAsync()
         {
+            // Serialised, never dropped. RefreshNowAsync exists so the numbers move the
+            // moment a task is ticked off, so a caller that arrives while the timer's poll
+            // is in flight has to wait its turn — an _isPolling flag that turned it away
+            // would make that call silently do nothing. Two polls at once could also land
+            // their responses out of order, and an older "missed today" total arriving
+            // after a newer one reads as a midnight rollover: the watermark goes to zero
+            // and every call of the day shows as new. Contention is rare at two-minute
+            // intervals, and waiting for the other poll costs nothing.
+            await _pollGate.WaitAsync();
+            try
+            {
+                await PollOnceAsync();
+            }
+            finally
+            {
+                _pollGate.Release();
+            }
+        }
+
+        private async Task PollOnceAsync()
+        {
             var ok = true;
+
+            // Before anything else writes to _state, not after: a handover on a shared
+            // terminal keeps the same process, and the numbers this poll is about to fetch
+            // belong to whoever is signed in now.
+            _state.SetOperator(OperatorIdOf(App.SipService?.CurrentSettings ?? SipSettings.Load()));
 
             // Ask TaskService rather than keeping a latch of our own. Its TasksForbidden is
             // scoped to the access token that drew the 403, so it clears itself when the
@@ -137,7 +165,7 @@ namespace OrbitalSIP.Services
             try
             {
                 var settings = App.SipService?.CurrentSettings ?? SipSettings.Load();
-                var operatorId = settings.DecodedToken?.Operator?.Username ?? settings.Username;
+                var operatorId = OperatorIdOf(settings);
                 var backendUrl = settings.BackendUrl?.TrimEnd('/');
 
                 if (string.IsNullOrEmpty(operatorId) || string.IsNullOrEmpty(backendUrl))
@@ -170,8 +198,19 @@ namespace OrbitalSIP.Services
             }
         }
 
+        /// <summary>
+        /// Whose numbers these are. The same value the request URL is built from, so the
+        /// state and the fetch can never disagree about who was asked about.
+        /// </summary>
+        private static string? OperatorIdOf(SipSettings settings) =>
+            settings.DecodedToken?.Operator?.Username ?? settings.Username;
+
         private void Raise() => Dispatcher.UIThread.InvokeAsync(() => Changed?.Invoke());
 
-        public void Dispose() => Stop();
+        public void Dispose()
+        {
+            Stop();
+            _pollGate.Dispose();
+        }
     }
 }

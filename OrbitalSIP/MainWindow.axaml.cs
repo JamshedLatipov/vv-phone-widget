@@ -234,6 +234,11 @@ namespace OrbitalSIP
 
             App.StatusService.StopPolling();
 
+            // Here rather than in ShowLoginAfterSessionExpiry below, which the deferred
+            // branch does not reach until the call ends: every poll in between goes out
+            // with a token the backend has already disowned, and logs two failures for it.
+            App.NavBadges.Stop();
+
             if (App.SipService.State != CallState.Idle)
             {
                 _sessionExpiredPending = true;
@@ -245,7 +250,6 @@ namespace OrbitalSIP
 
         private void ShowLoginAfterSessionExpiry()
         {
-            App.NavBadges.Stop();
             _sessionExpiredPending = false;
 
             var host = this.FindControl<ContentControl>("Host");
@@ -975,7 +979,12 @@ namespace OrbitalSIP
             nav.ActiveTab = _currentTab;
             nav.SetInCall(App.SipService.State is CallState.Active or CallState.OnHold);
             nav.SetLoginMode(_settingsFromLogin);
-            App.NavBadges.ApplyTo(nav);
+
+            // Not in login mode: Settings is reachable from the login screen, and after a
+            // session expiry the counters still in hand are the previous session's. Drawn
+            // there they would be a claim about an operator who is no longer signed in,
+            // sitting on the Recents and Tasks buttons SetLoginMode has just greyed out.
+            if (!_settingsFromLogin) App.NavBadges.ApplyTo(nav);
         }
 
         /// <summary>

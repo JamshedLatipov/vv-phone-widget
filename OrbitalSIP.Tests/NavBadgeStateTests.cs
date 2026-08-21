@@ -201,4 +201,76 @@ public class NavBadgeStateTests
         Assert.Equal(0, state.NewMissed);
         Assert.False(state.HasOverdueTasks);
     }
+
+    /// <summary>
+    /// Signing back in after a session expiry is routine — a token ages out, the network
+    /// drops, the operator logs in again — and it is the same person. Clearing on the way
+    /// out would show every missed call they had already looked at as new a second time,
+    /// which is why the reset turns on identity rather than on the poll stopping.
+    /// </summary>
+    [Fact]
+    public void TheSameOperatorSigningBackInKeepsTheirWatermark()
+    {
+        var state = new NavBadgeState();
+        state.SetOperator("alice");
+        state.SetTasks(pending: 2, inProgress: 1, overdue: 1);
+        state.SetMissed(10);
+        state.MarkRecentsSeen();
+
+        state.SetOperator("alice");
+        state.SetMissed(10);
+
+        Assert.Equal(3, state.OpenTasks);
+        Assert.True(state.HasOverdueTasks);
+        Assert.Equal(0, state.NewMissed);
+    }
+
+    /// <summary>
+    /// A shared terminal handed to a different operator keeps the same process. Without
+    /// this the incoming operator inherits the outgoing one's watermark, and their own
+    /// missed calls are undercounted until they happen to open Recents — a lie that
+    /// persists rather than one that self-corrects on the next poll.
+    /// </summary>
+    [Fact]
+    public void ADifferentOperatorInheritsNothing()
+    {
+        var state = new NavBadgeState();
+        state.SetOperator("alice");
+        state.SetTasks(pending: 2, inProgress: 1, overdue: 1);
+        state.SetMissed(10);
+        state.MarkRecentsSeen();
+
+        state.SetOperator("bob");
+
+        Assert.Equal(0, state.OpenTasks);
+        Assert.False(state.HasOverdueTasks);
+
+        state.SetMissed(10);
+        Assert.Equal(10, state.NewMissed);
+    }
+
+    /// <summary>
+    /// An id the poll could not read is "unknown", not "somebody else" — it goes missing
+    /// whenever the session cannot be inspected, which a backend hiccup or a token cleared
+    /// by an expiry both do. Two claims here: the unknown id does not wipe the badges, and
+    /// it is not remembered either — forgetting who was signed in would make the real id,
+    /// arriving on the very next poll, read as a handover and wipe them one cycle later.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void AnUnreadableOperatorIdIsNotAHandover(string? unknown)
+    {
+        var state = new NavBadgeState();
+        state.SetOperator("alice");
+        state.SetMissed(10);
+        state.MarkRecentsSeen();
+
+        state.SetOperator(unknown);
+        Assert.Equal(0, state.NewMissed);
+
+        state.SetOperator("alice");
+        state.SetMissed(10);
+        Assert.Equal(0, state.NewMissed);
+    }
 }
