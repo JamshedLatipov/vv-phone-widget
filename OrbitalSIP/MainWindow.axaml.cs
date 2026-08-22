@@ -1,5 +1,6 @@
-﻿using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Avalonia;
 using Avalonia.Controls;
@@ -8,22 +9,15 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using System.Diagnostics;
+using System.Linq;
+using OrbitalSIP.Models;
 using OrbitalSIP.Services;
 
 namespace OrbitalSIP
 {
     public partial class MainWindow : Window
     {
-        private enum PreferredMode { Widget, Panel }
-
-        // Designed sizes, as laid out by the views themselves. Nothing reads these
-        // directly — the scaled properties below are what the geometry is built from.
-        private const double BaseWidgetSize     = 96;
-        private const double BaseExpandedWidth  = 320;
-        private const double BaseExpandedHeight = 600;
-        private const double BaseIncomingWidth  = 436;
-        private const double BaseIncomingHeight = 132;
-        private const double AnimDurationMs     = 280;
+        private const double AnimDurationMs = 280;
 
         /// <summary>
         /// Factor the window geometry and the content transform are both built from. The
@@ -31,19 +25,13 @@ namespace OrbitalSIP
         /// and the window has to be exactly that large or the operator gets a widget with
         /// empty transparent margin, or one clipped at the edge. Resolved by
         /// <see cref="WidgetScale"/> from the saved setting and the screen.
+        ///
+        /// The sizes it multiplies live in <see cref="ShellGeometry"/> now, one per surface,
+        /// rather than in five constants handed out by hand at every call site.
         /// </summary>
         private double _uiScale = 1.0;
 
-        private double WidgetSize     => BaseWidgetSize     * _uiScale;
-        private double ExpandedWidth  => BaseExpandedWidth  * _uiScale;
-        private double ExpandedHeight => BaseExpandedHeight * _uiScale;
-        private double IncomingWidth  => BaseIncomingWidth  * _uiScale;
-        private double IncomingHeight => BaseIncomingHeight * _uiScale;
-
-        private PreferredMode _preferredMode = PreferredMode.Widget;
-
-        private int  _anchorX, _anchorY;
-        private bool _isExpanded;
+        private int _anchorX, _anchorY;
 
         /// <summary>
         /// Frame interval of the resize animation. Every frame moves and resizes a transparent
@@ -58,12 +46,18 @@ namespace OrbitalSIP
         private double _animProgress;
         private double _fromW, _fromH, _toW, _toH;
         private object? _pendingContent;
-        private Action? _onAnimComplete;
 
         /// <summary>Resolved once per animation; OnAnimTick used to look both up by name every frame.</summary>
         private ContentControl? _animHost;
         private ContentControl? _animOverlay;
         private readonly DispatcherTimer _httpErrorHideTimer;
+
+        /// <summary>
+        /// Everything the window is. Changed only through Dispatch, and only to what
+        /// ShellRouter returned — assign to it directly and back comes exactly the scatter
+        /// of hand-kept flags this work exists to remove.
+        /// </summary>
+        private UiState _state = UiState.Initial(hasCredentials: false);
 
         public MainWindow()
         {
@@ -86,8 +80,12 @@ namespace OrbitalSIP
 
             // Wire SIP events
             var sip = App.SipService;
-            sip.IncomingCallReceived += callerId =>
-                Dispatcher.UIThread.InvokeAsync(() => ShowIncomingCall(callerId));
+            // The caller id is dropped rather than carried in the event: SipService writes
+            // ActiveCallerId before it raises this, and BuildContent reads it from there when
+            // it builds the strip. An event that carried its own copy would be a second
+            // answer to "who is calling", and the two would part company on the next rebuild.
+            sip.IncomingCallReceived += _ =>
+                Dispatcher.UIThread.InvokeAsync(() => Dispatch(new UiEvent.IncomingCall()));
             sip.CallStateChanged += state =>
                 Dispatcher.UIThread.InvokeAsync(() => OnCallStateChanged(state));
 
@@ -95,47 +93,55 @@ namespace OrbitalSIP
             this.PointerPressed   += MainWindow_PointerPressed;
             this.PointerReleased  += MainWindow_PointerReleased;
             this.DoubleTapped     += (_, __) => ExpandOnDoubleTap();
-            this.Closing += (s, e) => { e.Cancel = true; this.Hide(); };
+            this.Closing += (s, e) => { e.Cancel = true; this.HideToTray(); };
             this.KeyDown += MainWindow_KeyDown;
 
             // Wire global hotkeys (work even when app is not focused)
-            App.GlobalHotkeys.MuteToggleRequested += (_, __) => DispatchHotkey(h => h.TriggerMute(), null);
-            App.GlobalHotkeys.HoldToggleRequested += (_, __) => DispatchHotkey(h => h.TriggerHold(), null);
-            App.GlobalHotkeys.HangupPressed       += (_, __) => DispatchHotkey(h => h.TriggerHangup(), iv => iv.TriggerDecline());
-            App.GlobalHotkeys.AnswerPressed        += (_, __) => DispatchHotkey(null, iv => iv.TriggerAnswer());
+            App.GlobalHotkeys.MuteToggleRequested += (_, __) => HotkeyMute();
+            App.GlobalHotkeys.HoldToggleRequested += (_, __) => HotkeyHold();
+            App.GlobalHotkeys.HangupPressed       += (_, __) => HotkeyHangup();
+            App.GlobalHotkeys.AnswerPressed       += (_, __) => HotkeyAnswer();
 
-            // Initial view
-            if (string.IsNullOrEmpty(sip.CurrentSettings.Username) || string.IsNullOrEmpty(sip.CurrentSettings.Password))
+            // Repaint the badges of whatever bar is on screen when a poll changes a number.
+            // RefreshChrome covers the other direction — a bar built after the numbers arrived.
+            // Never unhooked, and does not need to be: this window is built once and lives
+            // as long as App.NavBadges does. Wired above the initial view below, which is
+            // one of the two places the poll starts.
+            App.NavBadges.Changed += () =>
             {
-                // Show Login centered
-                _isExpanded = true;
-                Width = ExpandedWidth;
-                Height = ExpandedHeight;
+                var nav = CurrentNav();
+                if (nav != null) ApplyBadges(nav);
+            };
 
-                var left = workArea.X + (workArea.Width - (int)ExpandedWidth) / 2;
-                var top  = workArea.Y + (workArea.Height - (int)ExpandedHeight) / 2;
-                Position = new PixelPoint(left, top);
+            // Initial view. Both surfaces are drawn by Apply now, so all this branch decides
+            // is whether there is a session to resume — and, in practice, there almost never
+            // is: Password carries [JsonIgnore] and does not survive a restart, so a cold
+            // start goes through the login screen and reaches the widget by way of
+            // LoginSucceeded.
+            var hasCredentials = !string.IsNullOrEmpty(sip.CurrentSettings.Username) &&
+                                 !string.IsNullOrEmpty(sip.CurrentSettings.Password);
 
-                _anchorX = left + (int)ExpandedWidth;
-                _anchorY = top  + (int)ExpandedHeight;
-
-                ShowLogin();
-            }
-            else
+            if (hasCredentials)
             {
-                // Show Widget at bottom right
-                var left = workArea.Right - (int)WidgetSize - 24;
-                var top  = workArea.Bottom - (int)WidgetSize - 48;
-                Position = new PixelPoint(left, top);
-
-                _anchorX = left + (int)WidgetSize;
-                _anchorY = top  + (int)WidgetSize;
-
                 sip.Start(settings);
                 _ = App.StatusService.SetStateAsync("offline", null);
                 App.StatusService.StartPolling();
-                SetMainContent(new Views.WidgetView());
+                App.NavBadges.Start();
             }
+
+            // The corner the widget lives in, placed before the first Apply and without
+            // setting Width or Height — those are Apply's to decide. Apply anchors every
+            // resize on the bottom-right corner and needs one to hold on to; a login start
+            // ignores it, because PlaceCentered overwrites position and size together.
+            var widgetSize = ShellGeometry.WidgetSize * _uiScale;
+            var startLeft  = workArea.Right  - (int)widgetSize - 24;
+            var startTop   = workArea.Bottom - (int)widgetSize - 48;
+            Position = new PixelPoint(startLeft, startTop);
+            _anchorX = startLeft + (int)widgetSize;
+            _anchorY = startTop  + (int)widgetSize;
+
+            _state = UiState.Initial(hasCredentials);
+            Apply(null, _state);
 
             // Handle tel:/callto:/sip: links opened while the app is already running.
             Program.DialRequested += OnProtocolDialRequested;
@@ -188,6 +194,14 @@ namespace OrbitalSIP
         /// Set when the session dies mid-call. The login screen has to wait for the call
         /// to end — replacing the active-call view with it would take the hangup, mute and
         /// hold buttons away from an operator who is still talking to someone.
+        ///
+        /// The one field this work leaves on MainWindow by hand, though its whole point is
+        /// to remove such fields. That is deliberate: it describes not what the window is
+        /// but that one event arrived too early and will have to be sent again. UiState
+        /// answers "what to draw", and a flag saying "an expired session is also queued up
+        /// somewhere" would put back into the record exactly the hidden coupling it exists
+        /// to remove. Keeping it outside is safe because it is read in one place and
+        /// cleared in that same place, on the first Idle.
         /// </summary>
         private bool _sessionExpiredPending;
 
@@ -204,46 +218,116 @@ namespace OrbitalSIP
 
             App.StatusService.StopPolling();
 
+            // Here rather than beside the Dispatch below, which the deferred branch does not
+            // reach until the call ends: every poll in between goes out with a token the
+            // backend has already disowned, and logs two failures for it.
+            App.NavBadges.Stop();
+
             if (App.SipService.State != CallState.Idle)
             {
                 _sessionExpiredPending = true;
                 return;
             }
 
-            ShowLoginAfterSessionExpiry();
+            SurfaceWindow();
+            Dispatch(new UiEvent.SessionExpired());
+            CloseDialogWindows();
         });
 
-        private void ShowLoginAfterSessionExpiry()
+        /// <summary>
+        /// Brings the window out of the tray and to the front.
+        ///
+        /// Carried over from ShowLoginAfterSessionExpiry, which did this before drawing the
+        /// login screen and which the migration to Apply replaced. Apply took over the
+        /// centring and the animation kill, but not this: a session that expires while the
+        /// operator has the softphone hidden would otherwise redraw login behind a window
+        /// nobody can see, and the next thing they know is that their calls stopped arriving.
+        /// </summary>
+        private void SurfaceWindow()
         {
-            _sessionExpiredPending = false;
-
-            var host = this.FindControl<ContentControl>("Host");
-            if (host?.Content is Views.LoginView) return;
-
             if (!IsVisible) Show();
             Activate();
+        }
 
-            // A resize animation may still be running — the deferred path gets here from a
-            // call ending, which is exactly when one starts. Its next tick would overwrite
-            // the geometry set below and leave the login screen at widget size.
-            _animTimer?.Stop();
-            _animTimer = null;
-            _animStopwatch = null;
+        /// <summary>
+        /// Windows this one hid for the tray and has not shown again yet. Window.Hide()
+        /// already walks OwnedWindows and hides every entry on its own — see HideToTray,
+        /// which leans on that instead of hiding them by hand — but the same walk also
+        /// calls RemoveChild on each one as it goes, so OwnedWindows is empty by the time
+        /// anything asks again. Without this list, ShowFromTray would have nothing to
+        /// show and a session expiring while the softphone sits in the tray would find
+        /// no SMS window to close either; see both methods below.
+        /// </summary>
+        private Window[] _hiddenOwnedWindows = System.Array.Empty<Window>();
 
-            // Same geometry the constructor uses for a cold start with no credentials.
-            var workArea = Screens?.Primary?.WorkingArea ?? new PixelRect(0, 0, 1920, 1080);
-            var left = workArea.X + (workArea.Width - (int)ExpandedWidth) / 2;
-            var top  = workArea.Y + (workArea.Height - (int)ExpandedHeight) / 2;
+        /// <summary>
+        /// Shuts the windows this one opened alongside itself. Only on a session expiry:
+        /// what is in them belongs to a session that no longer exists, and there is
+        /// nothing left to send or save from them.
+        ///
+        /// A change of screen and the end of a call deliberately do not come here — the
+        /// after-call work outlives the conversation, and a half-written SMS draft is worth
+        /// more than consistency.
+        /// </summary>
+        private void CloseDialogWindows()
+        {
+            Views.TaskWindowLauncher.CloseIfOpen();
+            Views.SurveyWindowLauncher.CloseIfOpen();
+            Views.ScriptsWindowLauncher.CloseIfOpen();
 
-            _isExpanded    = true;
-            _preferredMode = PreferredMode.Widget;
-            Position = new PixelPoint(left, top);
-            Width    = ExpandedWidth;
-            Height   = ExpandedHeight;
-            _anchorX = left + (int)ExpandedWidth;
-            _anchorY = top  + (int)ExpandedHeight;
+            // The SMS windows are opened by the screens directly, with no launcher, but
+            // this window is their owner all the same. _hiddenOwnedWindows covers the one
+            // OwnedWindows cannot: a dialog this window hid for the tray and has not shown
+            // again — Hide() already dropped it out of OwnedWindows on its way to hidden
+            // (see _hiddenOwnedWindows), so a session that expires before the softphone
+            // comes back out of the tray would otherwise leave it open and unreachable.
+            foreach (var owned in OwnedWindows.Concat(_hiddenOwnedWindows).ToArray())
+                if (owned is Views.SmsComposeDialog) owned.Close();
+            _hiddenOwnedWindows = System.Array.Empty<Window>();
+        }
 
-            ShowLogin();
+        /// <summary>
+        /// Hides the main window for the tray. Owned windows are not hidden by hand here:
+        /// Avalonia's own Window.Hide() already walks OwnedWindows and hides every one of
+        /// them before it hides itself, so a second pass over the same list would just
+        /// repeat what Hide() is about to do anyway.
+        ///
+        /// What Hide() does NOT do is leave them reachable afterwards — hiding a window
+        /// clears its Owner and drops it from the owner's OwnedWindows as it goes, the
+        /// same as closing would. Captured here, before Hide() takes the list away, so
+        /// ShowFromTray still has something to bring back.
+        ///
+        /// Internal, not private: App.axaml.cs calls this from the tray icon and the
+        /// Hide/Show menu items, in place of the direct Hide() they used before.
+        ///
+        /// Guarded on IsVisible because the tray's Hide item has no matching "already
+        /// hidden" state to grey it out against — a second call while already hidden
+        /// would capture OwnedWindows a second time, after the first Hide() had already
+        /// emptied it, and wipe out the one real list with an empty one.
+        /// </summary>
+        internal void HideToTray()
+        {
+            if (!IsVisible) return;
+
+            _hiddenOwnedWindows = OwnedWindows.ToArray();
+            Hide();
+        }
+
+        /// <summary>
+        /// Brings the main window back from the tray along with whatever HideToTray hid.
+        /// Show(this) rather than the parameterless Show(): it re-establishes ownership as
+        /// well as visibility, so a later hide, or a session expiry, reaches these windows
+        /// again instead of finding an OwnedWindows list Hide() already emptied once.
+        ///
+        /// Internal, not private: App.axaml.cs calls this from the tray icon and the
+        /// Hide/Show menu items, in place of the direct Show() they used before.
+        /// </summary>
+        internal void ShowFromTray()
+        {
+            Show();
+            Activate();
+            foreach (var owned in _hiddenOwnedWindows) owned.Show(this);
+            _hiddenOwnedWindows = System.Array.Empty<Window>();
         }
 
         private void ShowHttpError(string message)
@@ -275,53 +359,119 @@ namespace OrbitalSIP
         // Escape  → hangup (active call) or decline (incoming)
         // Enter   → answer incoming call
 
-        /// <summary>Dispatches a hotkey action to whichever call-related view is active.</summary>
-        private void DispatchHotkey(Action<Views.ActiveCallView>? onActive,
-                                    Action<Views.IncomingView>?    onIncoming)
-        {
-            var host = this.FindControl<ContentControl>("Host");
-            if (host == null) return;
+        // These follow the call, not the screen. They used to be dispatched to Host.Content
+        // and did nothing unless a call view was in front, which on main was nearly
+        // harmless: the call panel's bar could only reach Settings. Every tab works from
+        // every screen now, so an operator can be on Recents, Tasks or Settings mid-call —
+        // and on all three, all four of these were silently dead. Global hangup is
+        // documented as working even when the app is not focused, so an operator who has
+        // navigated away and cannot end the call by the means they were told to use is the
+        // one that matters.
 
-            if (onActive  != null && host.Content is Views.ActiveCallView  cv) onActive(cv);
-            if (onIncoming != null && host.Content is Views.IncomingView   iv) onIncoming(iv);
+        /// <summary>True while there is a call to act on at all, whatever is on screen.</summary>
+        private static bool HasCall => App.SipService.State != CallState.Idle;
+
+        /// <summary>True while a call is up far enough to be muted or held.</summary>
+        private static bool IsTalking => App.SipService.State is CallState.Active or CallState.OnHold;
+
+        /// <summary>
+        /// The screen on show, when it is a <typeparamref name="T"/>.
+        ///
+        /// Unwraps <see cref="Views.PanelShellView"/>, and that is the whole point of the
+        /// method rather than a plain cast on Host.Content. Host.Content stopped being the
+        /// screen when the chrome moved into PanelShellView: a panel route now puts the
+        /// screen in the shell's Body, so a direct cast found ActiveCallView never, silently,
+        /// and every caller below fell through to its off-screen branch. The symptom was a
+        /// mute button that no longer followed the call it had just muted — the hotkey told
+        /// the service and nothing told the view, which paints from its own _muted.
+        ///
+        /// The unwrapped surfaces are unaffected and stay that way: Collapsed, Incoming and
+        /// CallBar are put in Host bare, so their views are found by the same cast as before.
+        /// </summary>
+        private T? HostContent<T>() where T : class
+        {
+            var content = this.FindControl<ContentControl>("Host")?.Content;
+            if (content is Views.PanelShellView shell) content = shell.Body;
+            return content as T;
         }
 
+        /// <summary>
+        /// Mute and hold go through a call view when one is in front, because both views
+        /// hold their own _muted and _onHold and paint their buttons from it — told only
+        /// the service, they would keep drawing the state before the press. Off screen
+        /// there is no button to keep honest, so the service is told directly and the next
+        /// panel built seeds itself from it, which is what ShowActiveCallView already does.
+        /// </summary>
+        private void HotkeyMute()
+        {
+            if (HostContent<Views.ActiveCallView>() is { } panel) { panel.TriggerMute(); return; }
+            if (HostContent<Views.ActiveCallWidgetView>() is { } mini) { mini.TriggerMute(); return; }
+            if (IsTalking) App.SipService.SetMuted(!App.SipService.IsMuted);
+        }
+
+        private void HotkeyHold()
+        {
+            if (HostContent<Views.ActiveCallView>() is { } panel) { panel.TriggerHold(); return; }
+            if (HostContent<Views.ActiveCallWidgetView>() is { } mini) { mini.TriggerHold(); return; }
+            if (IsTalking) App.SipService.SetHold(!App.SipService.IsOnHold);
+        }
+
+        /// <summary>
+        /// Ends whatever is going on. A view in front does its own teardown first — a
+        /// retired timer, an invalidated SMS draft — and raises the event that hangs up and
+        /// restores the window. Off screen there is no teardown to do, so this does both
+        /// halves itself rather than leaving the operator holding a call they cannot end.
+        /// </summary>
+        private void HotkeyHangup()
+        {
+            if (HostContent<Views.IncomingView>() is { } incoming) { incoming.TriggerDecline(); return; }
+            if (HostContent<Views.ActiveCallView>() is { } panel) { panel.TriggerHangup(); return; }
+            if (HostContent<Views.ActiveCallWidgetView>() is { } mini) { mini.TriggerHangup(); return; }
+            if (!HasCall) return;
+
+            // No screen change here, and that is the whole of it: both calls end in
+            // RollbackToIdle, which announces Idle, and CallStateChanged is what takes the
+            // window off the call. A restore driven from here as well would be the second
+            // road to the same screen that this rework exists to close.
+            if (App.SipService.State == CallState.IncomingRinging) App.SipService.Decline();
+            else App.SipService.Hangup();
+        }
+
+        /// <summary>
+        /// The one of the four that genuinely needs its view, and says so by doing nothing
+        /// without it. Answering runs the geometry, the campaign survey and the choice of
+        /// screen that follows, all of which live in the handler wired to
+        /// IncomingView.OnAnswer. It is also the one that cannot be stranded: the incoming
+        /// panel has no bottom bar, so there is no way to navigate off a ringing call.
+        /// </summary>
+        private void HotkeyAnswer() => HostContent<Views.IncomingView>()?.TriggerAnswer();
+
+        /// <summary>
+        /// The focused-window half of the same four actions, routed the same way. Gated on
+        /// there being a call rather than on a call view being in front, for the reason
+        /// above — but still gated, so Escape stays unhandled on the screens where nothing
+        /// is going on and whatever else wants it can have it.
+        /// </summary>
         private void MainWindow_KeyDown(object? sender, KeyEventArgs e)
         {
-            var host = this.FindControl<ContentControl>("Host");
-            if (host == null) return;
-
-            if (host.Content is Views.ActiveCallView callView)
+            switch (e.Key)
             {
-                switch (e.Key)
-                {
-                    case Key.M when e.KeyModifiers == KeyModifiers.Control:
-                        callView.TriggerMute();
-                        e.Handled = true;
-                        break;
-                    case Key.H when e.KeyModifiers == KeyModifiers.Control:
-                        callView.TriggerHold();
-                        e.Handled = true;
-                        break;
-                    case Key.Escape:
-                        callView.TriggerHangup();
-                        e.Handled = true;
-                        break;
-                }
-            }
-            else if (host.Content is Views.IncomingView incomingView)
-            {
-                switch (e.Key)
-                {
-                    case Key.Enter:
-                        incomingView.TriggerAnswer();
-                        e.Handled = true;
-                        break;
-                    case Key.Escape:
-                        incomingView.TriggerDecline();
-                        e.Handled = true;
-                        break;
-                }
+                case Key.M when e.KeyModifiers == KeyModifiers.Control && IsTalking:
+                    HotkeyMute();
+                    e.Handled = true;
+                    break;
+                case Key.H when e.KeyModifiers == KeyModifiers.Control && IsTalking:
+                    HotkeyHold();
+                    e.Handled = true;
+                    break;
+                case Key.Escape when HasCall:
+                    HotkeyHangup();
+                    e.Handled = true;
+                    break;
+                case Key.Enter when HostContent<Views.IncomingView>() != null:
+                    HotkeyAnswer();
+                    e.Handled = true;
+                    break;
             }
         }
 
@@ -353,93 +503,38 @@ namespace OrbitalSIP
         }
 
         // ── View toggle ───────────────────────────────────────────────
-        private void ToggleExpanded()
-        {
-            if (_isExpanded) CollapseWidget();
-            else             ExpandWidget();
-        }
-
         private void ExpandOnDoubleTap()
         {
-            if (_isExpanded) return;
-            ExpandWidget();
-        }
-
-        private void ExpandWidget()
-        {
-            _isExpanded = true;
-            _preferredMode = PreferredMode.Panel;
-            _anchorX = Position.X + (int)Width;
-            _anchorY = Position.Y + (int)Height;
-            StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight, CreateDialerView());
-        }
-
-        private void CollapseWidget()
-        {
-            HideStatusPopup();
-            _isExpanded = false;
-            _preferredMode = PreferredMode.Widget;
-            StartAnimation(Width, Height, WidgetSize, WidgetSize, new Views.WidgetView());
-        }
-
-        private void ReturnToPreferredMode()
-        {
-            _anchorX = Position.X + (int)Width;
-            _anchorY = Position.Y + (int)Height;
-
-            if (_preferredMode == PreferredMode.Panel)
-            {
-                _isExpanded = true;
-                StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight, CreateDialerView());
-            }
-            else
-            {
-                _isExpanded = false;
-                StartAnimation(Width, Height, WidgetSize, WidgetSize, new Views.WidgetView());
-            }
+            if (_state.Shell != Shell.Collapsed) return;
+            Dispatch(new UiEvent.ExpandRequested());
         }
 
         // ── Login ─────────────────────────────────────────────────────
-        private void ShowLogin()
+        private Views.LoginView CreateLoginView()
         {
             var login = new Views.LoginView();
             login.OnLoginSuccess += (_, __) =>
             {
-                _isExpanded = false;
-                _preferredMode = PreferredMode.Widget;
-                StartAnimation(Width, Height, WidgetSize, WidgetSize, new Views.WidgetView());
+                App.NavBadges.Start();
+                Dispatch(new UiEvent.LoginSucceeded());
             };
-            login.OnSettingsRequested += (_, __) => ShowSettings(isFromLogin: true);
-            SetMainContent(login);
+            login.OnSettingsRequested += (_, __) => Dispatch(new UiEvent.LoginSettingsRequested());
+            return login;
         }
 
         // ── Dialer ────────────────────────────────────────────────────
 
-        private void ShowRecents()
+        private Views.RecentsView CreateRecentsView()
         {
             var r = new Views.RecentsView();
-            r.OnCloseRequested += (_, __) => ToggleExpanded();
-            r.OnExitAppRequested += (_, __) => ShutdownApp();
-            r.OnSettingsRequested += (_, __) => ShowSettings();
-            r.OnDialerRequested += (_, __) => ShowDialer();
             r.OutgoingCallRequested += (sender, num) => StartOutgoingCall(num);
-
-            SetMainContent(r);
+            return r;
         }
 
-        private void ShowDialer()
+        private Views.TasksView CreateTasksView()
         {
-            if (App.SipService.State == CallState.Active || App.SipService.State == CallState.OnHold)
-            {
-                var elapsed = App.SipService.ActiveCallStartedAt.HasValue
-                    ? DateTime.Now - App.SipService.ActiveCallStartedAt.Value
-                    : TimeSpan.Zero;
-                ShowActiveCallView(App.SipService.ActiveCallerId, elapsed);
-            }
-            else
-            {
-                SetMainContent(CreateDialerView());
-            }
+            var tasks = new Views.TasksView();
+            return tasks;
         }
 
         // ── Settings ──────────────────────────────────────────────────
@@ -450,14 +545,18 @@ namespace OrbitalSIP
             if (host == null) return;
 
             var popup = new Views.StatusPopupControl();
-            popup.OnCloseRequested += (_, __) => HideStatusPopup();
+            popup.OnCloseRequested += (_, __) => Dispatch(new UiEvent.StatusPopupToggled(false));
             popup.OnStatusUpdateRequested += async (_, args) =>
             {
                 var (status, duration) = args;
                 string? manualStatus = status == "online" ? null : status;
 
                 await App.StatusService.SetStateAsync(manualStatus, null, duration);
-                HideStatusPopup();
+                // Through the dispatcher, not straight to HideStatusPopup: that would take
+                // the popup off the screen while _state.StatusPopup stayed true, and the
+                // next press on the avatar would reduce to an equal record and open
+                // nothing — for the rest of the time the operator stayed on that screen.
+                Dispatch(new UiEvent.StatusPopupToggled(false));
             };
 
             host.Content = popup;
@@ -477,17 +576,15 @@ namespace OrbitalSIP
                 host.Content = null;
             }
         }
-        private void ShowSettings(bool isFromLogin = false)
+        /// <summary>
+        /// The settings screen. <paramref name="fromLogin"/> still decides what saving does
+        /// — restart the session, or hand the operator back to a login screen they have not
+        /// passed yet — but it no longer writes a field: which of the two surfaces this is
+        /// belongs to <see cref="Shell.LoginSettings"/> now.
+        /// </summary>
+        private Views.SettingsView CreateSettingsView(bool fromLogin)
         {
             var settingsView = new Views.SettingsView();
-            settingsView.OnMinimizeRequested += (_, __) => CollapseWidget();
-            settingsView.OnExitAppRequested += (_, __) => ShutdownApp();
-            settingsView.OnAvatarClicked += (_, __) => ShowStatusPopup();
-            settingsView.OnBackRequested += (_, __) =>
-            {
-                if (isFromLogin) ShowLogin();
-                else ShowDialer();
-            };
             settingsView.OnSaveRequested += (_, __) =>
             {
                 var settings = SipSettings.Load();
@@ -497,27 +594,24 @@ namespace OrbitalSIP
                 if (!string.IsNullOrEmpty(current.Username))
                     settings.CopySessionFrom(current);
 
-                // Before the view swap below: the screens that follow are all sized from
+                // Before the Dispatch below: the screens that follow are all sized from
                 // _uiScale, so changing it afterwards would leave them in a window built
                 // for the old scale until the next expand or collapse.
                 RescaleWindow(settings.WidgetScalePercent);
 
-                if (isFromLogin) ShowLogin();
-                else
-                {
-                    App.SipService.Start(settings);
-                    ShowDialer();
-                }
+                // What makes an edited host, transport or audio device take effect, and
+                // still only off the login path: from login there is no session to restart,
+                // and the operator is about to sign in with these settings instead.
+                if (!fromLogin) App.SipService.Start(settings);
+
+                Dispatch(new UiEvent.SettingsSaved());
             };
-            SetMainContent(settingsView);
+            return settingsView;
         }
 
         // ── Outgoing call ─────────────────────────────────────────────
         private async void StartOutgoingCall(string number)
         {
-            var host = this.FindControl<ContentControl>("Host");
-            if (host == null) return;
-
             // HandleProtocolDial has always checked this; the dial pad never did. Holding
             // Enter in the number box autorepeats KeyDown, and every repeat rebuilt the call
             // view and restarted the entry animation — so the operator watched the call
@@ -529,22 +623,26 @@ namespace OrbitalSIP
                 return;
             }
 
-            if (_preferredMode == PreferredMode.Widget)
-            {
-                ShowActiveCallWidgetView(number, TimeSpan.Zero);
-            }
-            else
-            {
-                var callView = new Views.ActiveCallView(number, isOutgoing: true);
-                WireActiveCallView(callView);
-                SetMainContent(callView);
-            }
-
-            await App.SipService.CallAsync(number);
+            // Started before the dispatch and awaited after it, rather than dispatched first
+            // and started second. CallAsync writes ActiveCallerId in its synchronous prologue,
+            // before its first await, and the strip this raises is built around that name —
+            // dispatch first and a widget-home operator gets a strip labelled with the
+            // previous caller.
+            //
+            // The route no longer rides on this ordering: ShellRouter normalizes CallStarted
+            // against the call it announces rather than the Idle the service still reports,
+            // because the guard above guarantees Idle at this exact point. Before that fix,
+            // dialling from the dialpad left the operator on the dialpad for the whole
+            // conversation. The name is what is left depending on the order, and it is worth
+            // a line to keep: raising the event here rather than off CallStateChanged is what
+            // puts the screen up without waiting for the network.
+            var call = App.SipService.CallAsync(number);
+            Dispatch(new UiEvent.CallStarted());
+            await call;
         }
 
         // ── Incoming call ─────────────────────────────────────────────
-        private void ShowIncomingCall(string callerId)
+        private Views.IncomingView CreateIncomingView(string callerId)
         {
             var incoming = new Views.IncomingView();
             incoming.SetCaller(callerId);
@@ -555,20 +653,14 @@ namespace OrbitalSIP
                 {
                     await App.SipService.AnswerAsync();
 
-                    // If AnswerAsync() failed (audio init, exception, or caller hung up mid-answer)
-                    // the service rolls back to Idle. ReturnToPreferredMode will already have been
-                    // dispatched via OnCallStateChanged → no extra work needed here.
+                    // If AnswerAsync() failed (audio init, exception, or caller hung up
+                    // mid-answer) the service rolls back to Idle and announces it, and
+                    // CallStateChanged takes the window off the strip → nothing to do here.
+                    // The guard is also what keeps CallStarted off a dead call: reduced
+                    // against Idle it would put up a call screen for nobody.
                     if (App.SipService.State != CallState.Active) return;
 
-                    _anchorX = Position.X + (int)Width;
-                    _anchorY = Position.Y + (int)Height;
-                    if (_preferredMode == PreferredMode.Widget)
-                        ShowActiveCallWidgetView(callerId, TimeSpan.Zero);
-                    else
-                    {
-                        StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight);
-                        ShowActiveCallView(callerId);
-                    }
+                    Dispatch(new UiEvent.CallStarted());
 
                     // Campaign call bound to a questionnaire → auto-open it.
                     await MaybeAutoOpenSurveyAsync(callerId);
@@ -581,20 +673,10 @@ namespace OrbitalSIP
             incoming.OnDecline += (_, __) =>
             {
                 App.SipService.Decline();
-                ReturnToPreferredMode();
+                Dispatch(new UiEvent.IncomingDeclined());
             };
 
-            _anchorX = Position.X + (int)Width;
-            _anchorY = Position.Y + (int)Height;
-            if (!_isExpanded)
-            {
-                _isExpanded = true;
-                StartAnimation(Width, Height, IncomingWidth, IncomingHeight, incoming);
-                return;
-            }
-
-            SetMainContent(incoming);
-            StartAnimation(Width, Height, IncomingWidth, IncomingHeight);
+            return incoming;
         }
 
         /// <summary>
@@ -619,95 +701,103 @@ namespace OrbitalSIP
             }
         }
 
-        private void ShowActiveCallWidgetView(string callerId, TimeSpan elapsed)
-        {
-            var widget = new Views.ActiveCallWidgetView(callerId, elapsed, App.SipService.IsMuted, App.SipService.IsOnHold);
-            WireActiveCallWidgetView(widget);
+        /// <summary>
+        /// How long the call on the line has been up, or zero while it is still ringing.
+        ///
+        /// From the service rather than from the outgoing view's own stopwatch, which is
+        /// what the two call screens used to hand each other across a collapse. They are
+        /// rebuilt by <see cref="BuildContent"/> now and have nobody to hand it to, and the
+        /// service has held the real answer all along — the old ShowDialer already preferred
+        /// it over the view it was replacing.
+        /// </summary>
+        private static TimeSpan ElapsedCall() =>
+            App.SipService.ActiveCallStartedAt is { } startedAt
+                ? DateTime.Now - startedAt
+                : TimeSpan.Zero;
 
-            _anchorX = Position.X + (int)Width;
-            _anchorY = Position.Y + (int)Height;
-            _isExpanded = true;
-            StartAnimation(Width, Height, IncomingWidth, IncomingHeight, widget);
-        }
-
-        private void WireActiveCallWidgetView(Views.ActiveCallWidgetView widget)
+        private Views.ActiveCallWidgetView CreateActiveCallWidgetView()
         {
-            widget.OnHangup += (_, __) =>
-            {
-                App.SipService.Hangup();
-                ReturnToPreferredMode();
-            };
+            var widget = new Views.ActiveCallWidgetView(
+                App.SipService.ActiveCallerId, ElapsedCall(), App.SipService.IsMuted, App.SipService.IsOnHold);
+
+            // Hangup and nothing else. The screen that follows is CallStateChanged's to
+            // decide, and a restore driven from here as well is the second road this rework
+            // closes — it was ReturnToPreferredMode, and it wrote a geometry _state knew
+            // nothing about.
+            widget.OnHangup += (_, __) => App.SipService.Hangup();
             widget.OnMuteToggled += (_, muted)  => App.SipService.SetMuted(muted);
             widget.OnHoldToggled += (_, onHold) => App.SipService.SetHold(onHold);
-            widget.OnTransferRequested += (_, __) => ShowActiveCallView(App.SipService.ActiveCallerId, widget.Elapsed);
-            widget.OnExpandRequested += (_, __) => ShowActiveCallView(App.SipService.ActiveCallerId, widget.Elapsed);
+            // Transfer needs the full panel to type a destination into, and expanding is how
+            // it gets there — the same event, because to the state model they are one gesture.
+            widget.OnTransferRequested += (_, __) => Dispatch(new UiEvent.ExpandRequested());
+            widget.OnExpandRequested   += (_, __) => Dispatch(new UiEvent.ExpandRequested());
+            return widget;
         }
 
-        private void ShowActiveCallView(string callerId, TimeSpan? elapsed = null)
+        private Views.ActiveCallView CreateActiveCallView()
         {
-            // Seeded from the service, exactly as ShowActiveCallWidgetView already does for
-            // the mini widget. Without it a panel rebuilt mid-call started from false/false.
+            // Every argument seeded from the service. Without it a panel rebuilt mid-call
+            // started from its own field defaults, and the Hold button showed the opposite of
+            // the call for the rest of the conversation.
+            //
+            // isOutgoing is answered with the one question that tells the two apart: Ringing
+            // is the outgoing ringback, and an incoming call never reaches this screen before
+            // it has been answered.
+            //
+            // What it does NOT do, despite its name, is leave the Calling caption on screen.
+            // ActiveCallView's constructor writes that caption and then calls SetStatus four
+            // lines later, which writes InCall over it — so an outgoing call has always shown
+            // InCall while it was still ringing. That predates this rework and is left alone
+            // here; the argument is passed truthfully so that fixing the view is all it takes.
             var callView = new Views.ActiveCallView(
-                callerId,
-                initialElapsed: elapsed,
+                App.SipService.ActiveCallerId,
+                isOutgoing: App.SipService.State == CallState.Ringing,
+                initialElapsed: ElapsedCall(),
                 isMuted:  App.SipService.IsMuted,
                 isOnHold: App.SipService.IsOnHold);
-            WireActiveCallView(callView);
 
-            if (Math.Abs(Width - ExpandedWidth) > 1 || Math.Abs(Height - ExpandedHeight) > 1)
-            {
-                _anchorX = Position.X + (int)Width;
-                _anchorY = Position.Y + (int)Height;
-                StartAnimation(Width, Height, ExpandedWidth, ExpandedHeight, callView);
-            }
-            else SetMainContent(callView);
-        }
-
-        private void WireActiveCallView(Views.ActiveCallView callView)
-        {
-            callView.OnHangup += (_, __) =>
-            {
-                App.SipService.Hangup();
-                ReturnToPreferredMode();
-            };
-            callView.OnMinimizeRequested += (_, __) => ShowActiveCallWidgetView(App.SipService.ActiveCallerId, callView.Elapsed);
-            callView.OnExitAppRequested += (_, __) => ShutdownApp();
+            callView.OnHangup += (_, __) => App.SipService.Hangup();
             callView.OnMuteToggled += (_, muted)  => App.SipService.SetMuted(muted);
             // The state the view asked for, not a blind flip — see SipService.SetHold.
             callView.OnHoldToggled += (_, onHold) => App.SipService.SetHold(onHold);
             callView.OnTransferRequested += async (_, dest) => await App.SipService.BlindTransferAsync(dest);
-            callView.OnKeypadRequested += (_, __) => ShowDialer();
-            callView.OnSettingsRequested += (_, __) => ShowSettings();
-            callView.OnAvatarClicked += (_, __) => ShowStatusPopup();
-            callView.OnRecentsRequested += (_, __) => ShowRecents();
+            return callView;
         }
 
         // ── SIP state changes ─────────────────────────────────────────
         private void OnCallStateChanged(CallState state)
         {
+            // The deferred login: the session died mid-call and has been waiting for it to
+            // end. SessionExpired again rather than CallStateChanged, so the decision stays
+            // one row of the table instead of a second road to the login screen.
             if (state == CallState.Idle && _sessionExpiredPending)
             {
-                // The session died during the call; the login screen was held back until
-                // the operator was off it.
-                ShowLoginAfterSessionExpiry();
+                _sessionExpiredPending = false;
+                SurfaceWindow();
+                Dispatch(new UiEvent.SessionExpired());
+                CloseDialogWindows();
                 return;
             }
 
-            if (state == CallState.Idle && _isExpanded)
-            {
-                var host = this.FindControl<ContentControl>("Host");
-                if (!(host?.Content is Views.LoginView) && !(host?.Content is Views.SettingsView))
-                {
-                    ReturnToPreferredMode();
-                }
-            }
-            else if (state == CallState.Active || state == CallState.OnHold)
-            {
-                var host = this.FindControl<ContentControl>("Host");
-                bool isOnHold = (state == CallState.OnHold);
-                if (host?.Content is Views.ActiveCallView av) { av.MarkConnected(); av.SetStatus(isOnHold); }
-                else if (host?.Content is Views.ActiveCallWidgetView awv) awv.SetStatus(isOnHold);
-            }
+            // A call ending is the one moment the missed-call count can just have moved, and
+            // it is also the moment the operator is looking at the bar again.
+            if (state == CallState.Idle) _ = App.NavBadges.RefreshNowAsync();
+
+            Dispatch(new UiEvent.CallStateChanged(state));
+
+            // The labels and buttons of a call screen already on show are not a change of
+            // screen, so they go around Dispatch.
+            //
+            // Through HostContent, not Host.Content: on a panel route the call screen sits
+            // inside PanelShellView, so reading Host directly matched nothing and a hold or
+            // resume the operator did not press themselves — a hotkey, or anything the
+            // service decided — left the Hold button, the status line and the DTMF pad
+            // describing the call as it was before.
+            bool isOnHold = state == CallState.OnHold;
+            if (HostContent<Views.ActiveCallView>() is { } av) { av.MarkConnected(); av.SetStatus(isOnHold); }
+            else if (HostContent<Views.ActiveCallWidgetView>() is { } awv) awv.SetStatus(isOnHold);
+
+            RefreshChrome(_state);
         }
 
         // ── Widget scale ──────────────────────────────────────────────
@@ -785,8 +875,7 @@ namespace OrbitalSIP
         // ── Resize animation ──────────────────────────────────────────
         private void StartAnimation(double fromW, double fromH,
                                     double toW,   double toH,
-                                    object? nextContent = null,
-                                    Action? onComplete = null)
+                                    object? nextContent = null)
         {
             HideStatusPopup();
             _animTimer?.Stop();
@@ -794,13 +883,21 @@ namespace OrbitalSIP
             _toW   = toW;   _toH   = toH;
             _animProgress   = 0;
             _pendingContent = nextContent;
-            _onAnimComplete = onComplete;
             _animStopwatch = Stopwatch.StartNew();
 
             var overlay = this.FindControl<ContentControl>("OverlayHost");
             var host = this.FindControl<ContentControl>("Host");
             if (overlay != null) { overlay.Content = nextContent; overlay.Opacity = 0; overlay.IsVisible = true; }
             if (host != null) host.Opacity = 1;
+
+            // Here rather than only at the end of the swap: the incoming screen is visible
+            // for the whole 280 ms fade, and a panel dressed at completion spends that fade
+            // painting its markup defaults — the wrong tab lit, badges popping in at the last
+            // frame, and a call still running with no strip offering the way back to it.
+            // CompleteAnimatedContentSwap calls this again on the same panel, which the
+            // idempotent subscription in RefreshChrome makes free, and which re-reads any
+            // state that moved during the fade.
+            RefreshChrome(_state, nextContent);
 
             _animOverlay = overlay;
             _animHost = host;
@@ -833,7 +930,7 @@ namespace OrbitalSIP
             Position = new PixelPoint((int)Math.Round(_anchorX - w), (int)Math.Round(_anchorY - h));
             Width  = w; Height = h;
 
-            if (_animProgress >= 1.0) { CompleteAnimatedContentSwap(); _onAnimComplete?.Invoke(); }
+            if (_animProgress >= 1.0) CompleteAnimatedContentSwap();
         }
 
         private static double EaseOutCubic(double value) => 1.0 - Math.Pow(1.0 - value, 3.0);
@@ -843,11 +940,6 @@ namespace OrbitalSIP
         private Views.ExpandedView CreateDialerView()
         {
             var dialer = new Views.ExpandedView();
-            dialer.OnCloseRequested += (_, __) => CollapseWidget();
-            dialer.OnExitAppRequested += (_, __) => ShutdownApp();
-            dialer.OnSettingsRequested += (_, __) => ShowSettings();
-            dialer.OnAvatarClicked += (_, __) => ShowStatusPopup();
-            dialer.OnRecentsRequested += (_, __) => ShowRecents();
             dialer.OutgoingCallRequested += (_, number) => StartOutgoingCall(number);
             return dialer;
         }
@@ -861,6 +953,268 @@ namespace OrbitalSIP
             if (host != null) { host.Content = content; host.Opacity = 1; }
             if (overlay != null) { overlay.Content = null; overlay.Opacity = 0; }
             _pendingContent = null;
+            // The content, not Host, even though Host was assigned two lines up: this dresses
+            // the screen being installed, and relying on the statement order above to make
+            // the two the same is how the pair drifts apart.
+            RefreshChrome(_state, content);
+        }
+
+        /// <summary>
+        /// Draws the badge counts on a bar — the fourth piece of state this window pushes
+        /// into one, beside ActiveTab and SetLoginMode above.
+        ///
+        /// Here rather than on NavBadgeService, which used to take the control and call
+        /// SetBadge itself: that made a service under Services the only thing in the
+        /// project reaching into Views, and it was also the only way the counts could be
+        /// observed, so nothing could assert them without building a control.
+        ///
+        /// Both places that put a bar on screen go through this — RefreshChrome when the bar
+        /// is built, and the Changed handler when the numbers move under one already up.
+        /// </summary>
+        private void ApplyBadges(Views.BottomNavControl nav)
+        {
+            // Not in login mode: Settings is reachable from the login screen, and after a
+            // session expiry the counters still in hand are the previous session's. Drawn
+            // there they would be a claim about an operator who is no longer signed in,
+            // sitting on the Recents and Tasks buttons SetLoginMode has just greyed out.
+            if (_state.Shell == Shell.LoginSettings) return;
+
+            nav.SetBadge(NavTab.Tasks, App.NavBadges.OpenTasks, App.NavBadges.HasOverdueTasks);
+            nav.SetBadge(NavTab.Recents, App.NavBadges.NewMissed, alert: false);
+        }
+
+        /// <summary>
+        /// The bottom bar of whatever is on screen, or null for the screens that have none
+        /// (Widget, Login, Incoming).
+        /// </summary>
+        private Views.BottomNavControl? CurrentNav() =>
+            (this.FindControl<ContentControl>("Host")?.Content as Control)
+                ?.FindLogicalDescendantOfType<Views.BottomNavControl>();
+
+        // No MarkRecentsSeen here. The tap is not what "seen" means — the list arriving in
+        // front of the operator is, and RecentsView marks it there, on the load that
+        // actually produced rows. Clearing on the press instead cleared the badge over a CDR
+        // fetch that then failed silently, and those calls stayed under the watermark for
+        // the rest of the day. RecentsView and NavBadgeState.SetMissed both argue the badge
+        // must fail lit rather than dark.
+        //
+        // Nothing else here either: which screen a tab press opens, whether it is the tab
+        // already lit, and whether a session even exists to open one are all ShellRouter's
+        // answers now.
+        private void OnNavTabSelected(object? sender, NavTab tab) => Dispatch(new UiEvent.TabPressed(tab));
+
+        /// <summary>
+        /// The one way in to a change of state. Works out the next state, and draws the
+        /// difference when there is one.
+        /// </summary>
+        private void Dispatch(UiEvent e)
+        {
+            // The event's own payload wins over the live property when it has one. Both come
+            // from App.SipService.State, but at different moments: SIP events arrive on
+            // background threads and reach here through InvokeAsync, so the property can have
+            // moved on by the time this runs. A CallStateChanged(Idle) still queued when the
+            // next call starts ringing would otherwise be reduced against IncomingRinging —
+            // the arm matching the payload would fire while Normalize, reading the parameter,
+            // decided the call was still alive and left the route on the call screen. One
+            // reduction, two answers to "is there a call".
+            var call = e is UiEvent.CallStateChanged changed ? changed.State : App.SipService.State;
+
+            var next = ShellRouter.Reduce(_state, e, call);
+
+            // Record equality, and it carries more weight than it looks: this is what makes
+            // a press on the already-lit tab free. ShellRouter has an arm for that case, but
+            // the arm is belt-and-braces — the general arm below it returns an equal record
+            // anyway, and this line is what turns "equal" into "do not rebuild the screen".
+            if (next == _state) return;
+
+            var prev = _state;
+            _state = next;
+            Apply(prev, next);
+        }
+
+        /// <summary>
+        /// Draws the difference between two states. Decides nothing — every decision was
+        /// already made in ShellRouter.
+        ///
+        /// prev == null is the first draw, and then everything is drawn.
+        /// </summary>
+        private void Apply(UiState? prev, UiState next)
+        {
+            var box = ShellGeometry.For(next.Shell);
+            var width  = box.Width  * _uiScale;
+            var height = box.Height * _uiScale;
+
+            var contentChanged = prev is null
+                              || prev.Shell != next.Shell
+                              || prev.Route != next.Route;
+
+            var content = contentChanged ? BuildContent(next) : null;
+
+            // Passed to RefreshChrome below, so a screen still parked in the overlay gets
+            // dressed there rather than 280 ms later when it lands.
+            if (box.Placement == ShellPlacement.CenterOnScreen)
+            {
+                // The login screens are neither animated nor anchored to the corner: they
+                // centre, the way they do on a cold start with no credentials. An animation
+                // in flight is killed right here — its next tick would overwrite the
+                // geometry set below and leave login the size of the widget.
+                CancelAnimation();
+                if (content != null) SetMainContent(content);
+                PlaceCentered(width, height);
+            }
+            else if (Math.Abs(Width - width) > 1 || Math.Abs(Height - height) > 1)
+            {
+                _anchorX = Position.X + (int)Width;
+                _anchorY = Position.Y + (int)Height;
+                StartAnimation(Width, Height, width, height, content);
+            }
+            else if (content != null)
+            {
+                SetMainContent(content);
+            }
+
+            RefreshChrome(next, content);
+            ApplyStatusPopup(next);
+        }
+
+        /// <summary>The screen this state calls for. Rebuilt whenever the (Shell, Route) pair changes.</summary>
+        private object BuildContent(UiState s) => s.Shell switch
+        {
+            Shell.Login         => CreateLoginView(),
+            Shell.LoginSettings => WrapInShell(CreateSettingsView(fromLogin: true)),
+            Shell.Collapsed     => new Views.WidgetView(),
+            Shell.Incoming      => CreateIncomingView(App.SipService.ActiveCallerId),
+            Shell.CallBar       => CreateActiveCallWidgetView(),
+            Shell.Panel         => BuildPanelContent(s.Route),
+            _ => throw new ArgumentOutOfRangeException(nameof(s), s.Shell, "Surface has no screen"),
+        };
+
+        private object BuildPanelContent(NavRoute route) => WrapInShell(CreateRouteBody(route));
+
+        /// <summary>
+        /// Puts a screen inside the panel's chrome and wires the chrome to this window.
+        ///
+        /// Separate from BuildPanelContent because LoginSettings is not a route and still
+        /// needs the same treatment: it is the one login surface that carries the bottom
+        /// bar. Shell.Login does not, and is deliberately not wrapped.
+        /// </summary>
+        private Views.PanelShellView WrapInShell(object body)
+        {
+            var shell = new Views.PanelShellView { Body = body };
+
+            if (shell.TopBar is { } bar)
+            {
+                // Settings is the one screen that renames the bar, and it used to do so on
+                // its own copy. The bar is shared now, so the override has to be reapplied
+                // per screen or the caption silently becomes the operator's username.
+                if (body is Views.SettingsView) bar.SetTitle("Settings");
+
+                bar.OnMinimizeRequested += (_, __) => Dispatch(new UiEvent.CollapseRequested());
+                bar.OnAvatarClicked     += (_, __) => Dispatch(new UiEvent.StatusPopupToggled(true));
+                bar.OnCloseRequested    += (_, __) => ShutdownApp();
+            }
+
+            shell.OnReturnRequested += (_, __) => Dispatch(new UiEvent.ReturnStripPressed());
+
+            return shell;
+        }
+
+        private object CreateRouteBody(NavRoute route) => route switch
+        {
+            NavRoute.Dialer   => CreateDialerView(),
+            NavRoute.Recents  => CreateRecentsView(),
+            NavRoute.Tasks    => CreateTasksView(),
+            NavRoute.Settings => CreateSettingsView(fromLogin: false),
+            NavRoute.Call     => CreateActiveCallView(),
+            _ => throw new ArgumentOutOfRangeException(nameof(route), route, "Route has no screen"),
+        };
+
+        /// <summary>Centres the window on the work area of the screen it is currently on.</summary>
+        private void PlaceCentered(double width, double height)
+        {
+            var area = (Screens?.ScreenFromWindow(this) ?? Screens?.Primary)?.WorkingArea
+                       ?? new PixelRect(0, 0, 1920, 1080);
+
+            var left = area.X + (area.Width  - (int)width)  / 2;
+            var top  = area.Y + (area.Height - (int)height) / 2;
+
+            Position = new PixelPoint(left, top);
+            Width    = width;
+            Height   = height;
+            _anchorX = left + (int)width;
+            _anchorY = top  + (int)height;
+        }
+
+        /// <summary>Kills an animation in flight without letting it finish.</summary>
+        private void CancelAnimation()
+        {
+            _animTimer?.Stop();
+            _animTimer     = null;
+            _animStopwatch = null;
+            _pendingContent = null;
+        }
+
+        /// <summary>
+        /// Hands the bottom bar its state. The replacement for AttachNav, which derived the
+        /// tab and the login mode from the screen's type — both are already in UiState here.
+        ///
+        /// Takes the screen rather than reading Host, and must keep doing so. During a resize
+        /// the incoming screen is parked in the overlay and shown for the whole 280 ms fade
+        /// while Host still holds the outgoing one; reading Host here would dress the screen
+        /// that is leaving and let the arriving one paint its markup defaults for the length
+        /// of the fade — a blue dialpad on a call screen snapping to green at the last frame,
+        /// badges popping in as it lands. That is the bug the comment beside StartAnimation's
+        /// own call to this describes, and this signature is what prevents it. Null means "the
+        /// screen already in Host", which is every caller that is not mid-animation.
+        /// </summary>
+        private void RefreshChrome(UiState s, object? content = null)
+        {
+            var screen = content ?? this.FindControl<ContentControl>("Host")?.Content;
+            // Before the bar, and before the early return below: the dialer is a screen with
+            // a bar, but this has to reach it whether or not the search for the bar succeeds.
+            // A second call is refused by SipService and again by StartOutgoingCall, both in
+            // silence; this is what makes the refusal visible instead of leaving the operator
+            // pressing a live-looking button.
+            (screen as Control)?.FindLogicalDescendantOfType<Views.ExpandedView>()
+                ?.SetDialingBlocked(App.SipService.State != CallState.Idle);
+
+            var nav = (screen as Control)?.FindLogicalDescendantOfType<Views.BottomNavControl>();
+            if (nav == null)
+            {
+                // Those four have no bottom bar by design. Any other screen arriving here is
+                // one whose bar the search missed, and the symptom is a bar that draws
+                // normally and does nothing — which is exactly what the scattered per-screen
+                // wiring used to produce, silently. One place now, so make it a place that
+                // says something.
+                if (screen is not (null or Views.WidgetView or Views.LoginView or
+                                   Views.IncomingView or Views.ActiveCallWidgetView))
+                    AppLogger.Log("MainWindow",
+                        $"No BottomNavControl found in {screen.GetType().Name} — its tab bar is dead.");
+                return;
+            }
+
+            nav.TabSelected -= OnNavTabSelected;
+            nav.TabSelected += OnNavTabSelected;
+            nav.ActiveTab = ShellRouter.ActiveTab(s);
+            nav.SetLoginMode(s.Shell == Shell.LoginSettings);
+            ApplyBadges(nav);
+
+            // The screen RefreshChrome already resolved on its first line, not Host. During a
+            // resize the arriving screen sits in the overlay while Host still holds the one
+            // leaving, so reading Host here would drive the strip on the wrong panel and
+            // leave the arriving one blank for the length of every fade — the same trap the
+            // doc comment above this method describes.
+            if (screen is Views.PanelShellView panel)
+                panel.SetReturnStrip(
+                    ShellRouter.ShowReturnStrip(s, App.SipService.State),
+                    App.SipService.ActiveCallerId,
+                    App.SipService.ActiveCallStartedAt);
+        }
+
+        private void ApplyStatusPopup(UiState s)
+        {
+            if (s.StatusPopup) ShowStatusPopup();
+            else               HideStatusPopup();
         }
 
         private void CompleteAnimatedContentSwap()
@@ -873,6 +1227,10 @@ namespace OrbitalSIP
             else if (host != null) host.Opacity = 1;
             if (overlay != null) { overlay.Opacity = 0; overlay.IsVisible = false; }
             _pendingContent = null;
+            // Again at the end of the fade, on the same bar StartAnimation already dressed:
+            // 280 ms is long enough for a call to connect or end under it, and this is what
+            // re-reads whatever moved.
+            RefreshChrome(_state, nextContent);
         }
 
         /// <summary>
@@ -888,6 +1246,8 @@ namespace OrbitalSIP
         /// </summary>
         private void ShutdownApp()
         {
+            App.NavBadges.Stop();
+
             if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 desktop.Shutdown();

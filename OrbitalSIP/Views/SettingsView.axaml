@@ -1,23 +1,18 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:Views="clr-namespace:OrbitalSIP.Views"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:i18n="clr-namespace:OrbitalSIP.Services"
              x:Class="OrbitalSIP.Views.SettingsView">
-  <Border Width="320"
-          Background="#0F172A"
-          BorderBrush="#1E293B"
-          BorderThickness="1"
-          CornerRadius="16"
-          ClipToBounds="True"
-          Padding="20">
-    <Grid RowDefinitions="Auto,*,Auto,Auto">
-
-      <!-- Header -->
-      <Views:TopBarControl Name="TopBar" Grid.Row="0" Margin="-20,-20,-20,10" />
+  <!-- Padding is all that is left of this screen's own frame: the rest of it - width,
+       background, outline, rounded corners, clipping - moved to PanelShellView with the
+       bars. The -20 margins the two bars carried existed only to punch back out through
+       this padding to the panel edge, and they go with them. -->
+  <Border Padding="20">
+    <Grid RowDefinitions="*,Auto">
 
 
       <!-- Content -->
-      <ScrollViewer Grid.Row="1">
+      <ScrollViewer Grid.Row="0">
         <StackPanel Spacing="16">
 
           <!-- Backend URL -->
@@ -242,7 +237,7 @@
       </ScrollViewer>
 
       <!-- Save button + status -->
-      <StackPanel Grid.Row="2" Margin="0,16,0,0" Spacing="8">
+      <StackPanel Grid.Row="1" Margin="0,16,0,0" Spacing="8">
         <Button Name="SaveBtn"
                 Height="44" CornerRadius="10"
                 Background="#10B981" Foreground="#FFFFFF"
@@ -255,7 +250,6 @@
                    HorizontalAlignment="Center" IsVisible="False" />
       </StackPanel>
 
-      <Views:BottomNavControl Grid.Row="3" Name="BottomNav" Margin="-20,20,-20,-20" />
     </Grid>
 
   </Border>

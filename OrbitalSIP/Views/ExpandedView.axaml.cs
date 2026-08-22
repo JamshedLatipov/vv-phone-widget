@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
@@ -14,23 +14,56 @@ namespace OrbitalSIP.Views
 {
     public partial class ExpandedView : UserControl
     {
+        /// <summary>
+        /// True while a call is up, so the dialer refuses to start a second one.
+        ///
+        /// SipService has always refused the second call, and MainWindow.StartOutgoingCall
+        /// guards it too — but both refuse in silence, and the operator pressing a green,
+        /// enabled button and getting nothing has no way to tell a blocked action from a
+        /// broken one. Until a second line means something, saying no out loud is the
+        /// honest answer.
+        ///
+        /// Pushed in by MainWindow rather than read from SipService here: this view is
+        /// rebuilt on every navigation, and a subscription per rebuild is the leak the
+        /// window-wide state exists to avoid.
+        /// </summary>
+        private bool _dialingBlocked;
+
         public ExpandedView()
         {
             InitializeComponent();
             WireButtons();
         }
 
+        /// <summary>Tells the dialer whether a call is already up. Idempotent.</summary>
+        public void SetDialingBlocked(bool blocked)
+        {
+            _dialingBlocked = blocked;
+            RefreshCallButton();
+        }
+
+        /// <summary>
+        /// The one place the call button's state is decided, from the two things that decide
+        /// it: something to dial, and no call already running. Three separate assignments
+        /// used to set IsEnabled from the text alone, so whichever ran last won.
+        /// </summary>
+        private void RefreshCallButton()
+        {
+            var callBtn = this.FindControl<Button>("CallBtn");
+            if (callBtn == null) return;
+
+            var typed = this.FindControl<TextBox>("DisplayText")?.Text;
+            callBtn.IsEnabled = !string.IsNullOrWhiteSpace(typed) && !_dialingBlocked;
+
+            ToolTip.SetTip(callBtn, _dialingBlocked
+                ? I18nService.Instance.Get("DialBlockedDuringCall")
+                : null);
+        }
+
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
         private void WireButtons()
         {
-            // Header buttons
-            var topBar = this.FindControl<TopBarControl>("TopBar");
-            if (topBar != null) { topBar.OnMinimizeRequested += (_, __) => OnCloseRequested?.Invoke(this, EventArgs.Empty); topBar.OnAvatarClicked += (_, __) => OnAvatarClicked?.Invoke(this, EventArgs.Empty); topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, EventArgs.Empty); }
-            var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
-            if (bottomNav != null) bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
-            if (bottomNav != null) bottomNav.OnRecentsRequested += (_, __) => OnRecentsRequested?.Invoke(this, EventArgs.Empty);
-            bottomNav?.SetActiveTab("Dialer");
             BindAsync("CopyBtn", CopyDisplayedNumberAsync);
 
             // Backspace
@@ -48,32 +81,33 @@ namespace OrbitalSIP.Views
             // Call button
             Bind("CallBtn", () =>
             {
+                if (_dialingBlocked) return;
+
                 var d = this.FindControl<TextBox>("DisplayText");
                 var num = d?.Text?.Trim() ?? "";
                 if (num.Length > 0)
                     OutgoingCallRequested?.Invoke(this, num);
             });
 
-            // Enter key on display field triggers call; sync CallBtn enabled state
-            var callBtn = this.FindControl<Button>("CallBtn");
+            // Enter key on display field triggers call; the button's state follows the text
             var display = this.FindControl<TextBox>("DisplayText");
             if (display != null)
             {
-                // Initial state
-                if (callBtn != null)
-                    callBtn.IsEnabled = !string.IsNullOrWhiteSpace(display.Text);
+                RefreshCallButton();
 
-                display.TextChanged += (_, __) =>
-                {
-                    if (callBtn != null)
-                        callBtn.IsEnabled = !string.IsNullOrWhiteSpace(display.Text);
-                };
+                display.TextChanged += (_, __) => RefreshCallButton();
 
                 display.KeyDown += (_, e) =>
                 {
                     if (e.Key == Avalonia.Input.Key.Enter)
                     {
                         e.Handled = true;
+
+                        // Enter goes around the button, so the button being disabled does not
+                        // stop it. Holding Enter autorepeats, which is how this path found its
+                        // first guard in the first place.
+                        if (_dialingBlocked) return;
+
                         var num = display.Text?.Trim() ?? "";
                         if (num.Length > 0)
                             OutgoingCallRequested?.Invoke(this, num);
@@ -135,11 +169,6 @@ namespace OrbitalSIP.Views
         }
 
         // ── Events ────────────────────────────────────────────────────
-        public event System.EventHandler?        OnCloseRequested;
-        public event EventHandler? OnAvatarClicked;
-        public event System.EventHandler?        OnSettingsRequested;
-        public event System.EventHandler?        OnRecentsRequested;
-        public event System.EventHandler?        OnExitAppRequested;
         /// <summary>Fired when the user presses the call button. Arg = dialled number.</summary>
         public event EventHandler<string>? OutgoingCallRequested;
     }

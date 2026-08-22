@@ -5,12 +5,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:i18n="clr-namespace:OrbitalSIP.Services"
              x:Class="OrbitalSIP.Views.ActiveCallView">
-  <Border Width="320" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16" ClipToBounds="True">
-    <Grid RowDefinitions="*,Auto">
+  <Grid RowDefinitions="*">
       <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Margin="0,0,0,14">
-
-        <Views:TopBarControl Name="TopBar" Margin="0,0,0,12" />
 
         <StackPanel Margin="18,0,18,0" Spacing="14">
           <StackPanel HorizontalAlignment="Center" Spacing="10">
@@ -143,6 +140,26 @@
                         Content="{i18n:I18n Transfer}"
                         HorizontalContentAlignment="Center" />
               </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- In-call DTMF pad. Digit buttons are built in code (see
+               ActiveCallView.Dtmf.cs) since they all share one Click handler. The hint
+               has no default Text: DtmfPadPresenter.HintKey picks one of two strings
+               from the live CallState (not-answered vs on-hold), so a static XAML
+               binding cannot say the right thing in every case — UpdateDtmfPadEnabled
+               sets it before the panel is ever shown. -->
+          <Border Name="DtmfPanel" IsVisible="False"
+                  Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1"
+                  CornerRadius="14" Padding="14,12">
+            <StackPanel Spacing="8">
+              <TextBlock Name="DtmfEchoLabel" Text="" FontSize="14" FontWeight="SemiBold"
+                         Foreground="#F8FAFC" HorizontalAlignment="Center" MinHeight="18"
+                         TextWrapping="Wrap" TextAlignment="Center" />
+              <TextBlock Name="DtmfHintLabel" IsVisible="False"
+                         Text="" FontSize="11" Foreground="#F59E0B"
+                         HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+              <UniformGrid Name="DtmfGrid" Columns="3" Rows="4" />
             </StackPanel>
           </Border>
 
@@ -404,7 +421,5 @@
         </StackPanel>
       </StackPanel>
     </ScrollViewer>
-    <Views:BottomNavControl Grid.Row="1" Name="BottomNav" />
   </Grid>
-  </Border>
 </UserControl>

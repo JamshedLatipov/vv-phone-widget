@@ -32,6 +32,9 @@ namespace OrbitalSIP
         /// the call history, and neither knows about the other.</summary>
         public static readonly Models.SingleWindowGuard ScriptWindows = new Models.SingleWindowGuard();
         public static readonly UpdateService        Updater       = new UpdateService();
+        /// <summary>The one poll behind the bottom-nav badge counts — and behind the
+        /// dialer's stats panel, which used to fetch the same URL on a timer of its own.</summary>
+        public static readonly NavBadgeService      NavBadges     = new NavBadgeService();
 
         public override void Initialize()
         {
@@ -73,6 +76,10 @@ namespace OrbitalSIP
 
                 desktop.Exit += (_, __) =>
                 {
+                    // Also stopped by MainWindow.ShutdownApp, but that is the in-app exit
+                    // button only: the tray menu's Exit calls desktop.Shutdown() directly,
+                    // and this handler is the one path both of them go through.
+                    App.NavBadges.Dispose();
                     App.Updater.Dispose();
                     App.GlobalHotkeys.Stop();
                     SoundService.Dispose();
@@ -90,30 +97,35 @@ namespace OrbitalSIP
             base.OnFrameworkInitializationCompleted();
         }
 
+        // These three go through MainWindow's own HideToTray/ShowFromTray rather than
+        // the bare Window.Hide()/Show() the tray used before: the task, survey, scripts
+        // and SMS windows are owned by MainWindow, and hiding or showing it bare would
+        // leave them stranded — see HideToTray and ShowFromTray for why.
+
         private void TrayIcon_Clicked(object? sender, EventArgs e)
         {
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow is MainWindow mainWindow)
             {
-                if (desktop.MainWindow.IsVisible)
-                    desktop.MainWindow.Hide();
+                if (mainWindow.IsVisible)
+                    mainWindow.HideToTray();
                 else
-                    desktop.MainWindow.Show();
+                    mainWindow.ShowFromTray();
             }
         }
 
         private void MenuShow_Click(object? sender, EventArgs e)
         {
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow is MainWindow mainWindow)
             {
-                desktop.MainWindow.Show();
+                mainWindow.ShowFromTray();
             }
         }
 
         private void MenuHide_Click(object? sender, EventArgs e)
         {
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow is MainWindow mainWindow)
             {
-                desktop.MainWindow.Hide();
+                mainWindow.HideToTray();
             }
         }
 

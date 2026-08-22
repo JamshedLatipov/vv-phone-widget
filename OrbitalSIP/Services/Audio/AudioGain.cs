@@ -29,6 +29,30 @@ namespace OrbitalSIP.Services.Audio
             }
         }
 
+        /// <summary>
+        /// Loudest sample magnitude in the buffer, 0 to 32768.
+        ///
+        /// This is the one measurement that separates a working microphone from a muted one.
+        /// Everything else about the send path — frames captured, samples encoded, packets
+        /// counted — looks identical either way: a muted device still delivers its buffers on
+        /// time, 50 a second, and the encoder faithfully compresses digital silence into
+        /// perfectly well-formed RTP. Only the amplitude is different.
+        /// </summary>
+        public static int Peak(ReadOnlySpan<short> pcm)
+        {
+            int peak = 0;
+
+            for (int i = 0; i < pcm.Length; i++)
+            {
+                // Negating short.MinValue overflows a short, so widen before taking the
+                // magnitude — otherwise the quietest possible reading is a negative peak.
+                int magnitude = Math.Abs((int)pcm[i]);
+                if (magnitude > peak) peak = magnitude;
+            }
+
+            return peak;
+        }
+
         private static float SoftClip(float s)
         {
             float a = MathF.Abs(s);

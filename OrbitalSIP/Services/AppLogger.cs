@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using OrbitalSIP.Services.Logging;
 
@@ -15,10 +15,7 @@ namespace OrbitalSIP.Services
 
         static AppLogger()
         {
-            var logDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "OrbitalSIP", "logs");
-            _writer = new AsyncLogWriter(Path.Combine(logDir, "app.log"));
+            _writer = new AsyncLogWriter(LogPaths.File("app.log"));
         }
 
         public static void Log(string tag, string message)

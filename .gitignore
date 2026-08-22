@@ -6,5 +6,7 @@ OrbitalSIP/bin/*
 OrbitalSIP/obj/*
 OrbitalSIP.Tests/bin/*
 OrbitalSIP.Tests/obj/*
+OrbitalSIP/artifacts/*
+OrbitalSIP.Tests/artifacts/*
 dist/*
 publish/*

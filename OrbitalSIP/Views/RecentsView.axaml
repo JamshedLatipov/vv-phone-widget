@@ -4,18 +4,9 @@
              xmlns:Views="clr-namespace:OrbitalSIP.Views"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="OrbitalSIP.Views.RecentsView">
-  <Border Width="320"
-          Background="#0F172A"
-          BorderBrush="#1E293B"
-          BorderThickness="1"
-          CornerRadius="16"
-          ClipToBounds="True">
-    <Grid RowDefinitions="Auto,Auto,*,Auto">
+  <Grid RowDefinitions="Auto,*">
 
-      <!-- Header -->
-      <Views:TopBarControl Name="TopBar" />
-
-      <StackPanel Grid.Row="1" Spacing="6" Margin="14,10,14,0">
+      <StackPanel Grid.Row="0" Spacing="6" Margin="14,10,14,0">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Text="{i18n:I18n CallHistory}" FontSize="12" FontWeight="Bold" LetterSpacing="1.2" Foreground="#7B92AA" VerticalAlignment="Center"/>
           <Button Grid.Column="1" Name="RefreshCdrBtn" Width="24" Height="24" Background="Transparent" Padding="0" Margin="0" Cursor="Hand" BorderThickness="0">
@@ -26,7 +17,7 @@
         </Grid>
       </StackPanel>
 
-      <ScrollViewer Grid.Row="2" Margin="14,10,14,10" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+      <ScrollViewer Grid.Row="1" Margin="14,10,14,10" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
           <ItemsControl Name="CdrItemsControl">
               <ItemsControl.ItemTemplate>
                   <DataTemplate>
@@ -90,14 +81,10 @@
           </ItemsControl>
       </ScrollViewer>
 
-      <TextBlock Grid.Row="2" Name="SmsComposeErrorLabel" IsVisible="False"
+      <TextBlock Grid.Row="1" Name="SmsComposeErrorLabel" IsVisible="False"
                  VerticalAlignment="Bottom" Margin="14,0,14,10"
                  FontSize="11" Foreground="#FCA5A5" TextWrapping="Wrap"
                  TextAlignment="Center" />
 
-      <!-- Bottom tab bar -->
-      <Views:BottomNavControl Grid.Row="3" Name="BottomNav" />
-
-    </Grid>
-  </Border>
+  </Grid>
 </UserControl>

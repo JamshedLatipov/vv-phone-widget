@@ -1,21 +1,114 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:i18n="clr-namespace:OrbitalSIP.Services"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="OrbitalSIP.Views.BottomNavControl">
+
+  <UserControl.Styles>
+    <!-- ORDER IS PRECEDENCE in this block: equal-specificity styles are applied in
+         declaration order, so the later one wins. :pointerover must stay above .active or
+         the active tab dims on hover, and :disabled must stay below both. Grouping or
+         alphabetising these breaks both, with no compiler error and no test to catch
+         it. -->
+
+    <!-- The active/inactive look used to be four pairs of hand-written Opacity and
+         SolidColorBrush assignments in code-behind. Here it is once. -->
+    <Style Selector="Button.nav-tab">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Opacity" Value="0.65" />
+    </Style>
+
+    <Style Selector="Button.nav-tab:pointerover">
+      <Setter Property="Opacity" Value="0.85" />
+    </Style>
+
+    <!-- Fluent's Button theme paints PART_ContentPresenter's own background on hover, and
+         a Background setter on the Button does not reach it — so without this there is a
+         grey plate behind the icon. The opacity lift above is meant to be the whole hover
+         affordance. Same /template/ idiom App.axaml uses on TextBox and ComboBox.
+         UNVERIFIED: the plate cannot be seen without running the app. -->
+    <Style Selector="Button.nav-tab:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="Button.nav-tab.active">
+      <Setter Property="Opacity" Value="1.0" />
+    </Style>
+
+    <Style Selector="Button.nav-tab:disabled">
+      <Setter Property="Opacity" Value="0.28" />
+    </Style>
+
+    <Style Selector="Button.nav-tab materialIcons|MaterialIcon">
+      <Setter Property="Foreground" Value="#8AA0B8" />
+    </Style>
+
+    <Style Selector="Button.nav-tab.active materialIcons|MaterialIcon">
+      <Setter Property="Foreground" Value="#60A5FA" />
+    </Style>
+
+    <Style Selector="Border.nav-badge">
+      <Setter Property="Background" Value="#3B82F6" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="MinWidth" Value="18" />
+      <Setter Property="Height" Value="18" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="Margin" Value="0,-6,-8,0" />
+    </Style>
+
+    <Style Selector="Border.nav-badge.alert">
+      <Setter Property="Background" Value="#EF4444" />
+    </Style>
+  </UserControl.Styles>
+
   <Border Background="#0F172A" Height="46" BorderBrush="#1E293B" BorderThickness="1,1,1,0" VerticalAlignment="Bottom">
     <Grid ColumnDefinitions="*,*,*,*">
-      <Button Grid.Column="0" Name="DialerBtn" Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-        <materialIcons:MaterialIcon Name="DialerIcon" Kind="Dialpad" Width="20" Height="20" Foreground="#60A5FA" />
+
+      <!-- The only tab whose tooltip changes at runtime, so it is the only one with no
+           ToolTip.Tip binding here: RefreshTabVisuals sets the text, and a binding left in
+           the markup would stay live underneath it and push "Dialer" back over the back-arrow
+           wording the next time the language changed. Do not restore it.
+
+           What that costs: an assigned tooltip does not follow a language change the way
+           the other three do, so the control subscribes to I18nService.LanguageChanged and
+           re-runs the refresh itself. Removing that subscription strands this tooltip in
+           whatever language was current when the bar was built. -->
+      <Button Grid.Column="0" Name="DialerBtn" Classes="nav-tab active">
+        <materialIcons:MaterialIcon Name="DialerIcon" Kind="Dialpad" Width="20" Height="20" />
       </Button>
-      <Button Grid.Column="1" Name="RecentsBtn" Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Opacity="0.65">
-        <materialIcons:MaterialIcon Name="RecentsIcon" Kind="ClockOutline" Width="22" Height="22" Foreground="#8AA0B8" />
-      </Button>
-      <Button Grid.Column="2" Name="ContactsBtn" Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Opacity="0.65">
-        <materialIcons:MaterialIcon Name="ContactsIcon" Kind="AccountCircleOutline" Width="22" Height="22" Foreground="#8AA0B8" />
-      </Button>
-      <Button Grid.Column="3" Name="SettingsBtn" Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Opacity="0.65">
+
+      <Button Grid.Column="1" Name="RecentsBtn" Classes="nav-tab" ToolTip.Tip="{i18n:I18n Recents}">
         <Panel>
-          <materialIcons:MaterialIcon Name="SettingsIcon" Kind="CogOutline" Width="22" Height="22" Foreground="#8AA0B8" />
+          <materialIcons:MaterialIcon Kind="ClockOutline" Width="22" Height="22" />
+          <Border Name="RecentsBadge" Classes="nav-badge" IsVisible="False">
+            <TextBlock Name="RecentsBadgeText" Text="" FontSize="10" FontWeight="Bold"
+                       Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </Panel>
+      </Button>
+
+      <Button Grid.Column="2" Name="TasksBtn" Classes="nav-tab" ToolTip.Tip="{i18n:I18n Tasks}">
+        <Panel>
+          <materialIcons:MaterialIcon Kind="FormatListChecks" Width="22" Height="22" />
+          <Border Name="TasksBadge" Classes="nav-badge" IsVisible="False">
+            <TextBlock Name="TasksBadgeText" Text="" FontSize="10" FontWeight="Bold"
+                       Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </Panel>
+      </Button>
+
+      <Button Grid.Column="3" Name="SettingsBtn" Classes="nav-tab" ToolTip.Tip="{i18n:I18n Settings}">
+        <Panel>
+          <materialIcons:MaterialIcon Kind="CogOutline" Width="22" Height="22" />
           <!-- Update available indicator dot -->
           <Ellipse Name="UpdateDot" Width="8" Height="8"
                    Fill="#17E0A0"
@@ -24,6 +117,7 @@
                    IsVisible="False" />
         </Panel>
       </Button>
+
     </Grid>
   </Border>
 </UserControl>

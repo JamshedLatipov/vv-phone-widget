@@ -21,6 +21,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
@@ -32,7 +33,23 @@ namespace OrbitalSIP.Services.Audio
     {
         private const int DEVICE_BITS_PER_SAMPLE = 16;
         private const int DEVICE_CHANNELS = 1;
-        private const int INPUT_BUFFERS = 2;          // See https://github.com/sipsorcery/sipsorcery/pull/148.
+        /// <summary>
+        /// Capture buffers queued with the driver. Upstream uses 2 (see
+        /// https://github.com/sipsorcery/sipsorcery/pull/148) which is 40 ms of slack: if the
+        /// DataAvailable handler ever runs longer than that, winmm drains its queue before a
+        /// single buffer is handed back, stops signalling, and the capture goes silent until
+        /// something re-arms it. That is a measured fault, not a theoretical one — a 778 second
+        /// stall mid-call, microphone frames stopping dead while playback carried on. Eight
+        /// buffers is 160 ms of slack; it costs nothing, because each callback still covers
+        /// 20 ms and the latency is set by BufferMilliseconds, not by how many are queued.
+        /// </summary>
+        private const int INPUT_BUFFERS = 8;
+
+        /// <summary>Encoded frames allowed to queue for the sender before the oldest is dropped. 50 frames = 1 s.</summary>
+        private const int SEND_QUEUE_DEPTH = 50;
+
+        /// <summary>How long the capture may deliver nothing before the watchdog rebuilds the device.</summary>
+        private static readonly TimeSpan CaptureStallTimeout = TimeSpan.FromSeconds(3);
         private const int AUDIO_SAMPLE_PERIOD_MILLISECONDS = 20;
         private const int AUDIO_INPUTDEVICE_INDEX = -1;
         private const int AUDIO_OUTPUTDEVICE_INDEX = -1;
@@ -95,6 +112,71 @@ namespace OrbitalSIP.Services.Audio
         /// </summary>
         public bool IsPlaybackDeviceOpen => _waveOutEvent != null;
 
+        /// <summary>
+        /// Encoded capture frames produced so far. Read back by <c>SipService</c> to log the
+        /// send side of a call the way received packets are already logged, because a call
+        /// where only this stays at zero is exactly the one the operator is told about by the
+        /// person on the other end rather than by the widget.
+        /// </summary>
+        public long EncodedSampleCount => Interlocked.Read(ref _encodedSampleCount);
+
+        /// <summary>
+        /// Loudest sample captured since this was last called, then resets to zero, so each
+        /// reading covers the window between two log lines rather than one 20 ms frame.
+        ///
+        /// <see cref="EncodedSampleCount"/> proves the microphone is delivering buffers. It
+        /// cannot prove they contain anything: a muted device delivers silence on exactly the
+        /// same schedule, and every counter, codec and device check in the log stays green
+        /// while the far end hears nothing. Zero here over a whole call is that fault, named.
+        /// </summary>
+        public int TakeCapturePeak() => Interlocked.Exchange(ref _capturePeak, 0);
+
+        /// <summary>Running peak, raised on the capture thread and cleared by whoever reads it.</summary>
+        private int _capturePeak;
+
+        /// <summary>
+        /// Loudest decoded sample rendered since this was last called, then resets.
+        ///
+        /// The exact mirror of <see cref="TakeCapturePeak"/>, and needed for the same reason:
+        /// a far end that sends well-formed RTP full of silence — a queue whose music never
+        /// starts, a bridge that never completes — is indistinguishable from a healthy call by
+        /// packet count alone. The operator hears nothing and every number in the log is green.
+        /// </summary>
+        public int TakeRenderPeak() => Interlocked.Exchange(ref _renderPeak, 0);
+
+        /// <summary>Running peak of decoded remote audio.</summary>
+        private int _renderPeak;
+
+        // ── Send pump ─────────────────────────────────────────────────
+        //
+        // The capture callback must not touch the network. OnAudioSourceEncodedSample is a
+        // plain event, and the subscriber on the other side is VoIPMediaSession, whose handler
+        // runs SendAudio -> SendRtpRaw -> RTPChannel.Send -> a synchronous Socket.SendTo. All
+        // of that used to execute inline on NAudio's record thread, so one slow UDP send — a
+        // VPN adapter renegotiating a route, a full send queue — stalled audio capture itself.
+        // With the driver holding only a handful of buffers, a stall past that window ends the
+        // capture outright: it stops for minutes, reports no error, and resumes at the frame
+        // it left off, while the far end hears nothing and every device check stays green.
+        //
+        // The queue makes the capture callback's cost bounded and independent of the network.
+
+        private readonly System.Collections.Concurrent.ConcurrentQueue<(byte[] Encoded, AudioFormat Format, uint DurationMs)> _sendQueue = new();
+        private readonly SemaphoreSlim _sendPending = new(0);
+        private readonly CancellationTokenSource _sendShutdown = new();
+        private Thread? _senderThread;
+        private long _droppedSendFrames;
+
+        /// <summary>Frames dropped because the sender could not keep up. Non-zero means the network stalled, not the microphone.</summary>
+        public long DroppedSendFrames => Interlocked.Read(ref _droppedSendFrames);
+
+        /// <summary><see cref="Environment.TickCount64"/> of the last capture callback, for the stall watchdog.</summary>
+        private long _lastCaptureTicks;
+
+        /// <summary>Guards the watchdog against rebuilding a device that a previous pass is still rebuilding.</summary>
+        private int _watchdogBusy;
+
+        private System.Threading.Timer? _captureWatchdog;
+
         /// <summary>Outgoing (mic) gain factor. 1.0 = unity. Written on the UI thread, read on the audio thread; volatile for timely cross-thread visibility (float writes are already atomic).</summary>
         public volatile float SourceGain = 1f;
         /// <summary>Incoming (speaker) gain factor. 1.0 = unity.</summary>
@@ -126,6 +208,20 @@ namespace OrbitalSIP.Services.Audio
 
         /// <summary>Rendered packet count, used only to sample the backlog into the log.</summary>
         private int _renderPacketCount;
+
+        /// <summary>
+        /// Capture frames encoded since this endpoint was built. The only direct evidence that
+        /// the microphone is alive: everything else about the send path — the device opening,
+        /// the gain, the codec — can look healthy while this stays at zero and the far end
+        /// hears nothing.
+        /// </summary>
+        private long _encodedSampleCount;
+
+        /// <summary>Capture callbacks that threw. Rate-limits the log: the callback fires 50 times a second.</summary>
+        private long _captureFaults;
+
+        /// <summary>Restarts already attempted after an unexpected capture stop, so a device that is simply gone is not retried in a loop.</summary>
+        private int _captureRestarts;
 
         // The four events below implement SIPSorceryMedia.Abstractions interfaces that are
         // not nullable-annotated, so they cannot be declared `?` without trading nine
@@ -255,10 +351,70 @@ namespace OrbitalSIP.Services.Audio
             if (!_isAudioSourceStarted)
             {
                 _isAudioSourceStarted = true;
+                StartSendPump();
+                Volatile.Write(ref _lastCaptureTicks, Environment.TickCount64);
                 _waveInEvent?.StartRecording();
+
+                // Nothing else notices a capture that simply stops: NAudio raises no error, the
+                // call stays up and the operator keeps hearing the far end. Measured once at
+                // 778 seconds of silence in one call before anybody said so out loud.
+                _captureWatchdog = new System.Threading.Timer(
+                    _ => CheckCaptureAlive(), null, 1000, 1000);
             }
 
             return Task.CompletedTask;
+        }
+
+        private void StartSendPump()
+        {
+            if (_senderThread != null) return;
+
+            _senderThread = new Thread(SendPump)
+            {
+                IsBackground = true,
+                Name = "OrbitalSIP-RtpSend",
+                Priority = ThreadPriority.AboveNormal,
+            };
+            _senderThread.Start();
+        }
+
+        /// <summary>
+        /// Rebuilds the capture device when it has delivered nothing for
+        /// <see cref="CaptureStallTimeout"/> while it is supposed to be recording.
+        /// </summary>
+        private void CheckCaptureAlive()
+        {
+            if (_disposed || _isAudioSourceClosed || _isAudioSourcePaused || !_isAudioSourceStarted) return;
+            if (_waveInEvent == null) return;
+
+            long since = Environment.TickCount64 - Volatile.Read(ref _lastCaptureTicks);
+            if (since < (long)CaptureStallTimeout.TotalMilliseconds) return;
+
+            // One rebuild at a time, and the clock is reset first so a slow rebuild does not
+            // immediately qualify as another stall.
+            if (Interlocked.Exchange(ref _watchdogBusy, 1) == 1) return;
+            Volatile.Write(ref _lastCaptureTicks, Environment.TickCount64);
+
+            AppLogger.Log("Audio",
+                $"CAPTURE STALLED: no microphone frames for {since} ms — rebuilding the capture "
+              + "device. The far end has been hearing silence for that long.");
+
+            try
+            {
+                InitCaptureDevice(_audioInDeviceIndex,
+                    _waveSourceFormat?.SampleRate ?? (int)DefaultAudioSourceSamplingRate);
+                AppLogger.Log("Audio", "Capture device rebuilt after a stall.");
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("Audio", $"Capture rebuild failed: {ex.GetType().Name} — {ex.Message}");
+                OnAudioSourceError?.Invoke($"Microphone stalled and could not be restarted: {ex.Message}");
+            }
+            finally
+            {
+                Volatile.Write(ref _lastCaptureTicks, Environment.TickCount64);
+                Interlocked.Exchange(ref _watchdogBusy, 0);
+            }
         }
 
         /// <summary>
@@ -269,6 +425,7 @@ namespace OrbitalSIP.Services.Audio
             if (!_isAudioSourceClosed)
             {
                 _isAudioSourceClosed = true;
+                StopCaptureHelpers();
                 DisposeCaptureDevice();
             }
 
@@ -434,6 +591,7 @@ namespace OrbitalSIP.Services.Audio
             try
             {
                 waveIn.DataAvailable -= LocalAudioSampleAvailable;
+                waveIn.RecordingStopped -= CaptureStopped;
                 waveIn.StopRecording();
             }
             catch (Exception ex)
@@ -467,6 +625,18 @@ namespace OrbitalSIP.Services.Audio
                     _waveInEvent.DeviceNumber = audioInDeviceIndex;
                     _waveInEvent.WaveFormat = _waveSourceFormat;
                     _waveInEvent.DataAvailable += LocalAudioSampleAvailable;
+
+                    // The only notification NAudio gives when the record thread ends. Nothing
+                    // listened, so a device error mid-call simply stopped the microphone: the
+                    // call stayed up, RTP kept arriving, the operator kept hearing the far end,
+                    // and the far end heard silence until somebody said so out loud.
+                    _waveInEvent.RecordingStopped += CaptureStopped;
+
+                    // A re-initialised capture device comes back stopped, exactly as on the
+                    // render side. StartAudio is one-shot, so without this a format change
+                    // after the call has started (G.722 16 kHz against PCMU 8 kHz) leaves the
+                    // microphone dead for the rest of the call with nothing logged anywhere.
+                    if (_isAudioSourceStarted && !_isAudioSourcePaused) _waveInEvent.StartRecording();
                 }
                 else
                 {
@@ -482,9 +652,92 @@ namespace OrbitalSIP.Services.Audio
         }
 
         /// <summary>
+        /// Runs when NAudio's record thread ends. A clean <c>StopRecording</c> — mute, a format
+        /// change, teardown — reports no exception and is the normal case. Anything else means
+        /// the thread died: the device errored, the driver reset, or a handler threw. Recording
+        /// does not resume on its own and nothing downstream notices, so this is the one place
+        /// the failure can be turned into a log line and a single recovery attempt.
+        /// </summary>
+        private void CaptureStopped(object? sender, StoppedEventArgs e)
+        {
+            if (e.Exception == null) return;
+
+            AppLogger.Log("Audio",
+                $"Capture stopped unexpectedly: {e.Exception.GetType().Name} — {e.Exception.Message}");
+            OnAudioSourceError?.Invoke($"Microphone capture stopped: {e.Exception.Message}");
+
+            TryRestartCapture();
+        }
+
+        /// <summary>
+        /// Reopens the capture device once after an unexpected stop. Once, because a microphone
+        /// that has been unplugged fails every time and a retry loop would do nothing but fill
+        /// the log; the operator still gets the error either way.
+        ///
+        /// Runs off the NAudio callback thread: this is reached from inside the
+        /// <c>RecordingStopped</c> raise, and disposing the device that is raising it from its
+        /// own event is how a teardown deadlocks.
+        /// </summary>
+        private void TryRestartCapture()
+        {
+            if (_disposed || _isAudioSourceClosed || _isAudioSourcePaused) return;
+
+            if (Interlocked.Increment(ref _captureRestarts) > 1)
+            {
+                AppLogger.Log("Audio", "Capture already restarted once this call; not retrying.");
+                return;
+            }
+
+            int sampleRate = _waveSourceFormat?.SampleRate ?? (int)DefaultAudioSourceSamplingRate;
+
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    if (_disposed || _isAudioSourceClosed || _isAudioSourcePaused) return;
+
+                    // InitCaptureDevice starts the new device itself when the source was
+                    // already running, which is the state we are recovering from.
+                    InitCaptureDevice(_audioInDeviceIndex, sampleRate);
+                    AppLogger.Log("Audio", $"Capture device restarted at {sampleRate} Hz.");
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Log("Audio",
+                        $"Capture restart failed: {ex.GetType().Name} — {ex.Message}");
+                    OnAudioSourceError?.Invoke($"Microphone could not be reopened: {ex.Message}");
+                }
+            });
+        }
+
+        /// <summary>
         /// Event handler for audio sample being supplied by local capture device.
         /// </summary>
         private void LocalAudioSampleAvailable(object? sender, WaveInEventArgs args)
+        {
+            // Proof of life for the watchdog, taken before any work that could itself stall.
+            Volatile.Write(ref _lastCaptureTicks, Environment.TickCount64);
+
+            // Nothing may escape into NAudio's record thread. An exception here does not cost
+            // one 20 ms frame: NAudio catches it, ends the thread and raises RecordingStopped,
+            // so the microphone is dead for the rest of the call. Encoding is the live risk —
+            // it reads a selected format the sink path can change underneath it.
+            try
+            {
+                EncodeAndPublish(args);
+            }
+            catch (Exception ex)
+            {
+                // The callback fires 50 times a second, so a permanent fault would fill the
+                // disk at the very moment the log matters most.
+                long faults = Interlocked.Increment(ref _captureFaults);
+                if (faults == 1 || faults % 250 == 0)
+                    AppLogger.Log("Audio",
+                        $"Capture frame dropped (#{faults}): {ex.GetType().Name} — {ex.Message}");
+            }
+        }
+
+        private void EncodeAndPublish(WaveInEventArgs args)
         {
             // Note NAudio.Wave.WaveBuffer.ShortBuffer does not take into account little endian.
             // https://github.com/naudio/NAudio/blob/master/NAudio/Wave/WaveOutputs/WaveBuffer.cs
@@ -500,15 +753,121 @@ namespace OrbitalSIP.Services.Audio
             PcmBuffer.ToSamples(args.Buffer.AsSpan(0, args.BytesRecorded), _captureSamples);
 
             AudioGain.Apply(_captureSamples, SourceGain);
+
+            // Measured after the gain, because that is the audio the far end actually gets:
+            // a mic gain of zero silences the call just as completely as a muted device.
+            RaiseCapturePeak(AudioGain.Peak(_captureSamples));
+
             byte[] encodedSample = _audioEncoder.EncodeAudio(_captureSamples, _audioFormatManager.SelectedFormat);
+            Interlocked.Increment(ref _encodedSampleCount);
+
+            // Hand off and return. Everything past this point can block on a socket, and this
+            // thread is the one the capture device is waiting on.
+            var format = _audioFormatManager.SelectedFormat;
+            Enqueue(encodedSample, format, EncodedFrameDurationMs(sampleCount, format));
+        }
+
+        /// <summary>
+        /// Queues one encoded frame for the sender thread, dropping the oldest if the sender has
+        /// fallen behind. Dropping the oldest rather than the newest keeps the far end current:
+        /// stale audio delivered late is worse than a gap, and the alternative — blocking here —
+        /// is the fault this queue exists to prevent.
+        /// </summary>
+        private void Enqueue(byte[] encoded, AudioFormat format, uint durationMs)
+        {
+            _sendQueue.Enqueue((encoded, format, durationMs));
+
+            while (_sendQueue.Count > SEND_QUEUE_DEPTH && _sendQueue.TryDequeue(out _))
+            {
+                long dropped = Interlocked.Increment(ref _droppedSendFrames);
+                if (dropped == 1 || dropped % 250 == 0)
+                    AppLogger.Log("Audio",
+                        $"Send queue overflow, dropped {dropped} encoded frame(s) — the RTP send "
+                      + "path is not keeping up with the microphone.");
+            }
+
+            try { _sendPending.Release(); } catch (SemaphoreFullException) { /* pump already awake */ }
+            catch (ObjectDisposedException) { /* shutting down */ }
+        }
+
+        /// <summary>
+        /// Drains encoded frames to the transport. Runs off the capture thread so a blocking
+        /// send costs latency here instead of stopping the microphone.
+        /// </summary>
+        private void SendPump()
+        {
+            var token = _sendShutdown.Token;
+
+            while (!token.IsCancellationRequested)
+            {
+                try { _sendPending.Wait(100, token); }
+                catch (OperationCanceledException) { break; }
+                catch (ObjectDisposedException) { break; }
+
+                while (_sendQueue.TryDequeue(out var frame))
+                {
+                    try { Publish(frame.Encoded, frame.Format, frame.DurationMs); }
+                    catch (Exception ex)
+                    {
+                        // A send that throws must not take the pump with it, or the microphone
+                        // goes quiet for the rest of the call exactly as it did before.
+                        long faults = Interlocked.Increment(ref _sendFaults);
+                        if (faults == 1 || faults % 250 == 0)
+                            AppLogger.Log("Audio",
+                                $"RTP send failed (#{faults}): {ex.GetType().Name} — {ex.Message}");
+                    }
+                }
+            }
+        }
+
+        private long _sendFaults;
+
+        private void Publish(byte[] encodedSample, AudioFormat format, uint durationMs)
+        {
             OnAudioSourceEncodedSample?.Invoke((uint)encodedSample.Length, encodedSample);
 
             var frameReady = OnAudioSourceEncodedFrameReady;
             if (frameReady != null)
+                frameReady(new EncodedAudioFrame(0, format, durationMs, encodedSample));
+        }
+
+        /// <summary>
+        /// Keeps <see cref="_capturePeak"/> at the loudest frame seen since it was last read.
+        /// Compare-and-swap rather than a plain write: the reader clears it concurrently, and
+        /// a lost update here would report silence for a window that had audio in it.
+        /// </summary>
+        /// <summary>
+        /// Stops the watchdog and drains the send pump. Never throws: it runs on call teardown,
+        /// where an exception would take the teardown with it.
+        /// </summary>
+        private void StopCaptureHelpers()
+        {
+            try { _captureWatchdog?.Dispose(); } catch { /* already gone */ }
+            _captureWatchdog = null;
+
+            try { _sendShutdown.Cancel(); } catch { /* already cancelled */ }
+            try { _sendPending.Release(); } catch { /* pump already awake or disposed */ }
+
+            var sender = _senderThread;
+            _senderThread = null;
+            try { sender?.Join(TimeSpan.FromSeconds(2)); } catch { /* not worth blocking teardown */ }
+
+            while (_sendQueue.TryDequeue(out _)) { }
+        }
+
+        private void RaiseCapturePeak(int peak) => RaisePeak(ref _capturePeak, peak);
+
+        /// <summary>Same, for the render side. RTP delivery is not contractually single-threaded.</summary>
+        private void RaiseRenderPeak(int peak) => RaisePeak(ref _renderPeak, peak);
+
+        private static void RaisePeak(ref int target, int peak)
+        {
+            int seen = Volatile.Read(ref target);
+            while (peak > seen)
             {
-                var format = _audioFormatManager.SelectedFormat;
-                frameReady(new EncodedAudioFrame(0, format,
-                    EncodedFrameDurationMs(sampleCount, format), encodedSample));
+                int previous = Interlocked.CompareExchange(ref target, peak, seen);
+                if (previous == seen) return;
+                seen = previous;
             }
         }
 
@@ -614,6 +973,10 @@ namespace OrbitalSIP.Services.Audio
             var pcmSample = _audioEncoder.DecodeAudio(payload, format);
             AudioGain.Apply(pcmSample, SinkGain);
 
+            // What the operator is about to hear, measured on the same terms as the capture
+            // side. Zero across a whole call means the packets arrived carrying nothing.
+            RaiseRenderPeak(AudioGain.Peak(pcmSample));
+
             // BufferedWaveProvider copies into its own ring buffer, so the scratch is
             // free for reuse the moment AddSamples returns.
             lock (_renderLock)
@@ -677,6 +1040,7 @@ namespace OrbitalSIP.Services.Audio
             _isAudioSourceClosed = true;
             _isAudioSinkClosed = true;
 
+            StopCaptureHelpers();
             DisposeCaptureDevice();
             DisposePlaybackDevice();
         }

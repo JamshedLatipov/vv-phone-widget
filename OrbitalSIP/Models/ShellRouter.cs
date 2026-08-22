@@ -1,0 +1,195 @@
+using System;
+using OrbitalSIP.Services;
+
+namespace OrbitalSIP.Models;
+
+/// <summary>
+/// The one place the UI state changes.
+///
+/// A pure function: the same three inputs always give the same state back. The side
+/// effects — CallAsync, Hangup, SetStateAsync, opening windows — stay in MainWindow, and
+/// nothing here knows about them. That is what makes the transition table something a test
+/// can reach without building a window, like NavBadgeState next door and TaskListOutcome
+/// over in Services.
+/// </summary>
+public static class ShellRouter
+{
+    public static UiState Reduce(UiState state, UiEvent e, CallState call)
+    {
+        // CallStarted says a call is beginning, and it can outrun the service that is
+        // beginning it: StartOutgoingCall raises it around CallAsync, and its own guard
+        // above guarantees the state still reads Idle at that moment. Normalized against
+        // Idle, the arm that just put the route on the call screen would be undone in the
+        // same breath — the record would come back equal, Dispatch would decline to redraw,
+        // and an operator who dialled from the dialpad would sit there for the whole
+        // conversation. No later event rescues it: CallStateChanged(Ringing) matches no arm.
+        // So this one event is normalized against the call it announces rather than against
+        // the call the service has got around to admitting.
+        var effective = e is UiEvent.CallStarted ? CallState.Ringing : call;
+
+        // Normalize before the comparison, not after: it is Normalize that walks the route
+        // off Call when a call ends, and a route that moves only by normalization is still
+        // a screen change. Asking the question first left the status popup open across it.
+        var next = Route(state, e, effective).Normalize(effective);
+
+        if (next.Shell != state.Shell || next.Route != state.Route)
+            next = next with { StatusPopup = false };
+
+        return next;
+    }
+
+    // The shape of an arm says whether its payload is used further: a bare type pattern
+    // when the event carries nothing (ten of the thirteen do), a property pattern when the
+    // payload is only tested, a capture when it goes into the result. Three styles on
+    // purpose — do not flatten them into one.
+    private static UiState Route(UiState s, UiEvent e, CallState call) => e switch
+    {
+        UiEvent.LoginSucceeded => s with
+        {
+            Shell       = Shell.Collapsed,
+            Home        = Shell.Collapsed,
+            Route       = NavRoute.Dialer,
+            LastNonCall = NavRoute.Dialer,
+        },
+
+        UiEvent.LoginSettingsRequested when s.Shell == Shell.Login =>
+            s with { Shell = Shell.LoginSettings },
+
+        UiEvent.SettingsSaved when s.Shell == Shell.LoginSettings =>
+            s with { Shell = Shell.Login },
+
+        UiEvent.TabPressed when s.Shell == Shell.LoginSettings =>
+            s with { Shell = Shell.Login },
+
+        // A live call defers the login: the dispatcher waits for Idle and raises this
+        // event again.
+        //
+        // Home goes back to the widget with it. The SIP registration outlives the backend
+        // session, so a call can still arrive at the login screen — and CallStarted reads
+        // Home to decide what to answer it with. Left at Panel from the previous session it
+        // would hand a signed-out operator the full 320x600 panel and a working tab bar, and
+        // the end of that call would leave them on Panel{Route=LastNonCall} rather than the
+        // widget. Cheaper here than a session check in every arm that reads Home.
+        UiEvent.SessionExpired when call == CallState.Idle =>
+            s with { Shell = Shell.Login, Home = Shell.Collapsed },
+
+        // Below the LoginSettings arm above, and that order is load-bearing: in login mode
+        // a tab press goes back to login, and a general TabPressed arm placed higher would
+        // swallow it and open a panel to an operator with no session.
+        UiEvent.TabPressed t when s.Shell == Shell.Panel && RouteFor(t.Tab) == s.Route => s,
+
+        UiEvent.TabPressed t => s with
+        {
+            Shell       = Shell.Panel,
+            Route       = RouteFor(t.Tab),
+            LastNonCall = RouteFor(t.Tab),
+        },
+
+        UiEvent.ExpandRequested when s.Shell == Shell.Collapsed =>
+            s with { Shell = Shell.Panel, Home = Shell.Panel },
+
+        UiEvent.IncomingCall when call is CallState.Idle or CallState.IncomingRinging =>
+            s with { Shell = Shell.Incoming },
+
+        UiEvent.IncomingDeclined =>
+            s with { Shell = s.Home },
+
+        UiEvent.CallStarted =>
+            s.Home == Shell.Panel
+                ? s with { Shell = Shell.Panel, Route = NavRoute.Call }
+                : s with { Shell = Shell.CallBar },
+
+        // The guard is belt-and-braces, not the source of correctness: without it this arm
+        // would still hand back the same state, because Normalize walks Route off Call the
+        // moment the call is Idle, and every arm that leaves Route on a tab sets LastNonCall
+        // to that same tab — so the fall-back lands where the operator already was. Review
+        // found the guard mutable to `true` against all 728 tests, and could only observe it
+        // by hand-building a state with LastNonCall out of step with Route, which no arm of
+        // this table produces. Kept because the strip's own predicate asks the same question,
+        // and an arm that answers it out loud is cheaper to read than one that relies on a
+        // repair two files away.
+        UiEvent.ReturnStripPressed when CallIsLive(call) =>
+            s with { Shell = Shell.Panel, Route = NavRoute.Call },
+
+        UiEvent.ExpandRequested when s.Shell == Shell.CallBar =>
+            s with { Shell = Shell.Panel, Route = NavRoute.Call, Home = Shell.Panel },
+
+        // Above the general CollapseRequested arm from Task 4. The compiler enforces that
+        // much on its own — an unguarded arm ahead of a guarded one of the same type is
+        // CS8510, not a warning — so this note is here for the reason, which CS8510 does
+        // not give: below it, a live call would collapse to the widget and take hangup,
+        // mute and hold away from an operator who is still talking.
+        UiEvent.CollapseRequested when CallIsLive(call) =>
+            s with { Shell = Shell.CallBar, Home = Shell.Collapsed },
+
+        UiEvent.CollapseRequested =>
+            s with { Shell = Shell.Collapsed, Home = Shell.Collapsed },
+
+        UiEvent.CallStateChanged { State: CallState.Idle } when s.Shell == Shell.CallBar =>
+            s with { Shell = Shell.Collapsed },
+
+        UiEvent.CallStateChanged { State: CallState.Idle } when s.Shell == Shell.Incoming =>
+            s with { Shell = s.Home },
+
+        UiEvent.StatusPopupToggled p => s with { StatusPopup = p.Open },
+
+        _ => s,
+    };
+
+    /// <summary>
+    /// Whether there is a call to go back to.
+    ///
+    /// Not Idle, and nothing finer: an outgoing ringback is already something the operator
+    /// can return to, and so is a call on hold. Named because three separate places ask it —
+    /// the ReturnStripPressed arm, the call-gated CollapseRequested arm, and the predicate
+    /// below — and three copies of the same comparison drift apart the day "live" needs a
+    /// narrower definition.
+    /// </summary>
+    private static bool CallIsLive(CallState call) => call != CallState.Idle;
+
+    /// <summary>
+    /// Whether the way back to the call is on screen.
+    ///
+    /// IncomingRinging never reaches this predicate — an incoming call lives on
+    /// Shell.Incoming, where there is no panel to carry the strip.
+    /// </summary>
+    public static bool ShowReturnStrip(UiState state, CallState call) =>
+        state.Shell == Shell.Panel &&
+        state.Route != NavRoute.Call &&
+        CallIsLive(call);
+
+    /// <summary>
+    /// The bar slot that reads as current on a given state.
+    ///
+    /// Route answers this on every surface but one. LoginSettings is not a route — it is
+    /// its own surface, and Route goes on carrying whatever the panel was showing before,
+    /// which is Dialer on a cold start and the operator's last tab after a session expiry.
+    /// Asked of Route alone, the bar lit the back arrow, or a tab SetLoginMode had just
+    /// greyed out, while the operator stood on Settings and the Settings slot sat dark.
+    /// The screen it used to be derived from said Settings, and so does this.
+    ///
+    /// Here rather than at the call site in MainWindow, with the rest of the tab decisions:
+    /// a window that works out its own answer is the scatter this rework removed.
+    /// </summary>
+    public static NavTab? ActiveTab(UiState state) =>
+        state.Shell == Shell.LoginSettings ? NavTab.Settings : TabFor(state.Route);
+
+    /// <summary>The bar slot that reads as current, or null — the call screen has none.</summary>
+    public static NavTab? TabFor(NavRoute route) => route switch
+    {
+        NavRoute.Dialer   => NavTab.Dialer,
+        NavRoute.Recents  => NavTab.Recents,
+        NavRoute.Tasks    => NavTab.Tasks,
+        NavRoute.Settings => NavTab.Settings,
+        _                 => null,
+    };
+
+    private static NavRoute RouteFor(NavTab tab) => tab switch
+    {
+        NavTab.Dialer   => NavRoute.Dialer,
+        NavTab.Recents  => NavRoute.Recents,
+        NavTab.Tasks    => NavRoute.Tasks,
+        NavTab.Settings => NavRoute.Settings,
+        _               => throw new ArgumentOutOfRangeException(nameof(tab), tab, "Tab with no route"),
+    };
+}

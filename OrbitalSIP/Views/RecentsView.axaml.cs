@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
@@ -22,16 +22,11 @@ namespace OrbitalSIP.Views
         private bool _isDetached;
         public ObservableCollection<CdrItemViewModel> CdrItems { get; } = new ObservableCollection<CdrItemViewModel>();
 
-        public event EventHandler? OnCloseRequested;
-        public event EventHandler? OnSettingsRequested;
-        public event EventHandler? OnDialerRequested;
         public event EventHandler<string>? OutgoingCallRequested;
-        public event EventHandler? OnExitAppRequested;
 
         public RecentsView()
         {
             InitializeComponent();
-            WireButtons();
             DataContext = this;
 
             var refreshBtn = this.FindControl<Button>("RefreshCdrBtn");
@@ -65,20 +60,6 @@ namespace OrbitalSIP.Views
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
-
-        private void WireButtons()
-        {
-            var topBar = this.FindControl<TopBarControl>("TopBar");
-            if (topBar != null) { topBar.OnMinimizeRequested += (_, __) => OnCloseRequested?.Invoke(this, EventArgs.Empty); topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, EventArgs.Empty); }
-
-            var bottomNav = this.FindControl<BottomNavControl>("BottomNav");
-            if (bottomNav != null)
-            {
-                bottomNav.OnSettingsRequested += (_, __) => OnSettingsRequested?.Invoke(this, EventArgs.Empty);
-                bottomNav.OnDialerRequested += (_, __) => OnDialerRequested?.Invoke(this, EventArgs.Empty);
-                bottomNav.SetActiveTab("Recents");
-            }
-        }
 
         private async Task LoadCallHistoryAsync()
         {
@@ -122,6 +103,37 @@ namespace OrbitalSIP.Views
                             {
                                 ic.ItemsSource = CdrItems;
                             }
+
+                            // Putting the list in front of the operator is what "seen"
+                            // means — not the tab press that got them here. Nowhere else
+                            // marks it: the press used to, and a press on the tab already
+                            // showing is inert, so a call missed while they are standing on
+                            // this screen used to light a badge that stayed lit until they
+                            // left and came back. That badge then followed them to the next
+                            // screen claiming they had not looked at a call this list had
+                            // already shown them.
+                            //
+                            // Here rather than on NavBadgeService.Changed, which is the
+                            // obvious place and the one that loops: marking seen raises
+                            // Changed, and a handler that marks seen on Changed raises it
+                            // again. This timer is not driven by the badge poll, so there
+                            // is no cycle to break — and the two are allowed to disagree
+                            // for one interval, which reads correctly: the badge stays lit
+                            // exactly while there is a missed call this list has not caught
+                            // up with yet.
+                            //
+                            // Only when these rows are actually in front of someone. A load
+                            // can land after the screen has been swapped out, and the timer
+                            // keeps running while the widget sits in the tray — Hide()
+                            // leaves the visual tree attached, so _isDetached alone would
+                            // let a hidden window mark calls seen every two minutes for the
+                            // rest of the shift. Which way to fail is not a toss-up: a
+                            // badge that lights when it need not is an annoyance, one that
+                            // stays dark over calls nobody called back is the thing the
+                            // badge exists to prevent, and NavBadgeState errs the same way
+                            // everywhere else it has the choice.
+                            if (!_isDetached && TopLevel.GetTopLevel(this) is Window { IsVisible: true })
+                                App.NavBadges.MarkRecentsSeen();
                         });
                     }
                 }

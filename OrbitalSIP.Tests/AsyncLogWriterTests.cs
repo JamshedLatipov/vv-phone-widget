@@ -35,7 +35,7 @@ namespace OrbitalSIP.Tests
             writer.Write("hello");
             Assert.True(writer.Flush(FlushTimeout));
 
-            Assert.Equal(new[] { "hello" }, File.ReadAllLines(LogPath));
+            Assert.Equal(new[] { "hello" }, File.ReadAllLines(writer.Path));
         }
 
         [Fact]
@@ -46,7 +46,7 @@ namespace OrbitalSIP.Tests
             for (int i = 0; i < 100; i++) writer.Write($"line {i}");
             Assert.True(writer.Flush(FlushTimeout));
 
-            var lines = File.ReadAllLines(LogPath);
+            var lines = File.ReadAllLines(writer.Path);
             Assert.Equal(100, lines.Length);
             Assert.Equal("line 0", lines[0]);
             Assert.Equal("line 99", lines[99]);
@@ -61,7 +61,7 @@ namespace OrbitalSIP.Tests
             writer.Write("hello");
             Assert.True(writer.Flush(FlushTimeout));
 
-            Assert.True(File.Exists(nested));
+            Assert.True(File.Exists(writer.Path));
         }
 
         [Fact]
@@ -70,9 +70,10 @@ namespace OrbitalSIP.Tests
             var writer = new AsyncLogWriter(LogPath);
             for (int i = 0; i < 50; i++) writer.Write($"line {i}");
 
+            var live = writer.Path;
             writer.Dispose();
 
-            Assert.Equal(50, File.ReadAllLines(LogPath).Length);
+            Assert.Equal(50, File.ReadAllLines(live).Length);
         }
 
         [Fact]
@@ -94,8 +95,8 @@ namespace OrbitalSIP.Tests
             for (int i = 0; i < 50; i++) writer.Write(new string('x', 40));
             Assert.True(writer.Flush(FlushTimeout));
 
-            Assert.True(File.Exists(LogRotation.ArchivePath(LogPath, 1)), "expected a rotated generation");
-            Assert.True(new FileInfo(LogPath).Length <= 200, "live file should have been rolled over");
+            Assert.True(File.Exists(LogRotation.ArchivePath(writer.Path, 1)), "expected a rotated generation");
+            Assert.True(new FileInfo(writer.Path).Length <= 200, "live file should have been rolled over");
         }
 
         [Fact]
@@ -106,8 +107,8 @@ namespace OrbitalSIP.Tests
             for (int i = 0; i < 100; i++) writer.Write(new string('x', 40));
             Assert.True(writer.Flush(FlushTimeout));
 
-            Assert.True(File.Exists(LogRotation.ArchivePath(LogPath, 1)));
-            Assert.False(File.Exists(LogRotation.ArchivePath(LogPath, 2)));
+            Assert.True(File.Exists(LogRotation.ArchivePath(writer.Path, 1)));
+            Assert.False(File.Exists(LogRotation.ArchivePath(writer.Path, 2)));
         }
 
         [Fact]
@@ -118,7 +119,7 @@ namespace OrbitalSIP.Tests
             for (int i = 0; i < 50; i++) writer.Write($"line {i}");
             Assert.True(writer.Flush(FlushTimeout));
 
-            Assert.Contains("line 49", File.ReadAllLines(LogPath));
+            Assert.Contains("line 49", File.ReadAllLines(writer.Path));
         }
 
         [Fact]
@@ -133,7 +134,7 @@ namespace OrbitalSIP.Tests
             await Task.WhenAll(tasks);
             Assert.True(writer.Flush(FlushTimeout));
 
-            var lines = new HashSet<string>(File.ReadAllLines(LogPath));
+            var lines = new HashSet<string>(File.ReadAllLines(writer.Path));
             Assert.Equal(0, writer.DroppedCount);
             Assert.Equal(1000, lines.Count);
         }
@@ -161,6 +162,109 @@ namespace OrbitalSIP.Tests
             writer.Flush(FlushTimeout);
 
             Assert.True(writer.DroppedCount > 0, "expected the saturated queue to drop lines");
+        }
+
+        // ── Daily files and the retention window ──────────────────────
+
+        private string Dated(DateTime day) => LogRetention.DailyPath(LogPath, day);
+
+        [Fact]
+        public void Write_GoesIntoTodaysDatedFile()
+        {
+            using var writer = new AsyncLogWriter(LogPath);
+
+            writer.Write("hello");
+            Assert.True(writer.Flush(FlushTimeout));
+
+            Assert.Equal(Dated(DateTime.Now), writer.Path);
+            Assert.False(File.Exists(LogPath), "the undated name must never be written to");
+        }
+
+        [Fact]
+        public void Retention_DeletesTheDaysThatFellOutOfTheWindow()
+        {
+            var stale = Dated(DateTime.Now.AddDays(-9));
+            var kept = Dated(DateTime.Now.AddDays(-1));
+            File.WriteAllText(stale, "old");
+            File.WriteAllText(kept, "recent");
+
+            using var writer = new AsyncLogWriter(LogPath, keepDays: 3);
+
+            Assert.False(File.Exists(stale), "a nine-day-old file is outside a three-day window");
+            Assert.True(File.Exists(kept), "yesterday is inside a three-day window");
+        }
+
+        [Fact]
+        public void Retention_TakesTheWithinDayGenerationsWithTheirDay()
+        {
+            var stale = LogRotation.ArchivePath(Dated(DateTime.Now.AddDays(-9)), 1);
+            File.WriteAllText(stale, "old overflow");
+
+            using var writer = new AsyncLogWriter(LogPath, keepDays: 3);
+
+            Assert.False(File.Exists(stale));
+        }
+
+        [Fact]
+        public void Retention_LeavesFilesItDidNotWriteAlone()
+        {
+            // crash.log is appended to directly by the crash handler, and sip-*.log belongs to
+            // the other writer. Neither is ours to date, so neither is ours to delete.
+            var crash = Path.Combine(_dir, "crash.log");
+            var otherLog = LogRetention.DailyPath(Path.Combine(_dir, "sip.log"), DateTime.Now.AddDays(-9));
+            File.WriteAllText(crash, "stack trace");
+            File.WriteAllText(otherLog, "the other log");
+
+            using var writer = new AsyncLogWriter(LogPath, keepDays: 3);
+
+            Assert.True(File.Exists(crash));
+            Assert.True(File.Exists(otherLog));
+        }
+
+        [Fact]
+        public void Retention_IsDisabledByANonPositiveWindow()
+        {
+            var ancient = Dated(new DateTime(2020, 1, 1));
+            File.WriteAllText(ancient, "ancient");
+
+            using var writer = new AsyncLogWriter(LogPath, keepDays: 0);
+
+            Assert.True(File.Exists(ancient));
+        }
+
+        [Fact]
+        public void Retention_AdoptsTheUndatedFilesLeftBySizeOnlyRotation()
+        {
+            // The several hundred megabytes already on disk carry no date, so no window can see
+            // them. They get renamed into the scheme and expire from there — the nine-day-old
+            // one immediately, the fresh one only once it ages out.
+            var legacyStale = Path.Combine(_dir, "app.1.log");
+            var legacyFresh = Path.Combine(_dir, "app.log");
+            File.WriteAllText(legacyStale, "old");
+            File.WriteAllText(legacyFresh, "recent");
+            File.SetLastWriteTime(legacyStale, DateTime.Now.AddDays(-9));
+            File.SetLastWriteTime(legacyFresh, DateTime.Now.AddDays(-1));
+
+            using var writer = new AsyncLogWriter(LogPath, keepDays: 3);
+
+            Assert.False(File.Exists(legacyStale), "the legacy generation should have been adopted, then swept");
+            Assert.False(File.Exists(legacyFresh), "the legacy live file should have been adopted");
+            Assert.Equal("recent", File.ReadAllText(Dated(DateTime.Now.AddDays(-1))).Trim());
+        }
+
+        [Fact]
+        public void Retention_AdoptionDoesNotOverwriteADayThatAlreadyExists()
+        {
+            var yesterday = DateTime.Now.AddDays(-1);
+            File.WriteAllText(Dated(yesterday), "already dated");
+            var legacy = Path.Combine(_dir, "app.log");
+            File.WriteAllText(legacy, "legacy");
+            File.SetLastWriteTime(legacy, yesterday);
+
+            using var writer = new AsyncLogWriter(LogPath, keepDays: 3);
+
+            Assert.Equal("already dated", File.ReadAllText(Dated(yesterday)).Trim());
+            Assert.Equal("legacy", File.ReadAllText(LogRotation.ArchivePath(Dated(yesterday), 1)).Trim());
         }
     }
 }

@@ -1,0 +1,22 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:Views="clr-namespace:OrbitalSIP.Views"
+             x:Class="OrbitalSIP.Views.PanelShellView">
+  <!-- The frame the five screens each carried a copy of. It belongs with the chrome it
+       wraps: rounded corners, outline and clipping are the shape of the panel, not of
+       whatever is inside it this second. Width stays 320 to match ShellGeometry.PanelWidth;
+       the scale transform on the window multiplies it, as it did on every screen before. -->
+  <Border Width="320"
+          Background="#0F172A"
+          BorderBrush="#1E293B"
+          BorderThickness="1"
+          CornerRadius="16"
+          ClipToBounds="True">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+      <Views:TopBarControl     Name="ShellTopBar"  Grid.Row="0" />
+      <Views:CallReturnStrip   Name="ShellStrip"   Grid.Row="1" IsVisible="False" />
+      <ContentControl          Name="ShellBody"    Grid.Row="2" />
+      <Views:BottomNavControl  Name="ShellNav"     Grid.Row="3" />
+    </Grid>
+  </Border>
+</UserControl>

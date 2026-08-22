@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:i18n="clr-namespace:OrbitalSIP.Services"
+             xmlns:Views="clr-namespace:OrbitalSIP.Views"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="OrbitalSIP.Views.TasksView">
+
+  <UserControl.Styles>
+    <Style Selector="Button.filter-chip">
+      <Setter Property="Background" Value="#152132" />
+      <Setter Property="BorderBrush" Value="#1D3050" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#7B92AA" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.filter-chip.selected">
+      <Setter Property="Background" Value="#1E4270" />
+      <Setter Property="BorderBrush" Value="#2C5A96" />
+      <Setter Property="Foreground" Value="#DDE7F3" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,*">
+
+      <StackPanel Grid.Row="0" Spacing="8" Margin="14,10,14,0">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{i18n:I18n Tasks}" FontSize="12" FontWeight="Bold" LetterSpacing="1.2"
+                     Foreground="#7B92AA" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Name="RefreshTasksBtn" Width="24" Height="24"
+                  Background="Transparent" Padding="0" Margin="0" Cursor="Hand" BorderThickness="0">
+            <materialIcons:MaterialIcon Kind="Refresh" Width="16" Height="16" Foreground="#60A5FA" />
+          </Button>
+        </Grid>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Button Name="OpenFilterBtn" Classes="filter-chip selected" Content="{i18n:I18n TasksOpen}" />
+          <Button Name="AllFilterBtn" Classes="filter-chip" Content="{i18n:I18n TasksAll}" />
+        </StackPanel>
+      </StackPanel>
+
+      <ScrollViewer Grid.Row="1" Margin="14,10,14,10"
+                    HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <ItemsControl Name="TaskItemsControl">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,4">
+                <Border Width="3" CornerRadius="2" Background="{Binding PriorityColor}" Margin="0,2,10,2" />
+                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
+                             Foreground="#E2E8F0" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="{Binding SubtitleColor}" />
+                </StackPanel>
+                <Button Grid.Column="2"
+                        Width="32" Height="32"
+                        Background="Transparent" BorderThickness="0" Padding="6" Cursor="Hand"
+                        Click="OnTaskDoneClicked"
+                        IsVisible="{Binding CanComplete}"
+                        Tag="{Binding}"
+                        ToolTip.Tip="{i18n:I18n TaskDone}"
+                        VerticalAlignment="Center">
+                  <materialIcons:MaterialIcon Kind="CheckCircleOutline" Width="20" Height="20" Foreground="#22C55E" />
+                </Button>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <TextBlock Grid.Row="1" Name="TasksMessageLabel" IsVisible="False"
+                 VerticalAlignment="Center" HorizontalAlignment="Center" Margin="14,0"
+                 FontSize="12" Foreground="#6E859D" TextWrapping="Wrap" TextAlignment="Center" />
+
+      <!-- Something went wrong just now, as opposed to the state of the list above, so it
+           gets its own label: TasksMessageLabel is centred over the rows and stays until
+           the next load, so "could not change the task's status" — or a refresh that
+           failed over a list that is perfectly fine — would have sat across the middle of
+           it. Same place and same idiom as RecentsView's SmsComposeErrorLabel — bottom of
+           the list, red, cleared by the next load that succeeds or the next tap. -->
+      <TextBlock Grid.Row="1" Name="TasksErrorLabel" IsVisible="False"
+                 VerticalAlignment="Bottom" Margin="14,0,14,10"
+                 FontSize="11" Foreground="#FCA5A5" TextWrapping="Wrap"
+                 TextAlignment="Center" />
+
+  </Grid>
+</UserControl>

@@ -5,23 +5,13 @@
              xmlns:i18n="clr-namespace:OrbitalSIP.Services"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="OrbitalSIP.Views.ExpandedView">
-  <Border Width="320"
-          Background="#0F172A"
-          BorderBrush="#1E293B"
-          BorderThickness="1"
-          CornerRadius="16"
-          ClipToBounds="True">
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
-
-
-      <!-- Header -->
-      <Views:TopBarControl Name="TopBar" />
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
 
       <!-- Operator Stats Widget -->
-      <Views:OperatorStatsControl Grid.Row="1" Name="OperatorStats" />
+      <Views:OperatorStatsControl Grid.Row="0" Name="OperatorStats" />
 
       <!-- Dialer display -->
-      <Grid Grid.Row="2" Margin="14,10,14,10" ColumnDefinitions="*,Auto">
+      <Grid Grid.Row="1" Margin="14,10,14,10" ColumnDefinitions="*,Auto">
         <Border Grid.Column="0" Background="#020617" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="12" Padding="12,4,6,4">
           <Grid ColumnDefinitions="*,Auto">
             <TextBox Name="DisplayText" Text="" FontSize="22" FontWeight="SemiBold"
@@ -49,7 +39,7 @@
       </Grid>
 
       <!-- Numeric keypad -->
-      <UniformGrid Grid.Row="3" Name="DialPad" Rows="4" Columns="3" Margin="14,2,14,6">
+      <UniformGrid Grid.Row="2" Name="DialPad" Rows="4" Columns="3" Margin="14,2,14,6">
         <Button Tag="1" Background="#1E293B" BorderThickness="0" Margin="6" Height="50" CornerRadius="25" Padding="0" HorizontalAlignment="Stretch">
           <StackPanel Spacing="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="1" FontSize="20" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center"/>
@@ -125,7 +115,7 @@
       </UniformGrid>
 
       <!-- Primary call action -->
-      <Button Grid.Row="4" Name="CallBtn"
+      <Button Grid.Row="3" Name="CallBtn"
               Margin="14,10,14,14"
               Height="52" CornerRadius="26"
               Background="#10B981" BorderThickness="0"
@@ -142,9 +132,5 @@
       </Button>
 
 
-      <!-- Bottom tab bar -->
-      <Views:BottomNavControl Grid.Row="6" Name="BottomNav" />
-
-    </Grid>
-  </Border>
+  </Grid>
 </UserControl>

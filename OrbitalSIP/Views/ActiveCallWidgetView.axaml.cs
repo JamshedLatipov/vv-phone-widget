@@ -148,6 +148,16 @@ namespace OrbitalSIP.Views
             if (btn != null) btn.Background = new SolidColorBrush(_onHold ? Color.Parse("#B91C1C") : Color.Parse("#1E4270"));
         }
 
+        /// <summary>
+        /// Hotkey entry points, mirroring ActiveCallView's. This panel holds _muted and
+        /// _onHold itself, so a hotkey has to arrive through these rather than go straight
+        /// to the service — otherwise the call really does mute and the button carries on
+        /// painting the state before the press.
+        /// </summary>
+        public void TriggerMute()   => ToggleMute();
+        public void TriggerHold()   => ToggleHold();
+        public void TriggerHangup() => OnHangup?.Invoke(this, EventArgs.Empty);
+
         public event EventHandler? OnHangup;
         public event EventHandler<bool>? OnMuteToggled;
         public event EventHandler<bool>? OnHoldToggled;

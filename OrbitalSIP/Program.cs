@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.IO.Pipes;
 using System.Text;
@@ -80,11 +80,8 @@ namespace OrbitalSIP
 
             try
             {
-                var logDir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "OrbitalSIP", "logs");
-                Directory.CreateDirectory(logDir);
-                var logPath = Path.Combine(logDir, "crash.log");
+                Directory.CreateDirectory(Services.Logging.LogPaths.Directory);
+                var logPath = Services.Logging.LogPaths.File("crash.log");
                 var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{source}] {ex}{Environment.NewLine}";
                 File.AppendAllText(logPath, line, Encoding.UTF8);
             }

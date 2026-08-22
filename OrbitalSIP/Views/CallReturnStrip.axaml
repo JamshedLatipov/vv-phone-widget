@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="OrbitalSIP.Views.CallReturnStrip">
+  <Border Name="Root"
+          Background="#1E7A3E"
+          Padding="12,6"
+          Cursor="Hand">
+    <Grid ColumnDefinitions="*,Auto">
+      <TextBlock Name="Caller"  Grid.Column="0" Foreground="White" FontSize="12"
+                 TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+      <TextBlock Name="Elapsed" Grid.Column="1" Foreground="White" FontSize="12"
+                 FontFamily="Consolas" VerticalAlignment="Center" />
+    </Grid>
+  </Border>
+</UserControl>

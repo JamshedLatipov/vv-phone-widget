@@ -19,6 +19,9 @@ namespace OrbitalSIP.Views
     {
         private static SurveyDialog? _current;
 
+        /// <summary>Closes the open window, if there is one. Called when the session expires.</summary>
+        public static void CloseIfOpen() => _current?.Close();
+
         public static void Open(Window owner, string callerNumber, string? autoFlowId = null)
         {
             // Both entry points funnel through here, so a campaign auto-open and a
