@@ -200,8 +200,16 @@ namespace OrbitalSIP
             HttpErrorNotifier.ErrorOccurred -= OnHttpErrorOccurred;
             BackendAuth.SessionExpired -= OnSessionExpired;
             _httpErrorHideTimer.Stop();
+            // Nulled, not just disposed. Shutdown closes this window before it
+            // disposes SipService, and that disposal hangs up the call — which
+            // raises CallStateChanged, which this window is still subscribed to.
+            // OnCallStateChanged then reaches for _transferCancellation, and
+            // Cancel() on an already-disposed source throws ObjectDisposedException
+            // with nothing to catch it. The other two mutation sites already null
+            // the field; this one has to as well.
             _transferCancellation?.Cancel();
             _transferCancellation?.Dispose();
+            _transferCancellation = null;
             _transferService.Dispose();
             base.OnClosed(e);
         }
