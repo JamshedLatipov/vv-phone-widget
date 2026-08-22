@@ -21,11 +21,13 @@ namespace OrbitalSIP.Views
         /// <summary>
         /// Opens or closes the in-call DTMF pad.
         ///
-        /// KeypadBtn used to raise OnKeypadRequested, which MainWindow wired to
-        /// ShowDialer() — and ShowDialer() redirects back to the call screen whenever a
-        /// call is active or on hold. So the only thing pressing «Клавиши» ever did was
-        /// rebuild the screen it was already on, and the operator had no way to send a
-        /// single DTMF tone into an IVR from this widget.
+        /// KeypadBtn used to raise OnKeypadRequested, which MainWindow wired to a
+        /// ShowDialer() that redirected back to the call screen whenever a call was active
+        /// or on hold. So the only thing pressing «Клавиши» ever did was rebuild the screen
+        /// it was already on, and the operator had no way to send a single DTMF tone into
+        /// an IVR from this widget. Both that method and that redirect are gone — the
+        /// dialer tab is a dialer during a call now, and the way back is the return strip —
+        /// but this pad is still the only way to send a tone from here.
         /// </summary>
         private void ToggleDtmfPanel()
         {
