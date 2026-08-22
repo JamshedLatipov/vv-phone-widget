@@ -1170,6 +1170,14 @@ namespace OrbitalSIP
         private void RefreshChrome(UiState s, object? content = null)
         {
             var screen = content ?? this.FindControl<ContentControl>("Host")?.Content;
+            // Before the bar, and before the early return below: the dialer is a screen with
+            // a bar, but this has to reach it whether or not the search for the bar succeeds.
+            // A second call is refused by SipService and again by StartOutgoingCall, both in
+            // silence; this is what makes the refusal visible instead of leaving the operator
+            // pressing a live-looking button.
+            (screen as Control)?.FindLogicalDescendantOfType<Views.ExpandedView>()
+                ?.SetDialingBlocked(App.SipService.State != CallState.Idle);
+
             var nav = (screen as Control)?.FindLogicalDescendantOfType<Views.BottomNavControl>();
             if (nav == null)
             {
