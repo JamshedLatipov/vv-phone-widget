@@ -4,25 +4,24 @@ using Material.Icons;
 namespace OrbitalSIP.Services;
 
 /// <summary>
-/// Picks the glyph for the first tab slot, which carries three affordances in one: a
-/// dial pad, "back to the call you are on", and "back to login".
+/// Picks the glyph for the first tab slot, which carries two affordances: a dial pad
+/// and "back to login". It used to carry a third, "back to the call you are on", until
+/// the return strip took that job — the slot was pointing at a screen the dialer tab no
+/// longer opens.
 ///
-/// Sibling of <see cref="NavPulse"/>, and pulled out for the same reason. The control
-/// used to leave this icon wherever the last setter to run had put it, so leaving login
-/// mode worked only because MainWindow happened to call SetLoginMode after SetInCall.
+/// The control used to leave this icon wherever the last setter to run had put it, so
+/// leaving login mode worked only because MainWindow happened to call SetLoginMode last.
 /// The property that matters is that the answer depends on the state and not on the
 /// call order, and that property is only worth anything if something pins it.
 /// </summary>
 public static class NavTabIcon
 {
     /// <summary>
-    /// Login mode wins over the call state: without a session there is no call to go
-    /// back to, so the slot is a way out of Settings and nothing else.
+    /// Signed out, the slot is a way out of Settings; otherwise it is the dial pad.
     /// </summary>
-    public static MaterialIconKind ForDialerTab(bool loginMode, bool inCall) =>
-        loginMode ? MaterialIconKind.ArrowLeft :
-        inCall    ? MaterialIconKind.PhoneInTalk :
-                    MaterialIconKind.Dialpad;
+    public static MaterialIconKind ForDialerTab(bool loginMode) =>
+        loginMode ? MaterialIconKind.ArrowLeft
+                  : MaterialIconKind.Dialpad;
 
     /// <summary>
     /// The i18n key whose wording belongs with a glyph.
@@ -33,17 +32,15 @@ public static class NavTabIcon
     /// returning.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// The slot grew a fourth affordance and this was not told about it. Deliberately not
+    /// The slot grew a third affordance and this was not told about it. Deliberately not
     /// a default arm: the fallback used to be "Dialer", which would label a brand new glyph
     /// as the dial pad — the same lying tooltip this method exists to prevent, moved one
-    /// step along rather than removed. The bare _ in ForDialerTab above is a different
-    /// case: its domain is two bools, so it really is exhaustive.
+    /// step along rather than removed.
     /// </exception>
     public static string TooltipKeyFor(MaterialIconKind kind) => kind switch
     {
-        MaterialIconKind.ArrowLeft   => "Back",
-        MaterialIconKind.PhoneInTalk => "NavInCall",
-        MaterialIconKind.Dialpad     => "Dialer",
+        MaterialIconKind.ArrowLeft => "Back",
+        MaterialIconKind.Dialpad   => "Dialer",
         _ => throw new ArgumentOutOfRangeException(
                  nameof(kind), kind, "No tooltip wording is defined for this dialer-tab glyph."),
     };

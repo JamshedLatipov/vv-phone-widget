@@ -11,34 +11,14 @@ public class NavTabIconTests
     public void SignedInAndIdleShowsTheDialPad()
     {
         Assert.Equal(MaterialIconKind.Dialpad,
-            NavTabIcon.ForDialerTab(loginMode: false, inCall: false));
-    }
-
-    [Fact]
-    public void CallRunningTurnsTheSlotIntoAWayBackToIt()
-    {
-        Assert.Equal(MaterialIconKind.PhoneInTalk,
-            NavTabIcon.ForDialerTab(loginMode: false, inCall: true));
+            NavTabIcon.ForDialerTab(loginMode: false));
     }
 
     [Fact]
     public void LoginModeTurnsTheSlotIntoABackArrow()
     {
         Assert.Equal(MaterialIconKind.ArrowLeft,
-            NavTabIcon.ForDialerTab(loginMode: true, inCall: false));
-    }
-
-    /// <summary>
-    /// The combination the control could not previously express: it applied login mode
-    /// and the call state from two different setters, so whichever ran last won and the
-    /// arrow could be stranded. Login mode wins here whatever order the caller uses —
-    /// a signed-out operator has no call to be taken back to.
-    /// </summary>
-    [Fact]
-    public void LoginModeWinsOverACallStillReportedAsRunning()
-    {
-        Assert.Equal(MaterialIconKind.ArrowLeft,
-            NavTabIcon.ForDialerTab(loginMode: true, inCall: true));
+            NavTabIcon.ForDialerTab(loginMode: true));
     }
 
     /// <summary>
@@ -48,22 +28,20 @@ public class NavTabIconTests
     /// arrow tooltipped "Dialer" was the state this replaced.
     /// </summary>
     [Theory]
-    [InlineData(false, false, "Dialer")]
-    [InlineData(false, true, "NavInCall")]
-    [InlineData(true, false, "Back")]
-    [InlineData(true, true, "Back")]
-    public void TooltipWordingFollowsTheGlyph(bool loginMode, bool inCall, string expectedKey)
+    [InlineData(false, "Dialer")]
+    [InlineData(true, "Back")]
+    public void TooltipWordingFollowsTheGlyph(bool loginMode, string expectedKey)
     {
         Assert.Equal(expectedKey,
-            NavTabIcon.TooltipKeyFor(NavTabIcon.ForDialerTab(loginMode, inCall)));
+            NavTabIcon.TooltipKeyFor(NavTabIcon.ForDialerTab(loginMode)));
     }
 
     /// <summary>
-    /// The slot grows a fourth affordance the day someone adds a glyph to ForDialerTab,
-    /// and the combination cases above cannot see it: they are parameterised over
-    /// (loginMode, inCall), so a new state dimension lands outside them entirely. Falling
-    /// back to "Dialer" there would label the new glyph as the dial pad — the same lying
-    /// tooltip this pair of methods exists to prevent.
+    /// The slot grows a third affordance the day someone adds a glyph to ForDialerTab,
+    /// and the cases above cannot see it: they are parameterised over loginMode, so a new
+    /// state dimension lands outside them entirely. Falling back to "Dialer" there would
+    /// label the new glyph as the dial pad — the same lying tooltip this pair of methods
+    /// exists to prevent.
     /// </summary>
     [Fact]
     public void AGlyphWithNoWordingFailsRatherThanGuessing()

@@ -793,12 +793,12 @@ namespace OrbitalSIP
             if (host != null) host.Opacity = 1;
 
             // Here rather than only at the end of the swap: the incoming screen is visible
-            // for the whole 280 ms fade, and a bar dressed at completion spends that fade
-            // painting its markup defaults — a blue Dialpad on a call screen that then snaps
-            // to the green PhoneInTalk, badges popping in at the last frame. CompleteAnimated-
-            // ContentSwap calls this again on the same bar, which the idempotent subscription
-            // in RefreshChrome makes free, and which re-reads any state that moved during the
-            // fade.
+            // for the whole 280 ms fade, and a panel dressed at completion spends that fade
+            // painting its markup defaults — the wrong tab lit, badges popping in at the last
+            // frame, and a call still running with no strip offering the way back to it.
+            // CompleteAnimatedContentSwap calls this again on the same panel, which the
+            // idempotent subscription in RefreshChrome makes free, and which re-reads any
+            // state that moved during the fade.
             RefreshChrome(_state, nextContent);
 
             _animOverlay = overlay;
@@ -863,7 +863,7 @@ namespace OrbitalSIP
 
         /// <summary>
         /// Draws the badge counts on a bar — the fourth piece of state this window pushes
-        /// into one, beside ActiveTab, SetInCall and SetLoginMode above.
+        /// into one, beside ActiveTab and SetLoginMode above.
         ///
         /// Here rather than on NavBadgeService, which used to take the control and call
         /// SetBadge itself: that made a service under Services the only thing in the
@@ -1090,11 +1090,6 @@ namespace OrbitalSIP
             nav.TabSelected -= OnNavTabSelected;
             nav.TabSelected += OnNavTabSelected;
             nav.ActiveTab = ShellRouter.TabFor(s.Route);
-            // Active or OnHold, and deliberately not "any live call": this lamp says the
-            // operator is in a conversation, while ShellRouter.ShowReturnStrip asks whether
-            // there is anything to go back to and counts an outgoing ringback too. Two
-            // neighbouring notions of "on a call" that are not the same notion.
-            nav.SetInCall(App.SipService.State is CallState.Active or CallState.OnHold);
             nav.SetLoginMode(s.Shell == Shell.LoginSettings);
             ApplyBadges(nav);
 

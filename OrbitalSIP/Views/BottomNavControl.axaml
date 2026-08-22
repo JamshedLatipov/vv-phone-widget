@@ -7,10 +7,9 @@
   <UserControl.Styles>
     <!-- ORDER IS PRECEDENCE in this block: equal-specificity styles are applied in
          declaration order, so the later one wins. :pointerover must stay above .active or
-         the active tab dims on hover; :disabled must stay below both; and the .in-call
-         icon colour must stay below the .active icon colour or the call tint never
-         appears. Grouping or alphabetising these breaks all four, with no compiler error
-         and no test to catch it. -->
+         the active tab dims on hover, and :disabled must stay below both. Grouping or
+         alphabetising these breaks both, with no compiler error and no test to catch
+         it. -->
 
     <!-- The active/inactive look used to be four pairs of hand-written Opacity and
          SolidColorBrush assignments in code-behind. Here it is once. -->
@@ -47,37 +46,12 @@
       <Setter Property="Opacity" Value="0.28" />
     </Style>
 
-    <!-- Breathes the tab while a call runs off-screen. A looping animation has to be
-         declared on a style rather than started from code: Avalonia 11's
-         Animation.RunAsync rejects IterationCount.Infinite outright, and Animation.Apply
-         — the call the style system makes here — is internal. The class is the switch,
-         and removing it is what stops the animation; see BottomNavControl.SetPulse. -->
-    <Style Selector="Button.nav-tab.pulse">
-      <Style.Animations>
-        <Animation Duration="0:0:1.4" IterationCount="INFINITE" Easing="SineEaseInOut">
-          <KeyFrame Cue="0%">
-            <Setter Property="Opacity" Value="1.0" />
-          </KeyFrame>
-          <KeyFrame Cue="50%">
-            <Setter Property="Opacity" Value="0.45" />
-          </KeyFrame>
-          <KeyFrame Cue="100%">
-            <Setter Property="Opacity" Value="1.0" />
-          </KeyFrame>
-        </Animation>
-      </Style.Animations>
-    </Style>
-
     <Style Selector="Button.nav-tab materialIcons|MaterialIcon">
       <Setter Property="Foreground" Value="#8AA0B8" />
     </Style>
 
     <Style Selector="Button.nav-tab.active materialIcons|MaterialIcon">
       <Setter Property="Foreground" Value="#60A5FA" />
-    </Style>
-
-    <Style Selector="Button.nav-tab.in-call materialIcons|MaterialIcon">
-      <Setter Property="Foreground" Value="#22C55E" />
     </Style>
 
     <Style Selector="Border.nav-badge">
@@ -101,7 +75,7 @@
 
       <!-- The only tab whose tooltip changes at runtime, so it is the only one with no
            ToolTip.Tip binding here: RefreshTabVisuals sets the text, and a binding left in
-           the markup would stay live underneath it and push "Dialer" back over the in-call
+           the markup would stay live underneath it and push "Dialer" back over the back-arrow
            wording the next time the language changed. Do not restore it.
 
            What that costs: an assigned tooltip does not follow a language change the way
