@@ -274,6 +274,7 @@ namespace OrbitalSIP
             Views.TaskWindowLauncher.CloseIfOpen();
             Views.SurveyWindowLauncher.CloseIfOpen();
             Views.ScriptsWindowLauncher.CloseIfOpen();
+            Views.TransferWindowLauncher.CloseIfOpen();
 
             // The SMS windows are opened by the screens directly, with no launcher, but
             // this window is their owner all the same. _hiddenOwnedWindows covers the one

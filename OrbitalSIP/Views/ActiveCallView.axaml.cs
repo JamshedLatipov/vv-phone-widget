@@ -8,7 +8,6 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using System.Threading.Tasks;
 using Material.Icons;
 using Material.Icons.Avalonia;
@@ -54,19 +53,6 @@ namespace OrbitalSIP.Views
         /// <summary>A 409 card is on screen. It is proof the lead exists, so no
         /// later refresh may downgrade the panel below it — see SelectState.</summary>
         private Models.CreateLeadResult? _leadConflict;
-
-        /// <summary>
-        /// State for the transfer panel's operator/queue picker, fed to
-        /// TransferTargetsPresenter. Loaded on demand when the panel opens (see
-        /// ShowTransferPanel) rather than eagerly with the rest of this view, since
-        /// most calls never open it.
-        /// </summary>
-        private readonly TransferService _transferService = new();
-        private Models.TransferTargets? _transferTargets;
-        private bool _transferLoading;
-        private bool _transferForbidden;
-        private string? _transferError;
-        private bool _transferQueuesTab;
 
         /// <summary>
         /// Per-call scratch state, static because MainWindow builds a NEW
@@ -276,27 +262,7 @@ namespace OrbitalSIP.Views
 
             var transfer = this.FindControl<Button>("TransferBtn");
             if (transfer != null)
-                transfer.Click += (_, __) => ShowTransferPanel();
-
-            var transferConfirm = this.FindControl<Button>("TransferConfirmBtn");
-            if (transferConfirm != null)
-                transferConfirm.Click += (_, __) => ConfirmTransfer();
-
-            var transferTabOperators = this.FindControl<Button>("TransferTabOperatorsBtn");
-            if (transferTabOperators != null)
-                transferTabOperators.Click += (_, __) => SelectTransferTab(queues: false);
-
-            var transferTabQueues = this.FindControl<Button>("TransferTabQueuesBtn");
-            if (transferTabQueues != null)
-                transferTabQueues.Click += (_, __) => SelectTransferTab(queues: true);
-
-            var transferSearch = this.FindControl<TextBox>("TransferSearchBox");
-            if (transferSearch != null)
-                transferSearch.TextChanged += (_, __) => RenderTransferList();
-
-            var transferRetry = this.FindControl<Button>("TransferRetryBtn");
-            if (transferRetry != null)
-                transferRetry.Click += SafeHandler.Click("Transfer", LoadTransferTargetsAsync);
+                transfer.Click += (_, __) => ShowTransferDialog();
 
             var keypad = this.FindControl<Button>("KeypadBtn");
             if (keypad != null)
@@ -1148,234 +1114,20 @@ namespace OrbitalSIP.Views
         }
 
         /// <summary>
-        /// The Mute/Hold/Keypad/Transfer row above TransferPanel in the XAML. It has
-        /// no x:Name of its own, so it is resolved from TransferBtn — a button that
-        /// does — by walking up to its UniformGrid parent, the same
-        /// GetVisualDescendants()-family approach SmsComposeDialog already uses for
-        /// an unnamed control.
-        ///
-        /// TransferPanel and this row are hidden and shown as a pair, on purpose: a
-        /// measurement of the whole call screen (not just the target list) found that
-        /// opening the panel already pushes HangupBtn below the fold before a single
-        /// row loads. The panel's body has roughly 496px to work with (600px
-        /// ShellGeometry.PanelHeight, minus TopBarControl's ~58px, minus
-        /// BottomNavControl's 46px — see PanelShellView / MainWindow.axaml.cs
-        /// Apply()), but with TransferPanel open the content stacked above and
-        /// through HangupBtn comes to roughly 627px at zero result rows. This row is
-        /// the largest single block that can be reclaimed, and it is redundant in
-        /// that state anyway — the operator only reaches TransferPanel by tapping
-        /// Transfer inside it. Do not leave both visible "to fix the flicker"; that
-        /// reintroduces the off-screen Hangup button this pairing exists to avoid.
+        /// Opens the transfer target picker as its own window instead of the inline
+        /// panel this used to toggle — measurement showed the panel had no room left
+        /// even before a single row loaded; see TransferWindowLauncher's docblock.
+        /// The picked target — a list row or manual entry — comes back through
+        /// TransferSelected and is relayed here to OnTransferRequested, the same
+        /// event MainWindow has always listened on for TransferToLeadOwner.
         /// </summary>
-        private UniformGrid? QuickActionsGrid() =>
-            this.FindControl<Button>("TransferBtn")?.GetVisualAncestors().OfType<UniformGrid>().FirstOrDefault();
-
-        private void ShowTransferPanel()
+        private void ShowTransferDialog()
         {
-            var panel = this.FindControl<Border>("TransferPanel");
-            if (panel == null) return;
+            var topLevel = TopLevel.GetTopLevel(this) as Window;
+            if (topLevel == null) return;
 
-            panel.IsVisible = !panel.IsVisible;
-
-            // Mutually exclusive with TransferPanel by design — see QuickActionsGrid.
-            var quickActions = QuickActionsGrid();
-            if (quickActions != null) quickActions.IsVisible = !panel.IsVisible;
-
-            // Only the open edge kicks off a load — closing the panel has nothing to
-            // fetch, and re-fetching on every toggle would hit the backend on each
-            // accidental double click.
-            if (panel.IsVisible)
-                _ = LoadTransferTargetsAsync();
-        }
-
-        private async Task LoadTransferTargetsAsync()
-        {
-            _transferLoading = true;
-            _transferError = null;
-            _transferForbidden = false;
-            RenderTransferList();
-
-            var response = await _transferService.GetTargetsAsync();
-
-            _transferLoading = false;
-            _transferTargets = response.Targets;
-            _transferForbidden = response.Forbidden;
-            _transferError = response.Error;
-            RenderTransferList();
-        }
-
-        /// <summary>Paints the tab toggle. Colours are the two states already declared
-        /// in ActiveCallView.axaml for TransferTabOperatorsBtn/TransferTabQueuesBtn —
-        /// swapped here, not invented.</summary>
-        private void SelectTransferTab(bool queues)
-        {
-            _transferQueuesTab = queues;
-
-            var operatorsBtn = this.FindControl<Button>("TransferTabOperatorsBtn");
-            if (operatorsBtn != null)
-            {
-                operatorsBtn.Background = new SolidColorBrush(Color.Parse(queues ? "#152132" : "#1E4270"));
-                operatorsBtn.Foreground = new SolidColorBrush(Color.Parse(queues ? "#7B92AA" : "#DDE7F3"));
-            }
-
-            var queuesBtn = this.FindControl<Button>("TransferTabQueuesBtn");
-            if (queuesBtn != null)
-            {
-                queuesBtn.Background = new SolidColorBrush(Color.Parse(queues ? "#1E4270" : "#152132"));
-                queuesBtn.Foreground = new SolidColorBrush(Color.Parse(queues ? "#DDE7F3" : "#7B92AA"));
-            }
-
-            RenderTransferList();
-        }
-
-        /// <summary>
-        /// Paints the transfer panel from TransferTargetsPresenter's decision. All of
-        /// the branching over what to show lives there — same split as
-        /// LeadCallPanelPresenter/ApplyLeadPanelState — this only draws the state it
-        /// is handed.
-        /// </summary>
-        private void RenderTransferList()
-        {
-            var list = this.FindControl<StackPanel>("TransferList");
-            if (list == null) return;
-
-            var status = this.FindControl<TextBlock>("TransferStatusLabel");
-            var tabs = this.FindControl<Grid>("TransferTabs");
-            var search = this.FindControl<TextBox>("TransferSearchBox");
-            var i18n = I18nService.Instance;
-
-            var state = TransferTargetsPresenter.SelectState(
-                _transferTargets, _transferLoading, _transferError, _transferForbidden);
-
-            list.Children.Clear();
-            SetVisible<Button>("TransferRetryBtn", state == TransferPanelState.Error);
-
-            // Forbidden (403/404) means no list will ever come back, so tabs and
-            // search would only advertise a picker that can never fill — both fall
-            // back to plain manual entry, same as a load Error.
-            var listUsable = state is TransferPanelState.Ready or TransferPanelState.Empty or TransferPanelState.Loading;
-            if (tabs != null) tabs.IsVisible = listUsable;
-            if (search != null) search.IsVisible = state == TransferPanelState.Ready;
-
-            if (status != null)
-            {
-                status.Text = state switch
-                {
-                    TransferPanelState.Loading => i18n.Get("ScriptsLoading"),
-                    TransferPanelState.Error => i18n.Get("TransferLoadFailed"),
-                    TransferPanelState.Empty => i18n.Get("TransferNoTargets"),
-                    _ => string.Empty,
-                };
-                status.IsVisible = status.Text.Length > 0;
-            }
-
-            if (state != TransferPanelState.Ready) return;
-
-            var query = search?.Text ?? string.Empty;
-            if (_transferQueuesTab)
-            {
-                foreach (var queue in TransferTargetsPresenter.FilterQueues(_transferTargets, query))
-                    list.Children.Add(BuildQueueRow(queue));
-            }
-            else
-            {
-                // The widget's own SIP identity, so FilterOperators can exclude this
-                // operator from their own transfer list — same identifier space as
-                // TransferOperatorTarget.Extension (both trace back to the backend's
-                // sipEndpointId; see LoginView.axaml.cs, which fills this in from
-                // GET /api/auth/sip-credentials).
-                var ownExtension = App.SipService?.CurrentSettings?.Username;
-                foreach (var op in TransferTargetsPresenter.FilterOperators(_transferTargets, query, ownExtension))
-                    list.Children.Add(BuildOperatorRow(op));
-            }
-        }
-
-        private Button BuildOperatorRow(Models.TransferOperatorTarget target)
-        {
-            var button = new Button
-            {
-                Background = new SolidColorBrush(Color.Parse("#152132")),
-                BorderThickness = new Thickness(0),
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(10, 6),
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                Content = new TextBlock
-                {
-                    Text = $"{target.FullName}  ·  {target.Extension}",
-                    FontSize = 12,
-                    Foreground = new SolidColorBrush(Color.Parse("#F8FAFC")),
-                },
-            };
-            button.Click += (_, __) => RequestTransfer(Models.TransferTargetKind.Extension, target.Extension);
-            return button;
-        }
-
-        private Button BuildQueueRow(Models.TransferQueueTarget target)
-        {
-            var disabledKey = TransferTargetsPresenter.QueueDisabledKey(target.DisabledReason);
-            var enabled = disabledKey == null;
-            var i18n = I18nService.Instance;
-
-            var caption = enabled
-                ? (string.IsNullOrEmpty(target.Description) ? target.Name : $"{target.Name}  ·  {target.Description}")
-                : $"{target.Name}  ·  {i18n.Get(disabledKey!)}";
-
-            var button = new Button
-            {
-                Background = new SolidColorBrush(Color.Parse("#152132")),
-                BorderThickness = new Thickness(0),
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(10, 6),
-                IsEnabled = enabled,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                Content = new TextBlock
-                {
-                    Text = caption,
-                    FontSize = 12,
-                    TextWrapping = TextWrapping.Wrap,
-                    Foreground = new SolidColorBrush(Color.Parse(enabled ? "#F8FAFC" : "#5B6D82")),
-                },
-            };
-            // A disabled row (unsafe queue name) stays in the list as a greyed-out
-            // explanation rather than a hidden or a live tap target — see
-            // TransferTargetsPresenter.FilterQueues.
-            if (enabled)
-                button.Click += (_, __) => RequestTransfer(Models.TransferTargetKind.Queue, target.Name);
-            return button;
-        }
-
-        /// <summary>
-        /// Raises OnTransferRequested for a row the operator picked from the list.
-        /// Only reports the pick — performing the transfer is the next task's job,
-        /// listening on the same event.
-        /// </summary>
-        private void RequestTransfer(Models.TransferTargetKind kind, string value)
-        {
-            AppLogger.Log("Transfer", $"Transfer requested: {kind} -> {value}");
-            OnTransferRequested?.Invoke(this, new Models.TransferRequest(kind, value, CallerNumber()));
-        }
-
-        private void ConfirmTransfer()
-        {
-            var box    = this.FindControl<TextBox>("TransferNumberBox");
-            var number = box?.Text?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(number)) return;
-
-            var panel = this.FindControl<Border>("TransferPanel");
-            if (panel != null) panel.IsVisible = false;
-
-            // Every path that closes TransferPanel has to give this row back — see
-            // QuickActionsGrid — or the operator loses Mute/Hold/Keypad/Transfer for
-            // the rest of the call.
-            var quickActions = QuickActionsGrid();
-            if (quickActions != null) quickActions.IsVisible = true;
-
-            // Manual entry is always an extension: there is no free-text way to name
-            // a queue safely, and this box existed long before queues did.
-            OnTransferRequested?.Invoke(this, new Models.TransferRequest(
-                Models.TransferTargetKind.Extension, number, CallerNumber()));
+            TransferWindowLauncher.Open(topLevel, CallerNumber(),
+                request => OnTransferRequested?.Invoke(this, request));
         }
 
         // ── Events ────────────────────────────────────────────────────

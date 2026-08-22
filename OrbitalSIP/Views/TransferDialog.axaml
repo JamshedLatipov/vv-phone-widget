@@ -1,0 +1,129 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:i18n="clr-namespace:OrbitalSIP.Services"
+        x:Class="OrbitalSIP.Views.TransferDialog"
+        Title="Transfer"
+        Width="420" Height="640"
+        WindowStartupLocation="CenterOwner"
+        Background="#0F172A"
+        Topmost="True"
+        SystemDecorations="None"
+        CornerRadius="16">
+  <Border BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16">
+    <Grid RowDefinitions="Auto,*,Auto">
+
+      <!-- Header -->
+      <Border Name="HeaderBar" Background="#152132" CornerRadius="16,16,0,0" Padding="14">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{i18n:I18n TransferToOperator}" Foreground="#E2E8F0" FontWeight="Bold" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Name="CloseBtn" Content="X" Width="24" Height="24" Background="Transparent" Foreground="#6E859D" BorderThickness="0" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Cursor="Hand" />
+        </Grid>
+      </Border>
+
+      <!-- Body: tabs, search, status/retry, then the target list. The call panel
+           this replaces had a 496px body (600 ShellGeometry.PanelHeight, minus
+           TopBarControl's 58px, minus BottomNavControl's 46px) and, with the panel
+           open, content through HangupBtn already ran 508-525px at zero rows —
+           before a single operator loaded. Hiding the quick-actions row recovered
+           ~90px and still left it negative, and a ScrollViewer MaxHeight cannot
+           help a zero-row list, since the cap only ever bounds a non-empty one.
+           As its own window the list gets a Grid "*" row instead of a fixed cap —
+           the whole reason this picker moved out. -->
+      <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto,Auto,*" Margin="14,14,14,14">
+
+        <!-- Segmented Operators/Queues control: two joined buttons, rounded on their
+             outer corners only. -->
+        <Grid Name="TransferTabs" Grid.Row="0" ColumnDefinitions="*,*">
+          <Button Name="TransferTabOperatorsBtn"
+                  Grid.Column="0"
+                  Height="34"
+                  CornerRadius="10,0,0,10"
+                  Background="#1E4270"
+                  BorderThickness="0"
+                  Foreground="#DDE7F3"
+                  FontSize="11"
+                  FontWeight="Bold"
+                  Content="{i18n:I18n TransferTabOperators}"
+                  HorizontalContentAlignment="Center" />
+          <Button Name="TransferTabQueuesBtn"
+                  Grid.Column="1"
+                  Height="34"
+                  CornerRadius="0,10,10,0"
+                  Background="#152132"
+                  BorderThickness="0"
+                  Foreground="#7B92AA"
+                  FontSize="11"
+                  FontWeight="Bold"
+                  Content="{i18n:I18n TransferTabQueues}"
+                  HorizontalContentAlignment="Center" />
+        </Grid>
+
+        <TextBox Grid.Row="1" Name="TransferSearchBox"
+                 Margin="0,10,0,0"
+                 Background="#152132"
+                 BorderBrush="#1D3050"
+                 BorderThickness="1"
+                 CornerRadius="10"
+                 Padding="10,6"
+                 FontSize="13"
+                 Foreground="#F8FAFC"
+                 CaretBrush="#60A5FA"
+                 Watermark="{i18n:I18n TransferSearch}" />
+
+        <!-- Carries the loading / empty / load-failed message. Content and visibility
+             are runtime-driven from TransferTargetsPresenter.SelectState. -->
+        <TextBlock Grid.Row="2" Name="TransferStatusLabel" IsVisible="False"
+                   Margin="0,10,0,0"
+                   Text="" FontSize="11" Foreground="#7B92AA" TextWrapping="Wrap" />
+
+        <Button Grid.Row="3" Name="TransferRetryBtn" IsVisible="False"
+                HorizontalAlignment="Stretch"
+                Margin="0,10,0,0"
+                Height="34"
+                CornerRadius="10"
+                Background="#1E4270"
+                BorderThickness="0"
+                Foreground="#60A5FA"
+                FontSize="11"
+                FontWeight="Bold"
+                Content="{i18n:I18n TransferRetry}"
+                HorizontalContentAlignment="Center" />
+
+        <ScrollViewer Grid.Row="4" Name="TransferListScroll"
+                      Margin="0,10,0,0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Name="TransferList" Spacing="4" />
+        </ScrollViewer>
+      </Grid>
+
+      <!-- Footer: manual entry. Always visible — including on Forbidden/Error,
+           where it is what remains once the picker itself cannot be offered. -->
+      <Border Grid.Row="2" Background="#152132" CornerRadius="0,0,16,16" Padding="14,12">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Grid.Column="0" Name="TransferNumberBox"
+                   Margin="0,0,8,0"
+                   Background="#152132"
+                   BorderBrush="#1D3050"
+                   BorderThickness="1"
+                   CornerRadius="10"
+                   Padding="10,6"
+                   FontSize="13"
+                   Foreground="#F8FAFC"
+                   CaretBrush="#60A5FA"
+                   Watermark="{i18n:I18n OperatorNumber}" />
+          <Button Grid.Column="1" Name="TransferConfirmBtn"
+                  Width="74" Height="34"
+                  CornerRadius="10"
+                  Background="#1E4270"
+                  BorderThickness="0"
+                  Foreground="#60A5FA"
+                  FontSize="11"
+                  FontWeight="Bold"
+                  Content="{i18n:I18n Transfer}"
+                  HorizontalContentAlignment="Center" />
+        </Grid>
+      </Border>
+    </Grid>
+  </Border>
+</Window>
