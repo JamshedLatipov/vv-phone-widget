@@ -21,6 +21,9 @@ namespace OrbitalSIP.Views
     {
         private static TaskDialog? _current;
 
+        /// <summary>Closes the open window, if there is one. Called when the session expires.</summary>
+        public static void CloseIfOpen() => _current?.Close();
+
         public static void Open(Window owner, string callerNumber, Action<CreateTaskRequest> onConfirmed)
         {
             if (!App.TaskWindows.TryBegin())

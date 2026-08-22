@@ -97,30 +97,35 @@ namespace OrbitalSIP
             base.OnFrameworkInitializationCompleted();
         }
 
+        // These three go through MainWindow's own HideToTray/ShowFromTray rather than
+        // the bare Window.Hide()/Show() the tray used before: the task, survey, scripts
+        // and SMS windows are owned by MainWindow, and hiding or showing it bare would
+        // leave them stranded — see HideToTray and ShowFromTray for why.
+
         private void TrayIcon_Clicked(object? sender, EventArgs e)
         {
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow is MainWindow mainWindow)
             {
-                if (desktop.MainWindow.IsVisible)
-                    desktop.MainWindow.Hide();
+                if (mainWindow.IsVisible)
+                    mainWindow.HideToTray();
                 else
-                    desktop.MainWindow.Show();
+                    mainWindow.ShowFromTray();
             }
         }
 
         private void MenuShow_Click(object? sender, EventArgs e)
         {
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow is MainWindow mainWindow)
             {
-                desktop.MainWindow.Show();
+                mainWindow.ShowFromTray();
             }
         }
 
         private void MenuHide_Click(object? sender, EventArgs e)
         {
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow is MainWindow mainWindow)
             {
-                desktop.MainWindow.Hide();
+                mainWindow.HideToTray();
             }
         }
 

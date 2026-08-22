@@ -9,6 +9,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using System.Diagnostics;
+using System.Linq;
 using OrbitalSIP.Models;
 using OrbitalSIP.Services;
 
@@ -93,7 +94,7 @@ namespace OrbitalSIP
             this.PointerPressed   += MainWindow_PointerPressed;
             this.PointerReleased  += MainWindow_PointerReleased;
             this.DoubleTapped     += (_, __) => ExpandOnDoubleTap();
-            this.Closing += (s, e) => { e.Cancel = true; this.Hide(); };
+            this.Closing += (s, e) => { e.Cancel = true; this.HideToTray(); };
             this.KeyDown += MainWindow_KeyDown;
 
             // Wire global hotkeys (work even when app is not focused)
@@ -250,12 +251,84 @@ namespace OrbitalSIP
         }
 
         /// <summary>
-        /// Shuts the windows this one opened alongside itself. Empty until Task 12 gives it
-        /// the list — named here because the two session-expiry paths already have to call
-        /// it, and a call added later to only one of them is how they drift apart.
+        /// Windows this one hid for the tray and has not shown again yet. Window.Hide()
+        /// already walks OwnedWindows and hides every entry on its own — see HideToTray,
+        /// which leans on that instead of hiding them by hand — but the same walk also
+        /// calls RemoveChild on each one as it goes, so OwnedWindows is empty by the time
+        /// anything asks again. Without this list, ShowFromTray would have nothing to
+        /// show and a session expiring while the softphone sits in the tray would find
+        /// no SMS window to close either; see both methods below.
+        /// </summary>
+        private Window[] _hiddenOwnedWindows = System.Array.Empty<Window>();
+
+        /// <summary>
+        /// Shuts the windows this one opened alongside itself. Only on a session expiry:
+        /// what is in them belongs to a session that no longer exists, and there is
+        /// nothing left to send or save from them.
+        ///
+        /// A change of screen and the end of a call deliberately do not come here — the
+        /// after-call work outlives the conversation, and a half-written SMS draft is worth
+        /// more than consistency.
         /// </summary>
         private void CloseDialogWindows()
         {
+            Views.TaskWindowLauncher.CloseIfOpen();
+            Views.SurveyWindowLauncher.CloseIfOpen();
+            Views.ScriptsWindowLauncher.CloseIfOpen();
+
+            // The SMS windows are opened by the screens directly, with no launcher, but
+            // this window is their owner all the same. _hiddenOwnedWindows covers the one
+            // OwnedWindows cannot: a dialog this window hid for the tray and has not shown
+            // again — Hide() already dropped it out of OwnedWindows on its way to hidden
+            // (see _hiddenOwnedWindows), so a session that expires before the softphone
+            // comes back out of the tray would otherwise leave it open and unreachable.
+            foreach (var owned in OwnedWindows.Concat(_hiddenOwnedWindows).ToArray())
+                if (owned is Views.SmsComposeDialog) owned.Close();
+            _hiddenOwnedWindows = System.Array.Empty<Window>();
+        }
+
+        /// <summary>
+        /// Hides the main window for the tray. Owned windows are not hidden by hand here:
+        /// Avalonia's own Window.Hide() already walks OwnedWindows and hides every one of
+        /// them before it hides itself, so a second pass over the same list would just
+        /// repeat what Hide() is about to do anyway.
+        ///
+        /// What Hide() does NOT do is leave them reachable afterwards — hiding a window
+        /// clears its Owner and drops it from the owner's OwnedWindows as it goes, the
+        /// same as closing would. Captured here, before Hide() takes the list away, so
+        /// ShowFromTray still has something to bring back.
+        ///
+        /// Internal, not private: App.axaml.cs calls this from the tray icon and the
+        /// Hide/Show menu items, in place of the direct Hide() they used before.
+        ///
+        /// Guarded on IsVisible because the tray's Hide item has no matching "already
+        /// hidden" state to grey it out against — a second call while already hidden
+        /// would capture OwnedWindows a second time, after the first Hide() had already
+        /// emptied it, and wipe out the one real list with an empty one.
+        /// </summary>
+        internal void HideToTray()
+        {
+            if (!IsVisible) return;
+
+            _hiddenOwnedWindows = OwnedWindows.ToArray();
+            Hide();
+        }
+
+        /// <summary>
+        /// Brings the main window back from the tray along with whatever HideToTray hid.
+        /// Show(this) rather than the parameterless Show(): it re-establishes ownership as
+        /// well as visibility, so a later hide, or a session expiry, reaches these windows
+        /// again instead of finding an OwnedWindows list Hide() already emptied once.
+        ///
+        /// Internal, not private: App.axaml.cs calls this from the tray icon and the
+        /// Hide/Show menu items, in place of the direct Show() they used before.
+        /// </summary>
+        internal void ShowFromTray()
+        {
+            Show();
+            Activate();
+            foreach (var owned in _hiddenOwnedWindows) owned.Show(this);
+            _hiddenOwnedWindows = System.Array.Empty<Window>();
         }
 
         private void ShowHttpError(string message)
