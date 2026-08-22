@@ -1962,8 +1962,22 @@ git grep -n "AttachNav\|_isExpanded\|_preferredMode\|_settingsFromLogin\|_curren
 ```
 
 `StartOutgoingCall` — оставить проверку `State != CallState.Idle` и `CallAsync`, а ветвление
-по `_preferredMode` заменить на `Dispatch(new UiEvent.CallStarted())` **до** `await
-CallAsync`, чтобы экран поднялся сразу.
+по `_preferredMode` заменить на `CallStarted`. Порядок важен, и не тот, что казался:
+
+```csharp
+            var call = App.SipService.CallAsync(number);
+            Dispatch(new UiEvent.CallStarted());
+            await call;
+```
+
+Диспетчер первым, а вызов вторым не годится: `CallAsync` пишет `ActiveCallerId` в своём
+синхронном прологе, и полоска, построенная до этого, покажет предыдущего собеседника.
+
+Маршрут от этого порядка не зависит — `ShellRouter` нормализует `CallStarted` против
+звонка, о котором оно объявляет, а не против `Idle`, который сервис всё ещё показывает.
+Без этого набор с панели был полным no-op: проверка выше гарантирует `Idle`, `Normalize`
+уводил маршрут обратно с экрана звонка, запись выходила равной, и оператор оставался на
+клавиатуре весь разговор.
 
 `RescaleWindow` продолжает считать `ratio` от текущих `Width`/`Height` — трогать не надо.
 
