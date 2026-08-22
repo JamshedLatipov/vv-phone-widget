@@ -447,8 +447,6 @@ namespace OrbitalSIP
         private Views.TasksView CreateTasksView()
         {
             var tasks = new Views.TasksView();
-            tasks.OnCloseRequested += (_, __) => Dispatch(new UiEvent.CollapseRequested());
-            tasks.OnExitAppRequested += (_, __) => ShutdownApp();
             return tasks;
         }
 

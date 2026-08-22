@@ -48,9 +48,6 @@ namespace OrbitalSIP.Views
         /// </summary>
         private int _listGeneration;
 
-        public event EventHandler? OnCloseRequested;
-        public event EventHandler? OnExitAppRequested;
-
         public TasksView()
         {
             InitializeComponent();
@@ -87,13 +84,6 @@ namespace OrbitalSIP.Views
 
         private void WireButtons()
         {
-            var topBar = this.FindControl<TopBarControl>("TopBar");
-            if (topBar != null)
-            {
-                topBar.OnMinimizeRequested += (_, __) => OnCloseRequested?.Invoke(this, EventArgs.Empty);
-                topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, EventArgs.Empty);
-            }
-
             var refresh = this.FindControl<Button>("RefreshTasksBtn");
             if (refresh != null) refresh.Click += (_, __) => _ = LoadAsync();
 
