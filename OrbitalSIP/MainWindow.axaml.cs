@@ -61,6 +61,16 @@ namespace OrbitalSIP
         private readonly TransferService _transferService = new();
 
         /// <summary>
+        /// Cancelled the moment the call this transfer belongs to goes Idle (see
+        /// OnCallStateChanged) — a hangup mid-request should not leave the backend
+        /// round trip running for a call that no longer exists, nor pop a toast about
+        /// one afterwards. Created fresh at the top of each RouteTransferAsync call.
+        /// TransferService.TransferAsync already distinguishes this from its own
+        /// internal deadline — see its doc comment on "the caller pulled the plug".
+        /// </summary>
+        private CancellationTokenSource? _transferCancellation;
+
+        /// <summary>
         /// Everything the window is. Changed only through Dispatch, and only to what
         /// ShellRouter returned — assign to it directly and back comes exactly the scatter
         /// of hand-kept flags this work exists to remove.
@@ -190,6 +200,8 @@ namespace OrbitalSIP
             HttpErrorNotifier.ErrorOccurred -= OnHttpErrorOccurred;
             BackendAuth.SessionExpired -= OnSessionExpired;
             _httpErrorHideTimer.Stop();
+            _transferCancellation?.Cancel();
+            _transferCancellation?.Dispose();
             _transferService.Dispose();
             base.OnClosed(e);
         }
@@ -783,29 +795,76 @@ namespace OrbitalSIP
         /// TransferOutcomePresenter decides for the (kind, outcome) pair — see that
         /// class for the full table, including why a queue never falls back to a
         /// SIP REFER.
+        ///
+        /// Wrapped in its own try/catch rather than left as a bare async void: this is
+        /// an event handler (see CreateActiveCallView), and an exception an async void
+        /// handler does not catch itself reaches AppDomain.UnhandledException, which in
+        /// this app only logs — it does not stop the process from dying. Same guard
+        /// MaybeAutoOpenSurveyAsync uses above, and the reason Views/SafeHandler.cs
+        /// exists for button clicks: a softphone that dies mid-call because a transfer
+        /// threw is a worse outcome than any transfer failure.
         /// </summary>
         private async Task RouteTransferAsync(TransferRequest request)
         {
-            var i18n = I18nService.Instance;
-            var result = await _transferService.TransferAsync(request.Kind, request.Value, request.CallerNumber);
+            // Cancelled from OnCallStateChanged the moment this call goes Idle, so a
+            // hangup mid-request stops the round trip instead of popping a toast about
+            // a call that is already gone.
+            _transferCancellation?.Cancel();
+            _transferCancellation?.Dispose();
+            _transferCancellation = new CancellationTokenSource();
+            var ct = _transferCancellation.Token;
 
-            switch (TransferOutcomePresenter.SelectAction(request.Kind, result.Outcome))
+            try
             {
-                case TransferOutcomeAction.NotifySuccess:
-                    HttpErrorNotifier.Notify(i18n.Get("TransferDone", "Звонок переведён"));
-                    break;
+                var i18n = I18nService.Instance;
+                var result = await _transferService.TransferAsync(request.Kind, request.Value, request.CallerNumber, ct);
 
-                case TransferOutcomeAction.ReferFallback:
-                    // Only reachable for an Extension target — see TransferOutcomePresenter.
-                    AppLogger.Log("Transfer", "Backend could not resolve the channel; falling back to SIP REFER.");
-                    await App.SipService.BlindTransferAsync(request.Value);
-                    break;
+                switch (TransferOutcomePresenter.SelectAction(request.Kind, result.Outcome))
+                {
+                    case TransferOutcomeAction.NotifySuccess:
+                        HttpErrorNotifier.Notify(i18n.Get("TransferDone", "Звонок переведён"));
+                        break;
 
-                default:
-                    HttpErrorNotifier.Notify(
-                        i18n.Get("TransferFailed", "Не удалось перевести звонок")
-                        + (string.IsNullOrEmpty(result.Error) ? "" : $": {result.Error}"));
-                    break;
+                    case TransferOutcomeAction.ReferFallback:
+                        // Only reachable for an Extension target — see TransferOutcomePresenter.
+                        AppLogger.Log("Transfer", "Backend could not resolve the channel; falling back to SIP REFER.");
+                        if (!await App.SipService.BlindTransferAsync(request.Value))
+                        {
+                            // Every other arm tells the operator something; a silent
+                            // REFER failure here would leave them believing the call
+                            // moved when it is still sitting on their own line.
+                            AppLogger.Log("Transfer", "SIP REFER failed.");
+                            HttpErrorNotifier.Notify(i18n.Get("TransferFailed", "Не удалось перевести звонок"));
+                        }
+                        break;
+
+                    default:
+                        // The detail goes to the log only, not the banner. See
+                        // HttpErrorNotifier.NotifyHttpError's doc comment: this exact
+                        // leak — a backend error concatenated straight into the banner
+                        // text — was found and fixed once already, for the same reason
+                        // it is wrong here. The operator needs to know it failed, not
+                        // the detail; the detail is a support question, and support
+                        // reads the log.
+                        AppLogger.Log("Transfer", $"Transfer failed: {result.Error ?? "<empty>"}");
+                        HttpErrorNotifier.Notify(i18n.Get("TransferFailed", "Не удалось перевести звонок"));
+                        break;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // The call ended (or the window closed) before the backend answered —
+                // the operator is not looking at this call anymore, so there is
+                // nothing to show them. See _transferCancellation and OnCallStateChanged.
+                AppLogger.Log("Transfer", "Transfer cancelled: the call ended before it completed.");
+            }
+            catch (Exception ex)
+            {
+                // Last-resort net: TransferService and SipService both already catch
+                // internally, so reaching here means something unanticipated slipped
+                // through — log it rather than let it reach AppDomain.UnhandledException
+                // and take the whole process down mid-call.
+                AppLogger.Log("Transfer", $"RouteTransferAsync threw: {ex.GetType().Name}: {ex.Message}");
             }
         }
 
@@ -827,6 +886,15 @@ namespace OrbitalSIP
             // A call ending is the one moment the missed-call count can just have moved, and
             // it is also the moment the operator is looking at the bar again.
             if (state == CallState.Idle) _ = App.NavBadges.RefreshNowAsync();
+
+            // A hangup mid-transfer should not leave the backend round trip running for
+            // a call nobody is on anymore, nor pop a toast about one afterwards.
+            if (state == CallState.Idle)
+            {
+                _transferCancellation?.Cancel();
+                _transferCancellation?.Dispose();
+                _transferCancellation = null;
+            }
 
             Dispatch(new UiEvent.CallStateChanged(state));
 

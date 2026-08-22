@@ -93,32 +93,16 @@ public class TransferOutcomePresenterTests
         }
     }
 
-    /// <summary>A successful transfer reports success regardless of what was picked.</summary>
-    [Fact]
-    public void Ok_AlwaysNotifiesSuccess_RegardlessOfKind()
-    {
-        foreach (var kind in Enum.GetValues<TransferTargetKind>())
-        {
-            Assert.Equal(
-                TransferOutcomeAction.NotifySuccess,
-                TransferOutcomePresenter.SelectAction(kind, TransferOutcome.Ok));
-        }
-    }
-
-    /// <summary>
-    /// A refusal (or an ambiguous POST-phase timeout) never REFERs for
-    /// either kind — the backend already answered, so a REFER behind it
-    /// could go behind a deliberate refusal or race a transfer that already
-    /// happened. See TransferService.TransferAsync's doc comment.
-    /// </summary>
-    [Fact]
-    public void Failed_AlwaysNotifiesFailure_RegardlessOfKind()
-    {
-        foreach (var kind in Enum.GetValues<TransferTargetKind>())
-        {
-            Assert.Equal(
-                TransferOutcomeAction.NotifyFailure,
-                TransferOutcomePresenter.SelectAction(kind, TransferOutcome.Failed));
-        }
-    }
+    // Ok_AlwaysNotifiesSuccess_RegardlessOfKind and Failed_AlwaysNotifiesFailure_RegardlessOfKind
+    // were removed here on review: both cells they checked (kind × Ok, kind × Failed) are
+    // already literal InlineData rows in SelectAction_MatchesTheRoutingTable above, and unlike
+    // the ReferFallback sweeps neither gains anything from TransferOutcome or TransferTargetKind
+    // growing a new member — TransferTargetKind has exactly two members with no third on any
+    // roadmap. They were pure duplicates: same cells, same failure message shape, one more place
+    // to edit on a routing change, no distinguishing regression they alone would catch.
+    // Queue_WithChannelUnresolved_FailsInsteadOfFallingBackToRefer, above, kept the same overlap
+    // with the Theory deliberately: it is the one cell this task's brief named as the invariant
+    // that must never regress, and its narrow, titled assertion is the fastest possible signal
+    // for exactly that regression, on top of what the Theory row and the two sweeps already give.
 }
+

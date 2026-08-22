@@ -50,6 +50,11 @@ namespace OrbitalSIP.Models
     /// The outcome of a transfer attempt. <c>ChannelUnresolved</c> is kept
     /// separate from <c>Failed</c> deliberately: it, and only it, is what
     /// turns on the SIP fallback for an operator target.
+    ///
+    /// Adding a member: <c>OrbitalSIP.Services.TransferOutcomePresenter.SelectAction</c>
+    /// switches on this type and falls through to <c>NotifyFailure</c> for anything it
+    /// does not name explicitly — safe by construction, but silent. Check that switch
+    /// before assuming a new member is handled.
     /// </summary>
     public enum TransferOutcome
     {
