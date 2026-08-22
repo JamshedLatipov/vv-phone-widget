@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
@@ -440,8 +440,6 @@ namespace OrbitalSIP
         private Views.RecentsView CreateRecentsView()
         {
             var r = new Views.RecentsView();
-            r.OnCloseRequested += (_, __) => Dispatch(new UiEvent.CollapseRequested());
-            r.OnExitAppRequested += (_, __) => ShutdownApp();
             r.OutgoingCallRequested += (sender, num) => StartOutgoingCall(num);
             return r;
         }
@@ -998,7 +996,7 @@ namespace OrbitalSIP
         private object BuildContent(UiState s) => s.Shell switch
         {
             Shell.Login         => CreateLoginView(),
-            Shell.LoginSettings => CreateSettingsView(fromLogin: true),
+            Shell.LoginSettings => WrapInShell(CreateSettingsView(fromLogin: true)),
             Shell.Collapsed     => new Views.WidgetView(),
             Shell.Incoming      => CreateIncomingView(App.SipService.ActiveCallerId),
             Shell.CallBar       => CreateActiveCallWidgetView(),
@@ -1006,7 +1004,30 @@ namespace OrbitalSIP
             _ => throw new ArgumentOutOfRangeException(nameof(s), s.Shell, "Surface has no screen"),
         };
 
-        private object BuildPanelContent(NavRoute route) => route switch
+        private object BuildPanelContent(NavRoute route) => WrapInShell(CreateRouteBody(route));
+
+        /// <summary>
+        /// Puts a screen inside the panel's chrome and wires the chrome to this window.
+        ///
+        /// Separate from BuildPanelContent because LoginSettings is not a route and still
+        /// needs the same treatment: it is the one login surface that carries the bottom
+        /// bar. Shell.Login does not, and is deliberately not wrapped.
+        /// </summary>
+        private Views.PanelShellView WrapInShell(object body)
+        {
+            var shell = new Views.PanelShellView { Body = body };
+
+            if (shell.TopBar is { } bar)
+            {
+                bar.OnMinimizeRequested += (_, __) => Dispatch(new UiEvent.CollapseRequested());
+                bar.OnAvatarClicked     += (_, __) => Dispatch(new UiEvent.StatusPopupToggled(true));
+                bar.OnCloseRequested    += (_, __) => ShutdownApp();
+            }
+
+            return shell;
+        }
+
+        private object CreateRouteBody(NavRoute route) => route switch
         {
             NavRoute.Dialer   => CreateDialerView(),
             NavRoute.Recents  => CreateRecentsView(),

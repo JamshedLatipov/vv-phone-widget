@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
@@ -22,14 +22,11 @@ namespace OrbitalSIP.Views
         private bool _isDetached;
         public ObservableCollection<CdrItemViewModel> CdrItems { get; } = new ObservableCollection<CdrItemViewModel>();
 
-        public event EventHandler? OnCloseRequested;
         public event EventHandler<string>? OutgoingCallRequested;
-        public event EventHandler? OnExitAppRequested;
 
         public RecentsView()
         {
             InitializeComponent();
-            WireButtons();
             DataContext = this;
 
             var refreshBtn = this.FindControl<Button>("RefreshCdrBtn");
@@ -63,12 +60,6 @@ namespace OrbitalSIP.Views
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
-
-        private void WireButtons()
-        {
-            var topBar = this.FindControl<TopBarControl>("TopBar");
-            if (topBar != null) { topBar.OnMinimizeRequested += (_, __) => OnCloseRequested?.Invoke(this, EventArgs.Empty); topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, EventArgs.Empty); }
-        }
 
         private async Task LoadCallHistoryAsync()
         {
