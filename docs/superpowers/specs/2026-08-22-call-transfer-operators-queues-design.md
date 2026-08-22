@@ -1,8 +1,16 @@
 # Перевод звонка на операторов и очереди — дизайн (фаза 1: слепой перевод)
 
 Дата: 2026-08-22
-Статус: утверждён, готов к написанию плана
+Статус: утверждён; реализуется по плану `docs/superpowers/plans/2026-08-22-call-transfer-operators-queues.md`
 Репозитории: `vv-phone-widget` (виджет, .NET/Avalonia), `crm_mono` (бэк, NestJS/Nx)
+
+> **Важно про ветку.** Раздел «Что уже есть» описывает `feat/freeswitch-all`, на
+> которой стояло рабочее дерево при написании спека. Фича шипится в **`main`**,
+> где драйверной абстракции `TelephonyCallControlDriver`, `channel-locator.ts` и
+> файла `dialplan-context.util.ts` **нет**, а `POST /calls/transfer` — это
+> ARI-овый `CallTransferService` с телом `{channelId, target}`. Решения
+> раздела 3 в силе; конкретные точки правок для main перечислены в плане, там же
+> — таблица расхождений и порядок переноса на `feat/freeswitch-all`.
 
 ## 1. Задача
 
