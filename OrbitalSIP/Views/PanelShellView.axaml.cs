@@ -21,7 +21,16 @@ namespace OrbitalSIP.Views
     /// </summary>
     public partial class PanelShellView : UserControl
     {
-        public PanelShellView() => InitializeComponent();
+        /// <summary>The operator tapped the strip and wants the call screen back.</summary>
+        public event EventHandler? OnReturnRequested;
+
+        public PanelShellView()
+        {
+            InitializeComponent();
+
+            if (this.FindControl<CallReturnStrip>("ShellStrip") is { } strip)
+                strip.OnReturnRequested += (_, __) => OnReturnRequested?.Invoke(this, EventArgs.Empty);
+        }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 

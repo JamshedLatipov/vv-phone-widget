@@ -1016,6 +1016,8 @@ namespace OrbitalSIP
                 bar.OnCloseRequested    += (_, __) => ShutdownApp();
             }
 
+            shell.OnReturnRequested += (_, __) => Dispatch(new UiEvent.ReturnStripPressed());
+
             return shell;
         }
 
@@ -1095,6 +1097,17 @@ namespace OrbitalSIP
             nav.SetInCall(App.SipService.State is CallState.Active or CallState.OnHold);
             nav.SetLoginMode(s.Shell == Shell.LoginSettings);
             ApplyBadges(nav);
+
+            // The screen RefreshChrome already resolved on its first line, not Host. During a
+            // resize the arriving screen sits in the overlay while Host still holds the one
+            // leaving, so reading Host here would drive the strip on the wrong panel and
+            // leave the arriving one blank for the length of every fade — the same trap the
+            // doc comment above this method describes.
+            if (screen is Views.PanelShellView panel)
+                panel.SetReturnStrip(
+                    ShellRouter.ShowReturnStrip(s, App.SipService.State),
+                    App.SipService.ActiveCallerId,
+                    App.SipService.ActiveCallStartedAt);
         }
 
         private void ApplyStatusPopup(UiState s)
