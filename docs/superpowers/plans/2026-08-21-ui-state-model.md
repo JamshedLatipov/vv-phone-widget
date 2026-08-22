@@ -2086,7 +2086,25 @@ dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q -c Release
 - Modify: `OrbitalSIP/Views/ExpandedView.axaml{,.cs}`, `RecentsView.axaml{,.cs}`, `TasksView.axaml{,.cs}`, `SettingsView.axaml{,.cs}`, `ActiveCallView.axaml{,.cs}`
 - Modify: `OrbitalSIP/MainWindow.axaml.cs`
 
-Единственная задача плана с риском визуальной регрессии. Пять экранов подогнаны под собственные копии топбара и меню, включая компенсирующий `Margin="-20,20,-20,-20"` в `SettingsView`. Поэтому — по экрану за коммит.
+Единственная задача плана с риском визуальной регрессии. Поэтому — по экрану за коммит.
+
+Продублированного хрома не два элемента, а **три**. Кроме топбара и нижнего меню, каждый
+из пяти экранов несёт одну и ту же внешнюю рамку:
+
+```xml
+  <Border Width="320" Background="#0F172A" BorderBrush="#1E293B"
+          BorderThickness="1" CornerRadius="16" ClipToBounds="True">
+```
+
+Она и есть форма панели: скруглённые углы, обводка, фон и обрезка по контуру на
+прозрачном topmost-окне. Оставить её на экранах, а бары вынести наружу — значит вынести
+их за пределы этой рамки: углы станут прямыми, обводка исчезнет, а сохранившийся у тела
+`CornerRadius="16"` нарисуется отдельным прямоугольником между двумя барами.
+
+Она же объясняет отрицательные отступы в `SettingsView`: `Padding="20"` стоит на рамке,
+и бары компенсируют его по `-20`, чтобы дотянуться до края. Как только рамка переезжает в
+`PanelShellView` без внутреннего отступа, а собственный отступ настроек остаётся при их
+содержимом, обе компенсации становятся не нужны.
 
 - [ ] **Step 1: Создать контейнер**
 
@@ -2097,14 +2115,36 @@ dotnet test OrbitalSIP.Tests/OrbitalSIP.Tests.csproj --nologo -v q -c Release
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:Views="clr-namespace:OrbitalSIP.Views"
              x:Class="OrbitalSIP.Views.PanelShellView">
-  <Grid RowDefinitions="Auto,Auto,*,Auto">
-    <Views:TopBarControl     Name="TopBar"  Grid.Row="0" />
-    <Views:CallReturnStrip   Name="Strip"   Grid.Row="1" IsVisible="False" />
-    <ContentControl          Name="Body"    Grid.Row="2" />
-    <Views:BottomNavControl  Name="Nav"     Grid.Row="3" />
-  </Grid>
+  <!-- The frame the five screens each carried a copy of. It belongs with the chrome it
+       wraps: rounded corners, outline and clipping are the shape of the panel, not of
+       whatever is inside it this second. Width stays 320 to match ShellGeometry.PanelWidth;
+       the scale transform on the window multiplies it, as it did on every screen before. -->
+  <Border Width="320"
+          Background="#0F172A"
+          BorderBrush="#1E293B"
+          BorderThickness="1"
+          CornerRadius="16"
+          ClipToBounds="True">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+      <Views:TopBarControl     Name="TopBar"  Grid.Row="0" />
+      <Views:CallReturnStrip   Name="Strip"   Grid.Row="1" IsVisible="False" />
+      <ContentControl          Name="Body"    Grid.Row="2" />
+      <Views:BottomNavControl  Name="Nav"     Grid.Row="3" />
+    </Grid>
+  </Border>
 </UserControl>
 ```
+
+Каждый из пяти экранов теряет свою копию этой рамки вместе с топбаром и меню. Четыре
+остаются без корневого `Border` вовсе — их содержимое становится корнем. `SettingsView`
+сохраняет только то, что принадлежит ему одному:
+
+```xml
+  <Border Padding="20">
+```
+
+а вместе с рамкой у него уходят оба компенсирующих отступа — `Margin="-20,-20,-20,10"` у
+топбара и `Margin="-20,20,-20,-20"` у меню.
 
 `OrbitalSIP/Views/PanelShellView.axaml.cs`:
 
@@ -2152,7 +2192,8 @@ namespace OrbitalSIP.Views
 }
 ```
 
-`CallReturnStrip` появится в Task 11 — до тех пор закомментировать его строку в XAML и тело `SetReturnStrip`, чтобы задача собиралась независимо.
+`CallReturnStrip` строится первым шагом Task 11 и ни от чего не зависит — сделать его до
+`PanelShellView`, тогда закомментировать и раскомментировать строку не придётся.
 
 - [ ] **Step 2: Перевести `RecentsView`**
 
@@ -2164,7 +2205,9 @@ namespace OrbitalSIP.Views
 git grep -n "TopBar" -- OrbitalSIP/Views/RecentsView.axaml.cs
 ```
 
-В `MainWindow.BuildPanelContent` обернуть результат:
+В `MainWindow.BuildPanelContent` обернуть результат. `CollapseWidget` после этого
+остаётся без вызывающих — его последний вызов, `dialer.OnCloseRequested`, переезжает
+в общую подписку шелла; удалить.
 
 ```csharp
         private object BuildPanelContent(NavRoute route)
@@ -2376,7 +2419,12 @@ namespace OrbitalSIP.Views
 В `RefreshChrome` добавить в конец:
 
 ```csharp
-            if ((this.FindControl<ContentControl>("Host")?.Content) is Views.PanelShellView panel)
+            // The screen RefreshChrome already resolved on its first line, not Host. During a
+            // resize the arriving screen sits in the overlay while Host still holds the one
+            // leaving, so reading Host here would drive the strip on the wrong panel and
+            // leave the arriving one blank for the length of every fade — the same trap the
+            // doc comment above this method describes.
+            if (screen is Views.PanelShellView panel)
                 panel.SetReturnStrip(
                     ShellRouter.ShowReturnStrip(s, App.SipService.State),
                     App.SipService.ActiveCallerId,
