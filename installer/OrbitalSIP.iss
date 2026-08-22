@@ -21,7 +21,10 @@ AppSupportURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputDir=..\dist
-OutputBaseFilename=PROFFI-Setup-{#MyAppVersion}
+; The updater picks the first release asset ending in .exe rather than matching a
+; pattern, so this name is free to change — but it carries the version so a file sitting
+; in someone's Downloads folder still says which one it is.
+OutputBaseFilename=proffi-phone-{#MyAppVersion}
 SetupIconFile=proffi.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
