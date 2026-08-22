@@ -31,6 +31,10 @@ namespace OrbitalSIP
         /// <summary>One script list at a time — it opens from the active call and from
         /// the call history, and neither knows about the other.</summary>
         public static readonly Models.SingleWindowGuard ScriptWindows = new Models.SingleWindowGuard();
+        /// <summary>One transfer picker at a time. It used to be an inline panel with
+        /// no such question to ask; now that it is a window, it needs the same guard
+        /// as the other three.</summary>
+        public static readonly Models.SingleWindowGuard TransferWindows = new Models.SingleWindowGuard();
         public static readonly UpdateService        Updater       = new UpdateService();
         /// <summary>The one poll behind the bottom-nav badge counts — and behind the
         /// dialer's stats panel, which used to fetch the same URL on a timer of its own.</summary>

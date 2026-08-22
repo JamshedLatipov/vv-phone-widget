@@ -2,7 +2,9 @@ using System;
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
+using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -260,11 +262,7 @@ namespace OrbitalSIP.Views
 
             var transfer = this.FindControl<Button>("TransferBtn");
             if (transfer != null)
-                transfer.Click += (_, __) => ShowTransferPanel();
-
-            var transferConfirm = this.FindControl<Button>("TransferConfirmBtn");
-            if (transferConfirm != null)
-                transferConfirm.Click += (_, __) => ConfirmTransfer();
+                transfer.Click += (_, __) => ShowTransferDialog();
 
             var keypad = this.FindControl<Button>("KeypadBtn");
             if (keypad != null)
@@ -780,7 +778,8 @@ namespace OrbitalSIP.Views
             // The dialable extension, never a SIP endpoint id.
             var extension = context!.Owner!.ExtensionNumber!.Trim();
             AppLogger.Log("LeadPanel", $"Transferring call to lead owner extension {extension}");
-            OnTransferRequested?.Invoke(this, extension);
+            OnTransferRequested?.Invoke(this, new Models.TransferRequest(
+                Models.TransferTargetKind.Extension, extension, CallerNumber()));
         }
 
         private async Task AddLeadCommentAsync()
@@ -1114,25 +1113,24 @@ namespace OrbitalSIP.Views
             if (btn   != null) btn.Background = new SolidColorBrush(_onHold ? Color.Parse("#B91C1C") : Color.Parse("#1E4270"));
         }
 
-        private void ShowTransferPanel()
+        /// <summary>
+        /// Opens the transfer target picker as its own window instead of the inline
+        /// panel this used to toggle — measurement showed the panel had no room left
+        /// even before a single row loaded; see TransferWindowLauncher's docblock.
+        /// The picked target — a list row or manual entry — comes back through
+        /// TransferSelected and is relayed here to OnTransferRequested, the same
+        /// event MainWindow has always listened on for TransferToLeadOwner.
+        /// </summary>
+        private void ShowTransferDialog()
         {
-            var panel = this.FindControl<Border>("TransferPanel");
-            if (panel != null) panel.IsVisible = !panel.IsVisible;
+            var topLevel = TopLevel.GetTopLevel(this) as Window;
+            if (topLevel == null) return;
+
+            TransferWindowLauncher.Open(topLevel, CallerNumber(),
+                request => OnTransferRequested?.Invoke(this, request));
         }
 
-        private void ConfirmTransfer()
-        {
-            var box    = this.FindControl<TextBox>("TransferNumberBox");
-            var number = box?.Text?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(number)) return;
-
-            var panel = this.FindControl<Border>("TransferPanel");
-            if (panel != null) panel.IsVisible = false;
-
-            OnTransferRequested?.Invoke(this, number);
-        }
-
-        // в”Ђв”Ђ Events в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+        // ── Events ────────────────────────────────────────────────────
         // -- Public hotkey triggers
         public void TriggerMute()   => ToggleMute();
         public void TriggerHold()   => ToggleHold();
@@ -1146,6 +1144,6 @@ namespace OrbitalSIP.Views
         public event EventHandler?        OnHangup;
         public event EventHandler<bool>?  OnMuteToggled;      // arg = isMuted
         public event EventHandler<bool>?  OnHoldToggled;      // arg = isOnHold
-        public event EventHandler<string>? OnTransferRequested; // arg = destination
+        public event EventHandler<Models.TransferRequest>? OnTransferRequested; // arg = what the operator picked
     }
 }

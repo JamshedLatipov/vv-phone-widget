@@ -110,39 +110,6 @@
             </Border>
           </UniformGrid>
 
-          <Border Name="TransferPanel" IsVisible="False"
-                  Background="#0F1A28" BorderBrush="#1B2B3F" BorderThickness="1"
-                  CornerRadius="14" Padding="14,12" Margin="0,0,0,0">
-            <StackPanel Spacing="8">
-              <TextBlock Text="{i18n:I18n TransferToOperator}" FontSize="9" FontWeight="Bold"
-                         LetterSpacing="1.4" Foreground="#7B92AA" />
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBox Name="TransferNumberBox"
-                         Margin="0,0,8,0"
-                         Background="#152132"
-                         BorderBrush="#1D3050"
-                         BorderThickness="1"
-                         CornerRadius="10"
-                         Padding="10,6"
-                         FontSize="13"
-                         Foreground="#F8FAFC"
-                         CaretBrush="#60A5FA"
-                         Watermark="{i18n:I18n OperatorNumber}" />
-                <Button Name="TransferConfirmBtn"
-                        Grid.Column="1"
-                        Width="74" Height="34"
-                        CornerRadius="10"
-                        Background="#1E4270"
-                        BorderThickness="0"
-                        Foreground="#60A5FA"
-                        FontSize="11"
-                        FontWeight="Bold"
-                        Content="{i18n:I18n Transfer}"
-                        HorizontalContentAlignment="Center" />
-              </Grid>
-            </StackPanel>
-          </Border>
-
           <!-- In-call DTMF pad. Digit buttons are built in code (see
                ActiveCallView.Dtmf.cs) since they all share one Click handler. The hint
                has no default Text: DtmfPadPresenter.HintKey picks one of two strings
