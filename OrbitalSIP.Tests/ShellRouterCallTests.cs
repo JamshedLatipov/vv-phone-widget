@@ -40,6 +40,32 @@ public class ShellRouterCallTests
         Assert.Equal(NavRoute.Tasks, s.LastNonCall);
     }
 
+    /// <summary>
+    /// Dialling from the dialpad. StartOutgoingCall raises CallStarted around CallAsync, and
+    /// its own guard means the service still reads Idle at that instant — so this is the one
+    /// event that must not be normalized against the state it is announcing the end of.
+    /// Reduced against Idle, the route landed on Call and Normalize put it straight back, the
+    /// record came back equal, and the operator stayed on the dialpad for the whole call.
+    /// Nothing later rescued it: CallStateChanged(Ringing) matches no arm.
+    /// </summary>
+    [Fact]
+    public void DiallingReachesTheCallScreenBeforeTheServiceSaysSo()
+    {
+        var s = Reduce(Panel(NavRoute.Dialer), new UiEvent.CallStarted(), CallState.Idle);
+
+        Assert.Equal(Shell.Panel, s.Shell);
+        Assert.Equal(NavRoute.Call, s.Route);
+    }
+
+    /// <summary>The same from a collapsed widget: the strip has to come up, not be undone.</summary>
+    [Fact]
+    public void DiallingFromTheWidgetReachesTheStripBeforeTheServiceSaysSo()
+    {
+        var s = Reduce(UiState.Initial(true), new UiEvent.CallStarted(), CallState.Idle);
+
+        Assert.Equal(Shell.CallBar, s.Shell);
+    }
+
     [Fact]
     public void AWidgetHomeAnswersTheCallOnTheStrip()
     {

@@ -229,9 +229,25 @@ namespace OrbitalSIP
                 return;
             }
 
+            SurfaceWindow();
             Dispatch(new UiEvent.SessionExpired());
             CloseDialogWindows();
         });
+
+        /// <summary>
+        /// Brings the window out of the tray and to the front.
+        ///
+        /// Carried over from ShowLoginAfterSessionExpiry, which did this before drawing the
+        /// login screen and which the migration to Apply replaced. Apply took over the
+        /// centring and the animation kill, but not this: a session that expires while the
+        /// operator has the softphone hidden would otherwise redraw login behind a window
+        /// nobody can see, and the next thing they know is that their calls stopped arriving.
+        /// </summary>
+        private void SurfaceWindow()
+        {
+            if (!IsVisible) Show();
+            Activate();
+        }
 
         /// <summary>
         /// Shuts the windows this one opened alongside itself. Empty until Task 12 gives it
@@ -398,11 +414,6 @@ namespace OrbitalSIP
         }
 
         // ── View toggle ───────────────────────────────────────────────
-        private void ToggleExpanded() =>
-            Dispatch(_state.Shell == Shell.Collapsed
-                ? new UiEvent.ExpandRequested()
-                : new UiEvent.CollapseRequested());
-
         private void ExpandOnDoubleTap()
         {
             if (_state.Shell != Shell.Collapsed) return;
@@ -533,15 +544,18 @@ namespace OrbitalSIP
             }
 
             // Started before the dispatch and awaited after it, rather than dispatched first
-            // and started second. CallAsync claims Ringing and writes ActiveCallerId in its
-            // synchronous prologue, before its first await, and this event needs both to have
-            // happened: reduced while the service still says Idle, CallStarted is a no-op on
-            // a panel — Normalize walks Route straight back off Call the moment it sees Idle,
-            // the record comes back equal, and the operator dials from the dialpad and stays
-            // on the dialpad for the whole conversation. On a widget it is worse than a
-            // no-op: the strip comes up around whatever ActiveCallerId still held, which is
-            // the previous caller. The screen still goes up without waiting for the network,
-            // which is the point of raising it here at all rather than off CallStateChanged.
+            // and started second. CallAsync writes ActiveCallerId in its synchronous prologue,
+            // before its first await, and the strip this raises is built around that name —
+            // dispatch first and a widget-home operator gets a strip labelled with the
+            // previous caller.
+            //
+            // The route no longer rides on this ordering: ShellRouter normalizes CallStarted
+            // against the call it announces rather than the Idle the service still reports,
+            // because the guard above guarantees Idle at this exact point. Before that fix,
+            // dialling from the dialpad left the operator on the dialpad for the whole
+            // conversation. The name is what is left depending on the order, and it is worth
+            // a line to keep: raising the event here rather than off CallStateChanged is what
+            // puts the screen up without waiting for the network.
             var call = App.SipService.CallAsync(number);
             Dispatch(new UiEvent.CallStarted());
             await call;
@@ -676,6 +690,7 @@ namespace OrbitalSIP
             if (state == CallState.Idle && _sessionExpiredPending)
             {
                 _sessionExpiredPending = false;
+                SurfaceWindow();
                 Dispatch(new UiEvent.SessionExpired());
                 CloseDialogWindows();
                 return;
@@ -1041,9 +1056,21 @@ namespace OrbitalSIP
         /// </summary>
         private void RefreshChrome(UiState s, object? content = null)
         {
-            var nav = ((content ?? this.FindControl<ContentControl>("Host")?.Content) as Control)
-                ?.FindLogicalDescendantOfType<Views.BottomNavControl>();
-            if (nav == null) return;
+            var screen = content ?? this.FindControl<ContentControl>("Host")?.Content;
+            var nav = (screen as Control)?.FindLogicalDescendantOfType<Views.BottomNavControl>();
+            if (nav == null)
+            {
+                // Those four have no bottom bar by design. Any other screen arriving here is
+                // one whose bar the search missed, and the symptom is a bar that draws
+                // normally and does nothing — which is exactly what the scattered per-screen
+                // wiring used to produce, silently. One place now, so make it a place that
+                // says something.
+                if (screen is not (null or Views.WidgetView or Views.LoginView or
+                                   Views.IncomingView or Views.ActiveCallWidgetView))
+                    AppLogger.Log("MainWindow",
+                        $"No BottomNavControl found in {screen.GetType().Name} — its tab bar is dead.");
+                return;
+            }
 
             nav.TabSelected -= OnNavTabSelected;
             nav.TabSelected += OnNavTabSelected;

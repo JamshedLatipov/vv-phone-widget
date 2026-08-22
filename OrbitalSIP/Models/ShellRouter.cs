@@ -16,10 +16,21 @@ public static class ShellRouter
 {
     public static UiState Reduce(UiState state, UiEvent e, CallState call)
     {
+        // CallStarted says a call is beginning, and it can outrun the service that is
+        // beginning it: StartOutgoingCall raises it around CallAsync, and its own guard
+        // above guarantees the state still reads Idle at that moment. Normalized against
+        // Idle, the arm that just put the route on the call screen would be undone in the
+        // same breath — the record would come back equal, Dispatch would decline to redraw,
+        // and an operator who dialled from the dialpad would sit there for the whole
+        // conversation. No later event rescues it: CallStateChanged(Ringing) matches no arm.
+        // So this one event is normalized against the call it announces rather than against
+        // the call the service has got around to admitting.
+        var effective = e is UiEvent.CallStarted ? CallState.Ringing : call;
+
         // Normalize before the comparison, not after: it is Normalize that walks the route
         // off Call when a call ends, and a route that moves only by normalization is still
         // a screen change. Asking the question first left the status popup open across it.
-        var next = Route(state, e, call).Normalize(call);
+        var next = Route(state, e, effective).Normalize(effective);
 
         if (next.Shell != state.Shell || next.Route != state.Route)
             next = next with { StatusPopup = false };
