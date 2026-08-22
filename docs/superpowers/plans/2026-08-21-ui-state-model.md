@@ -2535,19 +2535,52 @@ git commit -m "feat(call): a way back to the call that is not the dialer tab"
 `this.Closing` уже перехватывает закрытие и прячет окно. Добавить туда же и в обработчик трея:
 
 ```csharp
-        private void HideToTray()
+        /// <summary>Captured before Hide(), because Hide() is what empties OwnedWindows.</summary>
+        private Window[] _hiddenOwnedWindows = Array.Empty<Window>();
+
+        internal void HideToTray()
         {
-            foreach (var owned in OwnedWindows.ToArray()) owned.Hide();
+            // Guarded: the tray menu offers Hide unconditionally, and a second call while
+            // already hidden would capture an empty OwnedWindows over the real stash.
+            if (!IsVisible) return;
+
+            _hiddenOwnedWindows = OwnedWindows.ToArray();
             Hide();
         }
 
-        private void ShowFromTray()
+        internal void ShowFromTray()
         {
             Show();
             Activate();
-            foreach (var owned in OwnedWindows.ToArray()) owned.Show();
+
+            // Show(this), not Show(): the parameterless overload leaves Owner null and never
+            // re-adds the window to _children, so the next hide would not find it again.
+            foreach (var owned in _hiddenOwnedWindows) owned.Show(this);
+            _hiddenOwnedWindows = Array.Empty<Window>();
         }
 ```
+
+**Не писать это по памяти о том, как ведёт себя Avalonia.** Проверено по исходникам
+11.0.0, `src/Avalonia.Controls/Window.cs`:
+
+- `Hide()` сам обходит `_children` и прячет каждое дочернее окно — отдельный цикл в
+  `HideToTray` не нужен, он дублирует то, что фреймворк уже делает.
+- Тот же обход в том же методе рвёт связь: каждое дочернее делает `owner.RemoveChild(this)`
+  и `Owner = null`. Значит **сразу после `Hide()` коллекция `OwnedWindows` пуста**, и цикл
+  восстановления по ней перебирал бы ничто. Окно задачи не вернулось бы из трея никогда —
+  ровно то, что проверяет Step 5.
+
+Поэтому список снимается **до** `Hide()` и хранится в поле. По той же причине
+`CloseDialogWindows` обходит `OwnedWindows.Concat(_hiddenOwnedWindows)`: сессия, истёкшая
+пока софтфон в трее, иначе оставила бы окно SMS открытым и недостижимым.
+
+`internal`, а не `private`: `App.axaml.cs` зовёт оба метода, и Step 3 сам это предписывает.
+
+**Известное следствие, менять не надо.** Все четыре окна открываются с
+`WindowStartupLocation="CenterOwner"`, а Avalonia пересчитывает это на каждом `Show()` без
+проверки «уже позиционировано». Диалог, который оператор оттащил в сторону, после
+возвращения из трея встанет по центру снова. Ни одно из четырёх правил положения окон не
+касается.
 
 и вызывать их из `App.axaml.cs` (`MenuHide_Click`, `MenuShow_Click`, `TrayIcon_Clicked`) вместо прямых `Hide()`/`Show()`.
 
