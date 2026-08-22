@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
@@ -24,9 +24,6 @@ namespace OrbitalSIP.Views
 
         private void WireButtons()
         {
-            // Header buttons
-            var topBar = this.FindControl<TopBarControl>("TopBar");
-            if (topBar != null) { topBar.OnMinimizeRequested += (_, __) => OnCloseRequested?.Invoke(this, EventArgs.Empty); topBar.OnAvatarClicked += (_, __) => OnAvatarClicked?.Invoke(this, EventArgs.Empty); topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, EventArgs.Empty); }
             BindAsync("CopyBtn", CopyDisplayedNumberAsync);
 
             // Backspace
@@ -131,9 +128,6 @@ namespace OrbitalSIP.Views
         }
 
         // ── Events ────────────────────────────────────────────────────
-        public event System.EventHandler?        OnCloseRequested;
-        public event EventHandler? OnAvatarClicked;
-        public event System.EventHandler?        OnExitAppRequested;
         /// <summary>Fired when the user presses the call button. Arg = dialled number.</summary>
         public event EventHandler<string>? OutgoingCallRequested;
     }

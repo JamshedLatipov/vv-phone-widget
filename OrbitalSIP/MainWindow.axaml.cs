@@ -420,8 +420,6 @@ namespace OrbitalSIP
             Dispatch(new UiEvent.ExpandRequested());
         }
 
-        private void CollapseWidget() => Dispatch(new UiEvent.CollapseRequested());
-
         // ── Login ─────────────────────────────────────────────────────
         private Views.LoginView CreateLoginView()
         {
@@ -850,9 +848,6 @@ namespace OrbitalSIP
         private Views.ExpandedView CreateDialerView()
         {
             var dialer = new Views.ExpandedView();
-            dialer.OnCloseRequested += (_, __) => CollapseWidget();
-            dialer.OnExitAppRequested += (_, __) => ShutdownApp();
-            dialer.OnAvatarClicked += (_, __) => Dispatch(new UiEvent.StatusPopupToggled(true));
             dialer.OutgoingCallRequested += (_, number) => StartOutgoingCall(number);
             return dialer;
         }
