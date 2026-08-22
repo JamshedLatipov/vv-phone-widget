@@ -70,5 +70,46 @@ namespace OrbitalSIP.Tests
             Assert.True(b[0] >= a[0]);
             Assert.InRange(a[0], (short)1, short.MaxValue);   // compressed, still positive
         }
+
+        // ── Peak ──────────────────────────────────────────────────────
+        //
+        // A muted or dead microphone still delivers buffers on time, 50 a second, full of
+        // zeros — so frame counters, packet counters and every device check report a
+        // perfectly healthy call while the far end hears nothing at all. The amplitude is
+        // the only thing that tells the two apart.
+
+        [Fact]
+        public void Peak_OfDigitalSilenceIsZero()
+        {
+            Assert.Equal(0, AudioGain.Peak(new short[160]));
+        }
+
+        [Fact]
+        public void Peak_IsTheLoudestSample()
+        {
+            short[] pcm = { 100, -300, 250, 0 };
+
+            Assert.Equal(300, AudioGain.Peak(pcm));
+        }
+
+        [Fact]
+        public void Peak_MeasuresMagnitudeSoASingleNegativeCounts()
+        {
+            Assert.Equal(1200, AudioGain.Peak(new short[] { -1200 }));
+        }
+
+        [Fact]
+        public void Peak_HandlesTheMostNegativeSampleWithoutOverflowing()
+        {
+            // -32768 negates to 32768, which does not fit in a short. Reporting it as a
+            // negative peak would read as "quieter than silence" in the log.
+            Assert.Equal(32768, AudioGain.Peak(new short[] { short.MinValue }));
+        }
+
+        [Fact]
+        public void Peak_OfAnEmptyBufferIsZero()
+        {
+            Assert.Equal(0, AudioGain.Peak(Array.Empty<short>()));
+        }
     }
 }

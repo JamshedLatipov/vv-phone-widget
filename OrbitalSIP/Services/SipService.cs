@@ -2,12 +2,14 @@
 using System.Diagnostics;
 using System.Net;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SIPSorcery.SIP;
 using SIPSorcery.SIP.App;
 using SIPSorcery.Net;
 using SIPSorcery.Media;
+using SIPSorceryMedia.Abstractions;
 using OrbitalSIP.Services.Audio;
 
 namespace OrbitalSIP.Services
@@ -57,12 +59,7 @@ namespace OrbitalSIP.Services
 
         public SipService()
         {
-            var logDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "OrbitalSIP",
-                "logs");
-
-            _log = new Logging.AsyncLogWriter(Path.Combine(logDir, "sip.log"));
+            _log = new Logging.AsyncLogWriter(Logging.LogPaths.File("sip.log"));
             Log("SipService initialised.");
         }
 
@@ -807,6 +804,53 @@ namespace OrbitalSIP.Services
                 + ": " + i18n.Get("audio.spkFail", "Не удаётся открыть динамики"));
         }
 
+        /// <summary>
+        /// One codec, as it reads in the log: <c>PCMU/8000 (pt 0)</c>. <c>AudioFormat</c> is a
+        /// struct with no <c>ToString</c>, so interpolating it printed the type name — which is
+        /// what "Negotiated audio formats: SIPSorceryMedia.Abstractions.AudioFormat" was, and
+        /// why no log ever recorded which codec a call actually used. The payload type is here
+        /// because that is what the received-packet lines report.
+        /// </summary>
+        private static string Describe(AudioFormat format) =>
+            $"{format.FormatName}/{format.ClockRate} (pt {format.FormatID})";
+
+        /// <summary>
+        /// RTP packets the transport has actually put on the wire, or -1 before there is a
+        /// session to ask.
+        ///
+        /// The tx counter beside this one counts encoded microphone frames — everything the
+        /// capture path handed over. It says nothing about what happened next: a frame that
+        /// SIPSorcery drops for want of a destination endpoint, or on a stream that never
+        /// started, is counted exactly like one that left the NIC. Reading both is what
+        /// separates "our send path swallowed it" from "it left this machine".
+        /// </summary>
+        /// <remarks>
+        /// Only meaningful while the session is up: once it closes, the RTCP session goes with
+        /// it and this reads zero regardless of what was sent. Returns -1 when there is nothing
+        /// to ask, so callers can tell "no reading" from "sent nothing".
+        /// </remarks>
+        private static int PacketsSent(VoIPMediaSession? session)
+        {
+            try
+            {
+                uint? sent = session?.AudioRtcpSession?.PacketsSentCount;
+                return sent == null ? -1 : (int)Math.Min(sent.Value, int.MaxValue);
+            }
+            catch { return -1; }
+        }
+
+        /// <summary>Raises <paramref name="target"/> to <paramref name="value"/> if it is larger. The audio thread writes it while the SIP thread reads it at hangup.</summary>
+        private static void InterlockedMax(ref int target, int value)
+        {
+            int seen = Volatile.Read(ref target);
+            while (value > seen)
+            {
+                int previous = Interlocked.CompareExchange(ref target, value, seen);
+                if (previous == seen) return;
+                seen = previous;
+            }
+        }
+
         private bool TryCreateAudio()
         {
             // Built locally and published once, under the lock, at the very end. The fields
@@ -876,11 +920,9 @@ namespace OrbitalSIP.Services
                     f.FormatName == "PCMA");
 
                 // Log exactly which codecs go into the SDP offer.
-                var sb = new System.Text.StringBuilder();
-                foreach (var fmt in endPoint.GetAudioSinkFormats())
-                    sb.Append(fmt.FormatName).Append('/').Append(fmt.ClockRate).Append(' ');
-                Debug.WriteLine($"[SipService] Offering codecs: {sb}");
-                Log($"Offering codecs: {sb}");
+                var offered = string.Join(", ", endPoint.GetAudioSinkFormats().Select(Describe));
+                Debug.WriteLine($"[SipService] Offering codecs: {offered}");
+                Log($"Offering codecs: {offered}");
 
                 // Bind RTP to the same local IP that was resolved for SIP (ContactHost).
                 // This ensures the SDP answer advertises the correct 'c=' IP so
@@ -896,7 +938,39 @@ namespace OrbitalSIP.Services
                 };
                 Log($"RTP bind address: {rtpBindAddr?.ToString() ?? "any"}");
                 session.OnAudioFormatsNegotiated += formats =>
-                    Log($"Negotiated audio formats: {string.Join(", ", formats)}");
+                    Log($"Negotiated audio formats: {string.Join(", ", formats.Select(Describe))}");
+
+                // Count encoded microphone frames on their way to the transport. Received
+                // packets have always been counted; the send side never was, so the log of a
+                // one-way call — the far end hearing nothing — was indistinguishable from the
+                // log of a healthy one. Same cadence as the receive side, so the two counters
+                // can be read against each other.
+                int rtpTxCount = 0;
+
+                // Loudest samples of the whole call, so the closing line stands on its own
+                // instead of reporting whatever the last two seconds happened to hold.
+                int callTxPeak = 0;
+                int callRxPeak = 0;
+
+                // Last reading of the transport's own send counter taken while the session was
+                // still up. OnRtpClosed runs after teardown, where AudioRtcpSession is closed
+                // and reports zero — reading it there made every healthy call log "TRANSPORT
+                // SILENT: the frames never left this machine" over a send path that was fine.
+                int lastSent = 0;
+
+                endPoint.OnAudioSourceEncodedSample += (_, __) =>
+                {
+                    int n = Interlocked.Increment(ref rtpTxCount);
+                    if (n != 1 && n % 100 != 0) return;
+
+                    int peak = endPoint.TakeCapturePeak();
+                    InterlockedMax(ref callTxPeak, peak);
+
+                    int sentNow = PacketsSent(session);
+                    if (sentNow >= 0) Volatile.Write(ref lastSent, sentNow);
+
+                    Log($"RTP tx #{n}: mic frames encoded, peak={peak}/32768, sent={sentNow}");
+                };
 
                 // Count received RTP packets — if this stays 0 the problem is network/NAT,
                 // not the audio device.  First packet + every 100th are logged.
@@ -909,7 +983,11 @@ namespace OrbitalSIP.Services
                         Debug.WriteLine(
                             $"[SipService] RTP rx #{n}: pt={pkt.Header.PayloadType} "
                           + $"seq={pkt.Header.SequenceNumber} from {ep}");
-                        Log($"RTP rx #{n}: pt={pkt.Header.PayloadType} seq={pkt.Header.SequenceNumber} from {ep}");
+                        int peak = endPoint.TakeRenderPeak();
+                        InterlockedMax(ref callRxPeak, peak);
+
+                        Log($"RTP rx #{n}: pt={pkt.Header.PayloadType} seq={pkt.Header.SequenceNumber} "
+                          + $"from {ep}, peak={peak}/32768");
                     }
                 };
 
@@ -917,10 +995,42 @@ namespace OrbitalSIP.Services
                 {
                     try
                     {
+                        int rx = Interlocked.CompareExchange(ref rtpRxCount, 0, 0);
+                        int tx = Interlocked.CompareExchange(ref rtpTxCount, 0, 0);
                         Debug.WriteLine(
                             $"[SipService] RTP closed: {reason} "
-                          + $"({Interlocked.CompareExchange(ref rtpRxCount, 0, 0)} packets received)");
-                        Log($"RTP closed: {reason}; packets={Interlocked.CompareExchange(ref rtpRxCount, 0, 0)}");
+                          + $"({rx} packets received, {tx} sent)");
+
+                        InterlockedMax(ref callTxPeak, endPoint.TakeCapturePeak());
+                        InterlockedMax(ref callRxPeak, endPoint.TakeRenderPeak());
+                        int txPeak = Volatile.Read(ref callTxPeak);
+                        int rxPeak = Volatile.Read(ref callRxPeak);
+
+                        // Taken while the session was live. Re-reading the transport here would
+                        // report zero for every call, because the RTCP session is already gone.
+                        int sent = Volatile.Read(ref lastSent);
+
+                        Log($"RTP closed: {reason}; packets rx={rx} tx={tx} sent={sent} "
+                          + $"peak tx={txPeak}/32768 rx={rxPeak}/32768");
+
+                        // Four ways a call ends up silent in one direction. Packet counts alone
+                        // cannot tell them apart — well-formed RTP carrying nothing looks exactly
+                        // like a healthy call — which is why every one of these used to log green.
+                        if (rx > 0 && tx == 0)
+                            Log("SEND PATH DEAD: audio was received but the microphone produced "
+                              + "no frames for the whole call — the far end heard silence.");
+                        else if (tx > 0 && txPeak == 0)
+                            Log("MICROPHONE SILENT: frames were encoded and sent for the whole call "
+                              + "but every sample was zero — a muted or dead capture device, or a "
+                              + "mic gain of zero. The far end heard silence.");
+                        else if (tx > 100 && sent == 0)
+                            Log("TRANSPORT SILENT: the microphone was captured and encoded but the "
+                              + "RTP transport sent nothing — the frames never left this machine.");
+
+                        if (rx > 100 && rxPeak == 0)
+                            Log("REMOTE SILENT: RTP arrived for the whole call but every decoded "
+                              + "sample was zero — the far end sent packets carrying no audio. "
+                              + "Nothing on this side can fix that; look at the other end.");
                         if (State == CallState.Active || State == CallState.Ringing)
                             OnCallEnded();
                     }
