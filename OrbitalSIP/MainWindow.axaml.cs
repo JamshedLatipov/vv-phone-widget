@@ -46,7 +46,6 @@ namespace OrbitalSIP
         private double _animProgress;
         private double _fromW, _fromH, _toW, _toH;
         private object? _pendingContent;
-        private Action? _onAnimComplete;
 
         /// <summary>Resolved once per animation; OnAnimTick used to look both up by name every frame.</summary>
         private ContentControl? _animHost;
@@ -741,9 +740,15 @@ namespace OrbitalSIP
             // started from its own field defaults, and the Hold button showed the opposite of
             // the call for the rest of the conversation.
             //
-            // isOutgoing picks the Calling caption over the InCall one, so it asks the one
-            // question that tells the two apart: Ringing is the outgoing ringback, and an
-            // incoming call never reaches this screen before it has been answered.
+            // isOutgoing is answered with the one question that tells the two apart: Ringing
+            // is the outgoing ringback, and an incoming call never reaches this screen before
+            // it has been answered.
+            //
+            // What it does NOT do, despite its name, is leave the Calling caption on screen.
+            // ActiveCallView's constructor writes that caption and then calls SetStatus four
+            // lines later, which writes InCall over it — so an outgoing call has always shown
+            // InCall while it was still ringing. That predates this rework and is left alone
+            // here; the argument is passed truthfully so that fixing the view is all it takes.
             var callView = new Views.ActiveCallView(
                 App.SipService.ActiveCallerId,
                 isOutgoing: App.SipService.State == CallState.Ringing,
@@ -870,8 +875,7 @@ namespace OrbitalSIP
         // ── Resize animation ──────────────────────────────────────────
         private void StartAnimation(double fromW, double fromH,
                                     double toW,   double toH,
-                                    object? nextContent = null,
-                                    Action? onComplete = null)
+                                    object? nextContent = null)
         {
             HideStatusPopup();
             _animTimer?.Stop();
@@ -879,7 +883,6 @@ namespace OrbitalSIP
             _toW   = toW;   _toH   = toH;
             _animProgress   = 0;
             _pendingContent = nextContent;
-            _onAnimComplete = onComplete;
             _animStopwatch = Stopwatch.StartNew();
 
             var overlay = this.FindControl<ContentControl>("OverlayHost");
@@ -927,7 +930,7 @@ namespace OrbitalSIP
             Position = new PixelPoint((int)Math.Round(_anchorX - w), (int)Math.Round(_anchorY - h));
             Width  = w; Height = h;
 
-            if (_animProgress >= 1.0) { CompleteAnimatedContentSwap(); _onAnimComplete?.Invoke(); }
+            if (_animProgress >= 1.0) CompleteAnimatedContentSwap();
         }
 
         private static double EaseOutCubic(double value) => 1.0 - Math.Pow(1.0 - value, 3.0);

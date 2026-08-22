@@ -22,8 +22,8 @@ namespace OrbitalSIP.Services
     /// Reports numbers and knows nothing about the bar that draws them. It used to hand
     /// them to a BottomNavControl itself, which made this the only type under Services or
     /// Models that referenced Views — and, because that was the sole way out, made the
-    /// numbers unassertable from a test. MainWindow.AttachNav pushes them now, beside the
-    /// three other pieces of state it already pushes into a freshly built bar.
+    /// numbers unassertable from a test. MainWindow.RefreshChrome pushes them now, beside
+    /// the other pieces of state it already pushes into a freshly built bar.
     /// </summary>
     public sealed class NavBadgeService : IDisposable
     {

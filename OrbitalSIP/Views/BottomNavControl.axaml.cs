@@ -16,8 +16,9 @@ namespace OrbitalSIP.Views
     ///
     /// It used to raise four separate OnXxxRequested events, and each screen wired up
     /// whichever subset its author remembered. Settings never wired Recents, the call
-    /// screen never wired the dialer, and Contacts was wired by nobody at all. Routing
-    /// now lives in MainWindow.NavigateTo, in one switch nobody can partially implement.
+    /// screen never wired the dialer, and Contacts was wired by nobody at all. A press is
+    /// one event now, and where it leads is ShellRouter's answer — a table nobody can
+    /// partially implement, reached through the single Dispatch in MainWindow.
     /// </summary>
     public partial class BottomNavControl : UserControl
     {

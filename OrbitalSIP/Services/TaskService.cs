@@ -72,8 +72,8 @@ namespace OrbitalSIP.Services
         /// missing in two minutes.
         ///
         /// Keyed on the token rather than a plain bool: TaskService is a process-lifetime
-        /// singleton (see App.TaskService), but MainWindow.ShowLoginAfterSessionExpiry
-        /// returns to the login screen without restarting the app — an expired token and a
+        /// singleton (see App.TaskService), but an expired session returns the window to the
+        /// login screen without restarting the app — an expired token and a
         /// handoff to a different operator on a shared terminal both land there. A bool
         /// latch would survive both: an operator without tasks:read would trip it, log
         /// out, and the next operator — who might have the ability — would see "no access"

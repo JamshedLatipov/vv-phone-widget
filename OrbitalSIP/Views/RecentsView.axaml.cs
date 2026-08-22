@@ -105,13 +105,13 @@ namespace OrbitalSIP.Views
                             }
 
                             // Putting the list in front of the operator is what "seen"
-                            // means — not the tab press that got them here. MainWindow
-                            // marks seen in NavigateTo, which deliberately ignores a press
-                            // on the tab already showing, so a call missed while they are
-                            // standing on this screen used to light a badge that stayed
-                            // lit until they left and came back. That badge then followed
-                            // them to the next screen claiming they had not looked at a
-                            // call this list had already shown them.
+                            // means — not the tab press that got them here. Nowhere else
+                            // marks it: the press used to, and a press on the tab already
+                            // showing is inert, so a call missed while they are standing on
+                            // this screen used to light a badge that stayed lit until they
+                            // left and came back. That badge then followed them to the next
+                            // screen claiming they had not looked at a call this list had
+                            // already shown them.
                             //
                             // Here rather than on NavBadgeService.Changed, which is the
                             // obvious place and the one that loops: marking seen raises
