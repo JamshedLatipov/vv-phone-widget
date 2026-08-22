@@ -59,7 +59,9 @@
 
 | Файл | Ответственность |
 |---|---|
-| `apps/back/src/app/modules/sip-trunk/services/sip-trunk.service.ts:264` | правка: `'queues'` в юнионах `contextForOrg` и `assertContextForOrg` |
+| `apps/back/src/app/modules/sip-trunk/dialplan-context.util.ts` | создать: `DialplanContextKind` с `'queues'`, `contextForOrg`, `assertContextForOrg` — без entity-импортов |
+| `apps/back/src/app/modules/sip-trunk/services/sip-trunk.service.ts:31,264` | правка: убрать оригиналы, переэкспортировать |
+| `apps/back/src/app/modules/sip-trunk/index.ts` | правка: публичный вход в новый модуль |
 | `apps/back/src/app/modules/pjsip/services/queue-transfer.dialplan.ts` | создать: чистые строки контекста очередей |
 | `apps/back/src/app/modules/pjsip/services/queue-transfer.dialplan.vitest.ts` | создать: тест на них |
 | `apps/back/src/app/modules/pjsip/services/operator-provisioning.service.ts:164,290` | правка: вызов `ensureQueueTransferContext` |
@@ -89,59 +91,133 @@
 
 # Слайс 1 — контекст очередей (`crm_mono`)
 
-### Task 1: завести ветку и научить `contextForOrg` контексту `queues`
+### Task 1: вынести `contextForOrg` из-под entity и научить его контексту `queues`
 
 **Files:**
-- Modify: `apps/back/src/app/modules/sip-trunk/services/sip-trunk.service.ts:264-280`
+- Create: `apps/back/src/app/modules/sip-trunk/dialplan-context.util.ts`
+- Modify: `apps/back/src/app/modules/sip-trunk/services/sip-trunk.service.ts:31,264-290`
+- Modify: `apps/back/src/app/modules/sip-trunk/index.ts`
 
-- [ ] **Step 1: Ветка от актуального main**
+**Почему не просто дописать `'queues'` в юнион.** `contextForOrg` живёт в
+`sip-trunk.service.ts`, который импортирует сущность `SipTrunk`. Под vitest,
+где не эмитится `design:type`, этот импорт бросает
+`ColumnTypeUndefinedError: Column type for SipTrunk#name is not defined` **на
+сборке файла**, и весь тестовый файл не собирается. Это уже происходит на
+`origin/main`: `ps-endpoint.service.vitest.ts` падает именно так. Task 5 добавит
+`contextForOrg` в `CallTransferService` и утащит туда же свой новый тест.
+Поэтому функции переезжают в модуль без entity-импортов — ровно тот же файл и
+то же имя, что уже есть на `feat/freeswitch-all`, так что мерж потом сойдётся
+сам.
 
-```bash
-cd /c/work/crm_mono && git fetch origin && git checkout -b feat/call-transfer-targets origin/main
-```
+- [ ] **Step 1: Убедиться, что базовое падение — предсуществующее**
 
-- [ ] **Step 2: Расширить оба юниона**
+Run: `cd /c/work/crm_mono/.worktrees/call-transfer-targets && npx vitest run --config apps/back/vitest.config.mts apps/back/src/app/modules/pjsip/services 2>&1 | grep -E "FAIL|Test Files"`
+Expected: `FAIL … ps-endpoint.service.vitest.ts`, `1 failed | 2 passed`. Это состояние main до правок — запомнить, чтобы сравнить после.
 
-Заменить обе функции:
+- [ ] **Step 2: Создать модуль без entity-импортов**
+
+`apps/back/src/app/modules/sip-trunk/dialplan-context.util.ts`:
 
 ```ts
+import { BadRequestException } from '@nestjs/common';
+
 /**
- * Compute the per-org dialplan context name per ADR-007.
- * Exported via a free function so unit tests don't need to spin up the service.
+ * ADR-007 per-organization dialplan context names.
  *
- * `queues` is where a call transferred INTO a queue lands. It is its own
- * context rather than a row in `internal` because it holds a catch-all `_.`:
- * in `internal` that pattern would swallow every number an operator dials. It
- * is unreachable from an endpoint — only an explicit ARI redirect goes there.
+ * These two functions used to live at the bottom of
+ * `services/sip-trunk.service.ts`, under a comment saying they were free
+ * functions "so unit tests don't need to spin up the service". That was half
+ * the problem: the file they lived in imports the `SipTrunk` entity, so every
+ * importer of the helper dragged TypeORM decorator metadata into its module
+ * graph. Under vitest — which does not emit `design:type` — that import throws
+ * `ColumnTypeUndefinedError: Column type for SipTrunk#name is not defined` at
+ * load time, and the whole test FILE fails to collect.
+ *
+ * Nothing here touches a database, a repository or an entity — keep it that
+ * way, or the breakage comes back.
  */
+
+export type DialplanContextKind =
+  | 'internal'
+  | 'from-trunk'
+  | 'outbound'
+  // Куда `Redirect` уводит абонента при переводе в очередь. Собственный
+  // контекст, а не строка в `internal`, потому что здесь живёт catch-all `_.`:
+  // в `internal` он перехватил бы каждый набранный номер. Сюда нельзя попасть
+  // с эндпоинта — только явным редиректом от сервиса перевода.
+  | 'queues';
+
+/**
+ * Read once at load, as it was in the service. A rollback-friendly rollout
+ * switch, not a per-request setting.
+ */
+const PER_ORG_CONTEXTS_FLAG_ENABLED =
+  process.env.FEATURE_TELEPHONY_PER_ORG_CONTEXTS !== 'false';
+
+/** The per-org dialplan context name for one organization and direction. */
 export function contextForOrg(
   organizationId: string,
-  kind: 'internal' | 'from-trunk' | 'outbound' | 'queues',
+  kind: DialplanContextKind,
 ): string {
   return `org-${organizationId}-${kind}`;
 }
 
 /**
- * Throws if `context` doesn't match the per-org convention for this org. Skipped
- * when the feature flag is off — useful for rollback-friendly rollouts.
+ * Throws if `context` doesn't match the per-org convention for this org.
+ * Skipped when the feature flag is off — useful for rollback-friendly rollouts.
  */
 export function assertContextForOrg(
   context: string,
   organizationId: string,
-  kind: 'internal' | 'from-trunk' | 'outbound' | 'queues',
+  kind: DialplanContextKind,
 ): void {
+  if (!PER_ORG_CONTEXTS_FLAG_ENABLED) return;
+  const expected = contextForOrg(organizationId, kind);
+  if (context !== expected) {
+    throw new BadRequestException(
+      `Dialplan context must equal "${expected}" but was "${context}"`,
+    );
+  }
+}
 ```
 
-- [ ] **Step 3: Проверить сборку**
+- [ ] **Step 3: Убрать оригиналы из сервиса и переэкспортировать**
 
-Run: `cd /c/work/crm_mono && npx tsc -p apps/back/tsconfig.app.json --noEmit`
-Expected: без ошибок.
+В `sip-trunk.service.ts`: удалить `const PER_ORG_CONTEXTS_FLAG_ENABLED` (строка 31) и обе функции внизу файла. Вместо них — импорт для внутреннего употребления и переэкспорт, чтобы существующие `import { contextForOrg } from '../../sip-trunk'` не сломались:
 
-- [ ] **Step 4: Коммит**
+```ts
+import {
+  assertContextForOrg,
+  contextForOrg,
+} from '../dialplan-context.util';
+
+// Переэкспорт: модульный `index.ts` делает `export * from
+// './services/sip-trunk.service'`, и без этой строки каждый существующий
+// импортёр пришлось бы править в этом же коммите.
+export { assertContextForOrg, contextForOrg } from '../dialplan-context.util';
+export type { DialplanContextKind } from '../dialplan-context.util';
+```
+
+Если `BadRequestException` после удаления функций больше нигде в файле не используется — убрать его из импортов.
+
+- [ ] **Step 4: Дать модулю прямой публичный вход**
+
+В `apps/back/src/app/modules/sip-trunk/index.ts` добавить строку:
+
+```ts
+export * from './dialplan-context.util';
+```
+
+- [ ] **Step 5: Проверить, что предсуществующее падение ушло**
+
+Run: `cd /c/work/crm_mono/.worktrees/call-transfer-targets && npx tsc -p apps/back/tsconfig.app.json --noEmit && npx vitest run --config apps/back/vitest.config.mts apps/back/src/app/modules/pjsip/services 2>&1 | tail -6`
+Expected: tsc без ошибок; `Test Files 3 passed` — файл `ps-endpoint.service.vitest.ts` теперь собирается.
+
+- [ ] **Step 6: Коммит**
 
 ```bash
-git add apps/back/src/app/modules/sip-trunk/services/sip-trunk.service.ts
-git commit -m "feat(dialplan): add a per-org queues context kind"
+git add apps/back/src/app/modules/sip-trunk/
+git commit -m "feat(dialplan): a queues context kind, in a module free of entity imports"
 ```
 
 ---
@@ -475,10 +551,10 @@ Expected: FAIL — `blindTransfer` не принимает третий аргу
 
 - [ ] **Step 3: Правка сервиса**
 
-Добавить импорт:
+Добавить импорт. **Именно из `dialplan-context.util`, не из `../../sip-trunk`** — второй тянет `SipTrunk` entity и роняет сборку нового vitest-файла (см. Task 1):
 
 ```ts
-import { contextForOrg } from '../../sip-trunk';
+import { contextForOrg } from '../../sip-trunk/dialplan-context.util';
 ```
 
 Заменить `blindTransfer` и `attendedTransfer`:
@@ -2276,7 +2352,7 @@ Expected: `{"ok":false,"error":"Unknown queue \"sales\""}`.
 
 | Файл | Действие при мерже |
 |---|---|
-| `sip-trunk/services/sip-trunk.service.ts` | `contextForOrg` там уже вынесен в `dialplan-context.util.ts` — перенести `'queues'` в `DialplanContextKind` и удалить mainовскую правку |
+| `sip-trunk/dialplan-context.util.ts` | На feat-ветке файл уже есть с тем же именем и почти тем же содержимым — конфликт сведётся к одной строке `\| 'queues'` в `DialplanContextKind`. Переэкспорт из `sip-trunk.service.ts` там уже не нужен: проверить, не остался ли он лишним после мержа |
 | `calls/services/call-transfer.service.ts` | На feat-ветке файл удалён. Логику `endpointFor` перенести в `AsteriskCallControlDriver.transfer` как выбор `Context`, а в `FreeswitchCallControlDriver.transfer` — как контекст в `uuid_transfer`. Добавить параметр `targetKind` в `TelephonyCallControlDriver` |
 | `calls/controllers/calls.controller.ts` | Тело запроса на feat-ветке — `{callId, targetExtension}`. Переименовать поля, оставить `targetKind`, `assertTargetAllowed` и аудит как есть |
 
