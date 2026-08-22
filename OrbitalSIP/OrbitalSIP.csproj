@@ -7,6 +7,9 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>false</UseWindowsForms>
     <AssemblyName>OrbitalSIP</AssemblyName>
+    <!-- The installer points tel:/callto: DefaultIcon and UninstallDisplayIcon at
+         "<exe>,0", so the executable has to carry the brand icon itself. -->
+    <ApplicationIcon>..\installer\proffi.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!-- Precompile to native code so a slow CPU is not JIT-ing Avalonia, SIPSorcery and
