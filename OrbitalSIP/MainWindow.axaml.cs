@@ -760,7 +760,11 @@ namespace OrbitalSIP
             callView.OnMuteToggled += (_, muted)  => App.SipService.SetMuted(muted);
             // The state the view asked for, not a blind flip — see SipService.SetHold.
             callView.OnHoldToggled += (_, onHold) => App.SipService.SetHold(onHold);
-            callView.OnTransferRequested += async (_, dest) => await App.SipService.BlindTransferAsync(dest);
+            // TODO(next task): route through TransferService/RouteTransferAsync by
+            // request.Kind instead of always REFERing — this keeps today's behaviour
+            // (unconditional SIP REFER) alive only long enough to compile against the
+            // event's new TransferRequest shape.
+            callView.OnTransferRequested += async (_, request) => await App.SipService.BlindTransferAsync(request.Value);
             return callView;
         }
 
