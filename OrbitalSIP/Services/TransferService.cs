@@ -125,11 +125,19 @@ namespace OrbitalSIP.Services
         /// <summary>
         /// Moves the call: resolves the live Asterisk channel id for the other
         /// party's number, then asks the backend to redirect that channel.
-        /// Returns <see cref="TransferOutcome.ChannelUnresolved"/> without
-        /// posting anything when the channel can't be found — the backend would
-        /// have nothing to redirect, and posting anyway would only earn a
-        /// refusal the operator cannot act on. A caller sees ChannelUnresolved
-        /// as the signal to fall back to a SIP REFER for an extension target.
+        ///
+        /// Every failure lands in one of two buckets, and the split is
+        /// deliberate: "could not ask" — no backend is configured, the
+        /// channel lookup timed out, its connection failed, or its response
+        /// was broken or unreadable — reports
+        /// <see cref="TransferOutcome.ChannelUnresolved"/>, the one outcome
+        /// that unlocks the SIP REFER fallback for an extension target (see
+        /// <c>TransferOutcome</c> in TransferModels.cs). "Was told no" — a
+        /// non-2xx from the transfer POST itself, or a 200 carrying
+        /// <c>{ok:false}</c> — reports <see cref="TransferOutcome.Failed"/>
+        /// instead, because the backend actively answered that request and a
+        /// REFER sent behind its back could race a transfer it already
+        /// refused, or one it already performed.
         /// </summary>
         public async Task<TransferResult> TransferAsync(
             TransferTargetKind kind,
@@ -137,16 +145,30 @@ namespace OrbitalSIP.Services
             string callerNumber,
             CancellationToken cancellationToken = default)
         {
+            // One budget for the whole sequence, not one per request: two
+            // independent RequestTimeout windows back to back could leave a
+            // live call silent for twenty-plus seconds. Linked so the
+            // caller's own token (the transfer panel closing) still cancels
+            // immediately, on top of our own deadline.
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(RequestTimeout);
+            var ct = deadline.Token;
+
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                ct.ThrowIfCancellationRequested();
                 var settings = _settingsProvider?.Invoke() ?? App.SipService?.CurrentSettings ?? SipSettings.Load();
                 var backendUrl = settings.BackendUrl?.TrimEnd('/');
 
                 if (string.IsNullOrEmpty(backendUrl) || string.IsNullOrEmpty(settings.AccessToken))
-                    return new TransferResult(TransferOutcome.Failed, "not-configured");
+                {
+                    // No backend to ask at all — REFER needs no backend, so
+                    // this is squarely "could not ask", not a refusal.
+                    AppLogger.Log("TransferService", "Transfer skipped: no backend configured.");
+                    return new TransferResult(TransferOutcome.ChannelUnresolved, null);
+                }
 
-                var channelId = await ResolveChannelIdAsync(backendUrl, settings.AccessToken, callerNumber, cancellationToken);
+                var channelId = await ResolveChannelIdAsync(backendUrl, settings.AccessToken, callerNumber, ct);
                 if (string.IsNullOrWhiteSpace(channelId))
                     return new TransferResult(TransferOutcome.ChannelUnresolved, null);
 
@@ -161,11 +183,16 @@ namespace OrbitalSIP.Services
                     type = "blind",
                 });
 
-                using var response = await _httpClient.SendAsync(request, cancellationToken);
-                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var response = await _httpClient.SendAsync(request, ct);
+                var body = await response.Content.ReadAsStringAsync(ct);
 
                 if (!response.IsSuccessStatusCode)
                 {
+                    // The backend answered, just not with success — asked and
+                    // something broke on its side. That is "was told no" in
+                    // spirit, not "could not ask", so this stays Failed
+                    // rather than triggering a REFER that might race
+                    // whatever the backend did before it errored.
                     AppLogger.Log("TransferService", $"Transfer failed. Status: {response.StatusCode}. Body: {body}");
                     return new TransferResult(TransferOutcome.Failed, response.StatusCode.ToString());
                 }
@@ -177,7 +204,18 @@ namespace OrbitalSIP.Services
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                // The caller pulled the plug (e.g. the panel closed) — propagate
+                // so the awaiting code sees a real cancellation, not a fabricated result.
                 throw;
+            }
+            catch (OperationCanceledException)
+            {
+                // cancellationToken (the caller's) is not cancelled here, so only
+                // our own deadline could have fired this: the backend did not
+                // answer inside RequestTimeout. That is "could not ask", the same
+                // bucket as every other way the channel lookup can come up empty.
+                AppLogger.Log("TransferService", $"Transfer timed out after {RequestTimeout}.");
+                return new TransferResult(TransferOutcome.ChannelUnresolved, null);
             }
             catch (Exception ex)
             {
@@ -188,15 +226,23 @@ namespace OrbitalSIP.Services
 
         private static string WireTargetKind(TransferTargetKind kind) => kind switch
         {
+            TransferTargetKind.Extension => "extension",
             TransferTargetKind.Queue => "queue",
-            _ => "extension",
+            // A third kind must not fall silently into "extension" and
+            // transfer to the wrong sort of place — fail loudly here instead.
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown transfer target kind."),
         };
 
         /// <summary>
         /// Resolves the live Asterisk channel id for the other party's number.
-        /// Null on anything short of a clean 2xx carrying a non-empty
-        /// <c>uniqueid</c> — <see cref="TransferAsync"/> treats null as
-        /// ChannelUnresolved and never posts the transfer.
+        /// Null on anything short of a clean 2xx carrying a <c>uniqueid</c>
+        /// string — <see cref="TransferAsync"/> treats null as
+        /// ChannelUnresolved and never posts the transfer. That covers a
+        /// non-2xx status, a body that isn't JSON, a <c>uniqueid</c> sent as
+        /// something other than a string, and a thrown network exception:
+        /// this lookup is read-only, so none of those leave any doubt about
+        /// whether a transfer was attempted — there is simply no channel id
+        /// to post with, and "could not ask" is correct for all of them.
         /// </summary>
         private async Task<string?> ResolveChannelIdAsync(
             string backendUrl,
@@ -204,34 +250,52 @@ namespace OrbitalSIP.Services
             string callerNumber,
             CancellationToken cancellationToken)
         {
-            var url = $"{backendUrl}/api/cdr/channel-uniqueid?callerNumber={Uri.EscapeDataString(callerNumber)}";
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                AppLogger.Log("TransferService", $"Resolve channel id failed. Status: {response.StatusCode}. Body: {body}");
-                return null;
-            }
-
+            string? body = null;
             try
             {
+                var url = $"{backendUrl}/api/cdr/channel-uniqueid?callerNumber={Uri.EscapeDataString(callerNumber)}";
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+                using var response = await _httpClient.SendAsync(request, cancellationToken);
+                body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    AppLogger.Log("TransferService", $"Resolve channel id failed. Status: {response.StatusCode}. Body: {body}");
+                    return null;
+                }
+
                 using var document = JsonDocument.Parse(body);
-                if (document.RootElement.TryGetProperty("uniqueid", out var uniqueIdElement))
+                if (document.RootElement.TryGetProperty("uniqueid", out var uniqueIdElement) &&
+                    uniqueIdElement.ValueKind == JsonValueKind.String)
                 {
                     var uniqueId = uniqueIdElement.GetString();
                     return string.IsNullOrWhiteSpace(uniqueId) ? null : uniqueId;
                 }
+
+                return null;
+            }
+            catch (OperationCanceledException)
+            {
+                // Could be the caller's token or our shared deadline — this
+                // method has no way to tell them apart, so it leaves that
+                // decision to TransferAsync's own catch clauses.
+                throw;
             }
             catch (JsonException ex)
             {
                 AppLogger.Log("TransferService", $"Resolve channel id: unreadable response. {ex.Message}. Body: {body}");
+                return null;
             }
-
-            return null;
+            catch (Exception ex)
+            {
+                // A thrown network exception (DNS, connection refused, TLS...) —
+                // the lookup could not be completed, exactly as "could not
+                // ask" as a 5xx or a malformed body.
+                AppLogger.Log("TransferService", $"Resolve channel id error: {ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
         }
 
         /// <summary>Null means "could not read the response" — never "no targets".</summary>

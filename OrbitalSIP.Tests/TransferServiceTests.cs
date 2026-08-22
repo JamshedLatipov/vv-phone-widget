@@ -139,6 +139,115 @@ public class TransferServiceTests
     }
 
     [Fact]
+    public async Task TransferAsync_TreatsAMissingBackendConfigurationAsChannelUnresolved()
+    {
+        // No backend configured at all is squarely "could not ask" — REFER
+        // needs no backend, so this must not be Failed (which offers no
+        // fallback), matching TransferOutcome's own contract in TransferModels.cs.
+        using var handler = new RecordingHandler(_ => JsonResponse("""{ "ok": true }"""));
+        using var client = new HttpClient(handler);
+        using var service = new TransferService(
+            client,
+            () => new SipSettings { BackendUrl = "", AccessToken = "" },
+            ownsHttpClient: false);
+
+        var result = await service.TransferAsync(
+            TransferTargetKind.Extension, "1042", "+992900000000", CancellationToken.None);
+
+        Assert.Equal(TransferOutcome.ChannelUnresolved, result.Outcome);
+    }
+
+    [Fact]
+    public async Task TransferAsync_TreatsA5xxFromTheLookupAsChannelUnresolved()
+    {
+        using var handler = new RecordingHandler(request =>
+            request.RequestUri!.AbsolutePath.Contains("channel-uniqueid")
+                ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                {
+                    Content = new StringContent("boom", Encoding.UTF8, "text/plain"),
+                }
+                : JsonResponse("""{ "ok": true }"""));
+        using var client = new HttpClient(handler);
+        using var service = new TransferService(client, Settings, ownsHttpClient: false);
+
+        var result = await service.TransferAsync(
+            TransferTargetKind.Extension, "1042", "+992900000000", CancellationToken.None);
+
+        Assert.Equal(TransferOutcome.ChannelUnresolved, result.Outcome);
+    }
+
+    [Fact]
+    public async Task TransferAsync_TreatsAMalformedLookupBodyAsChannelUnresolved()
+    {
+        using var handler = new RecordingHandler(request =>
+            request.RequestUri!.AbsolutePath.Contains("channel-uniqueid")
+                ? JsonResponse("not json")
+                : JsonResponse("""{ "ok": true }"""));
+        using var client = new HttpClient(handler);
+        using var service = new TransferService(client, Settings, ownsHttpClient: false);
+
+        var result = await service.TransferAsync(
+            TransferTargetKind.Extension, "1042", "+992900000000", CancellationToken.None);
+
+        Assert.Equal(TransferOutcome.ChannelUnresolved, result.Outcome);
+    }
+
+    [Fact]
+    public async Task TransferAsync_TreatsANonStringUniqueIdAsChannelUnresolved()
+    {
+        // uniqueid sent as a number (or any non-string) must not throw
+        // InvalidOperationException out of GetString() and land in Failed —
+        // it is exactly as unusable as a missing uniqueid.
+        using var handler = new RecordingHandler(request =>
+            request.RequestUri!.AbsolutePath.Contains("channel-uniqueid")
+                ? JsonResponse("""{ "uniqueid": 12345 }""")
+                : JsonResponse("""{ "ok": true }"""));
+        using var client = new HttpClient(handler);
+        using var service = new TransferService(client, Settings, ownsHttpClient: false);
+
+        var result = await service.TransferAsync(
+            TransferTargetKind.Extension, "1042", "+992900000000", CancellationToken.None);
+
+        Assert.Equal(TransferOutcome.ChannelUnresolved, result.Outcome);
+    }
+
+    [Fact]
+    public async Task TransferAsync_KeepsAPostPhaseServerErrorAsFailedNotChannelUnresolved()
+    {
+        // Once the channel IS resolved, a broken transfer POST is "was told
+        // no" territory, not "could not ask" — the backend answered this
+        // request, so it stays Failed rather than risking a REFER racing
+        // whatever the backend did before it errored.
+        using var handler = new RecordingHandler(request =>
+            request.RequestUri!.AbsolutePath.Contains("channel-uniqueid")
+                ? JsonResponse("""{ "uniqueid": "1719990000.42" }""")
+                : new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                {
+                    Content = new StringContent("boom", Encoding.UTF8, "text/plain"),
+                });
+        using var client = new HttpClient(handler);
+        using var service = new TransferService(client, Settings, ownsHttpClient: false);
+
+        var result = await service.TransferAsync(
+            TransferTargetKind.Extension, "1042", "+992900000000", CancellationToken.None);
+
+        Assert.Equal(TransferOutcome.Failed, result.Outcome);
+    }
+
+    [Fact]
+    public async Task TransferAsync_PropagatesCancellationRatherThanReportingFailed()
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse("""{ "uniqueid": "1719990000.42" }"""));
+        using var client = new HttpClient(handler);
+        using var service = new TransferService(client, Settings, ownsHttpClient: false);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.TransferAsync(TransferTargetKind.Extension, "1042", "+992900000000", cts.Token));
+    }
+
+    [Fact]
     public async Task GetTargetsAsync_SurfacesForbiddenSeparatelyFromAFailedLoad()
     {
         using var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)
@@ -167,6 +276,18 @@ public class TransferServiceTests
         var response = await service.GetTargetsAsync(CancellationToken.None);
 
         Assert.True(response.Forbidden);
+    }
+
+    [Fact]
+    public async Task GetTargetsAsync_PropagatesCancellationRatherThanReportingAFailedLoad()
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse("""{ "operators": [], "queues": [] }"""));
+        using var client = new HttpClient(handler);
+        using var service = new TransferService(client, Settings, ownsHttpClient: false);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.GetTargetsAsync(cts.Token));
     }
 
     private static Func<SipSettings> Settings => () => new SipSettings
