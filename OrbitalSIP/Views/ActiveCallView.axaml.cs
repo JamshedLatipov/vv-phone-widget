@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
@@ -319,14 +319,6 @@ namespace OrbitalSIP.Views
             var callInfoCloseBtn = this.FindControl<Button>("CallInfoCloseBtn");
             if (callInfoCloseBtn != null)
                 callInfoCloseBtn.Click += (_, __) => HideCallInfoPanel();
-
-            var topBar = this.FindControl<TopBarControl>("TopBar");
-            if (topBar != null)
-            {
-                topBar.OnMinimizeRequested += (_, __) => OnMinimizeRequested?.Invoke(this, EventArgs.Empty);
-                topBar.OnAvatarClicked += (_, __) => OnAvatarClicked?.Invoke(this, EventArgs.Empty);
-                topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, EventArgs.Empty);
-            }
 
             var copy = this.FindControl<Button>("CopyCallerBtn");
             if (copy != null)
@@ -1155,8 +1147,5 @@ namespace OrbitalSIP.Views
         public event EventHandler<bool>?  OnMuteToggled;      // arg = isMuted
         public event EventHandler<bool>?  OnHoldToggled;      // arg = isOnHold
         public event EventHandler<string>? OnTransferRequested; // arg = destination
-        public event EventHandler?        OnMinimizeRequested;
-        public event EventHandler?        OnAvatarClicked;
-        public event EventHandler?        OnExitAppRequested;
     }
 }

@@ -5,12 +5,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:i18n="clr-namespace:OrbitalSIP.Services"
              x:Class="OrbitalSIP.Views.ActiveCallView">
-  <Border Width="320" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16" ClipToBounds="True">
-    <Grid RowDefinitions="*,Auto">
+  <Grid RowDefinitions="*">
       <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Margin="0,0,0,14">
-
-        <Views:TopBarControl Name="TopBar" Margin="0,0,0,12" />
 
         <StackPanel Margin="18,0,18,0" Spacing="14">
           <StackPanel HorizontalAlignment="Center" Spacing="10">
@@ -424,7 +421,5 @@
         </StackPanel>
       </StackPanel>
     </ScrollViewer>
-    <Views:BottomNavControl Grid.Row="1" />
   </Grid>
-  </Border>
 </UserControl>

@@ -662,13 +662,10 @@ namespace OrbitalSIP
                 isOnHold: App.SipService.IsOnHold);
 
             callView.OnHangup += (_, __) => App.SipService.Hangup();
-            callView.OnMinimizeRequested += (_, __) => Dispatch(new UiEvent.CollapseRequested());
-            callView.OnExitAppRequested += (_, __) => ShutdownApp();
             callView.OnMuteToggled += (_, muted)  => App.SipService.SetMuted(muted);
             // The state the view asked for, not a blind flip — see SipService.SetHold.
             callView.OnHoldToggled += (_, onHold) => App.SipService.SetHold(onHold);
             callView.OnTransferRequested += async (_, dest) => await App.SipService.BlindTransferAsync(dest);
-            callView.OnAvatarClicked += (_, __) => Dispatch(new UiEvent.StatusPopupToggled(true));
             return callView;
         }
 
