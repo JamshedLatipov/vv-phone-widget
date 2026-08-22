@@ -208,10 +208,12 @@ export type { DialplanContextKind } from '../dialplan-context.util';
 export * from './dialplan-context.util';
 ```
 
-- [ ] **Step 5: Проверить, что предсуществующее падение ушло**
+- [ ] **Step 5: Проверить сборку и отсутствие регрессий**
 
-Run: `cd /c/work/crm_mono/.worktrees/call-transfer-targets && npx tsc -p apps/back/tsconfig.app.json --noEmit && npx vitest run --config apps/back/vitest.config.mts apps/back/src/app/modules/pjsip/services 2>&1 | tail -6`
-Expected: tsc без ошибок; `Test Files 3 passed` — файл `ps-endpoint.service.vitest.ts` теперь собирается.
+Run: `cd /c/work/crm_mono/.worktrees/call-transfer-targets && npx tsc -p apps/back/tsconfig.app.json --noEmit && npx vitest run --config apps/back/vitest.config.mts apps/back/src/app/modules/sip-trunk apps/back/src/app/modules/dialplan 2>&1 | tail -6`
+Expected: tsc без ошибок; `Test Files 5 passed`, `Tests 58 passed`.
+
+`ps-endpoint.service.vitest.ts` на этом шаге **всё ещё красный, и это правильно** — см. Step 7.
 
 - [ ] **Step 6: Коммит**
 
@@ -219,6 +221,32 @@ Expected: tsc без ошибок; `Test Files 3 passed` — файл `ps-endpoi
 git add apps/back/src/app/modules/sip-trunk/
 git commit -m "feat(dialplan): a queues context kind, in a module free of entity imports"
 ```
+
+- [ ] **Step 7: Направить сломанного импортёра мимо барреля**
+
+Переезд функций сам по себе `ps-endpoint.service.vitest.ts` не чинит, и вот почему: `ps-endpoint.service.ts:8` берёт `contextForOrg` из **барреля** `'../../sip-trunk'`, а `index.ts` обязан продолжать делать `export * from './services/sip-trunk.service'` — иначе не экспортируется сам `SipTrunkService`. По семантике ES-модулей `export * from X` вычисляет `X` целиком при загрузке агрегатора, лениво по именам это не работает. То есть импорт чего угодно через баррель по-прежнему грузит сервис, а с ним и сущность.
+
+Правка — одна строка в `apps/back/src/app/modules/pjsip/services/ps-endpoint.service.ts`:
+
+```ts
+// Deep import on purpose: the barrel re-exports `sip-trunk.service`, whose
+// entity import makes any vitest file that loads it fail to collect.
+import { contextForOrg } from '../../sip-trunk/dialplan-context.util';
+```
+
+Правило `no-restricted-imports` этому не мешает: оно закрывает `sip-trunk/services/*`, а `dialplan-context.util.ts` лежит на верхнем уровне модуля — ровно ради такого импорта.
+
+Остальные шесть баррель-импортёров `contextForOrg` (`operator-provisioning.service.ts`, `campaign-dialer.service.ts`, `dialplan-scenario.service.ts`, `inbound-routing.service.ts`, `outbound-routing.service.ts`, `ivr-runtime.service.ts`) не трогать: ни у одного нет vitest-файла, который грузит настоящий класс сервиса, так что правка была бы churn без падающего теста.
+
+Run: `cd /c/work/crm_mono/.worktrees/call-transfer-targets && npx vitest run --config apps/back/vitest.config.mts apps/back/src/app/modules/pjsip/services 2>&1 | tail -6`
+Expected: `Test Files 3 passed` — вот теперь `ps-endpoint.service.vitest.ts` собирается.
+
+```bash
+git add apps/back/src/app/modules/pjsip/services/ps-endpoint.service.ts
+git commit -m "fix(pjsip): reach the dialplan helper without loading the sip-trunk barrel"
+```
+
+**Следствие для Task 5:** новый импорт в `CallTransferService` обязан идти по прямому пути `'../../sip-trunk/dialplan-context.util'`. Через баррель его новый vitest-файл не соберётся.
 
 ---
 
