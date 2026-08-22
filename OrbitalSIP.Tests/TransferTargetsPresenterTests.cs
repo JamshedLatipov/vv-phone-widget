@@ -6,9 +6,10 @@ using Xunit;
 namespace OrbitalSIP.Tests;
 
 /// <summary>
-/// Пустой список целей и недоступный бэк выглядят в UI одинаково, если их не
-/// различать состоянием: в первом случае переводить действительно некому, во
-/// втором — виджету просто не ответили, и оператору нужна кнопка повтора.
+/// An empty list of targets and an unreachable backend look identical in the
+/// UI unless a state tells them apart: in the first case there really is no
+/// one to transfer to, in the second the widget simply got no answer, and
+/// the operator needs a retry button.
 /// </summary>
 public class TransferTargetsPresenterTests
 {
@@ -20,17 +21,26 @@ public class TransferTargetsPresenterTests
     [Fact]
     public void Loading_BeatsEverythingElse()
     {
+        // Every other input is live (a non-empty result, an error, AND
+        // forbidden) so this only passes if loading is checked first, not
+        // merely first among inputs that happen to be switched off.
+        var targets = Targets(operators: [new TransferOperatorTarget("1042", "Иванов")]);
+
         Assert.Equal(
             TransferPanelState.Loading,
-            TransferTargetsPresenter.SelectState(null, loading: true, error: null, forbidden: false));
+            TransferTargetsPresenter.SelectState(targets, loading: true, error: "boom", forbidden: true));
     }
 
     [Fact]
     public void Forbidden_IsNotAnError_SoNoRetryIsOffered()
     {
+        // targets and error are both live here too, so Forbidden has to win
+        // on its own precedence, not because nothing else was competing.
+        var targets = Targets(operators: [new TransferOperatorTarget("1042", "Иванов")]);
+
         Assert.Equal(
             TransferPanelState.Forbidden,
-            TransferTargetsPresenter.SelectState(null, loading: false, error: null, forbidden: true));
+            TransferTargetsPresenter.SelectState(targets, loading: false, error: "boom", forbidden: true));
     }
 
     [Fact]
@@ -42,6 +52,31 @@ public class TransferTargetsPresenterTests
         Assert.Equal(
             TransferPanelState.Error,
             TransferTargetsPresenter.SelectState(null, loading: false, error: "boom", forbidden: false));
+    }
+
+    /// <summary>
+    /// System.Text.Json binds a missing key, or an explicit `null`, straight
+    /// through to TransferTargets.Operators/.Queues regardless of the C#
+    /// nullable annotation (see the comment on TransferTargets). The panel
+    /// must read that as "nobody to transfer to", not throw.
+    /// </summary>
+    [Fact]
+    public void NullLists_AreTreatedAsEmpty_NotAsAFailure()
+    {
+        var targets = new TransferTargets(null, null);
+
+        Assert.Equal(
+            TransferPanelState.Empty,
+            TransferTargetsPresenter.SelectState(targets, loading: false, error: null, forbidden: false));
+    }
+
+    [Fact]
+    public void NullLists_FilterToEmptyWithoutThrowing()
+    {
+        var targets = new TransferTargets(null, null);
+
+        Assert.Empty(TransferTargetsPresenter.FilterOperators(targets, query: "", ownExtension: null));
+        Assert.Empty(TransferTargetsPresenter.FilterQueues(targets, query: ""));
     }
 
     [Fact]

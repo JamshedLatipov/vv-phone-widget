@@ -17,4 +17,9 @@ using Xunit;
 // touching an HTTP error path can bleed into an assertion. Serialising the whole
 // assembly closes the category. The suite runs in about three seconds, so the
 // parallelism was buying nothing worth this.
+//
+// This is a trade, not a permanent fact: if the suite ever grows slow enough
+// that serialising it starts costing more than it saves, the fix is to stop
+// `HttpErrorNotifier` being a bare static event that every service publishes
+// to — not to re-enable parallelism over that same shared global.
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
