@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -316,14 +316,6 @@ namespace OrbitalSIP.Views
                 };
             }
 
-            var topBar = this.FindControl<TopBarControl>("TopBar");
-            if (topBar != null)
-            {
-                topBar.SetTitle("Settings");
-                topBar.OnMinimizeRequested += (_, __) => OnMinimizeRequested?.Invoke(this, System.EventArgs.Empty);
-                topBar.OnAvatarClicked += (_, __) => OnAvatarClicked?.Invoke(this, System.EventArgs.Empty);
-                topBar.OnCloseRequested += (_, __) => OnExitAppRequested?.Invoke(this, System.EventArgs.Empty);
-            }
         }
 
         private static void RefreshUpdateBtnText(Button btn)
@@ -401,9 +393,6 @@ namespace OrbitalSIP.Views
                 apply(text);
         }
 
-        public event System.EventHandler? OnMinimizeRequested;
         public event System.EventHandler? OnSaveRequested;
-        public event System.EventHandler? OnAvatarClicked;
-        public event System.EventHandler? OnExitAppRequested;
     }
 }

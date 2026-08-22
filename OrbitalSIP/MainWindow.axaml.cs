@@ -496,9 +496,6 @@ namespace OrbitalSIP
         private Views.SettingsView CreateSettingsView(bool fromLogin)
         {
             var settingsView = new Views.SettingsView();
-            settingsView.OnMinimizeRequested += (_, __) => Dispatch(new UiEvent.CollapseRequested());
-            settingsView.OnExitAppRequested += (_, __) => ShutdownApp();
-            settingsView.OnAvatarClicked += (_, __) => Dispatch(new UiEvent.StatusPopupToggled(true));
             settingsView.OnSaveRequested += (_, __) =>
             {
                 var settings = SipSettings.Load();
@@ -1012,6 +1009,11 @@ namespace OrbitalSIP
 
             if (shell.TopBar is { } bar)
             {
+                // Settings is the one screen that renames the bar, and it used to do so on
+                // its own copy. The bar is shared now, so the override has to be reapplied
+                // per screen or the caption silently becomes the operator's username.
+                if (body is Views.SettingsView) bar.SetTitle("Settings");
+
                 bar.OnMinimizeRequested += (_, __) => Dispatch(new UiEvent.CollapseRequested());
                 bar.OnAvatarClicked     += (_, __) => Dispatch(new UiEvent.StatusPopupToggled(true));
                 bar.OnCloseRequested    += (_, __) => ShutdownApp();
