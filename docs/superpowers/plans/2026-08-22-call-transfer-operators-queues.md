@@ -282,11 +282,23 @@ describe('queueTransferRows', () => {
     });
   });
 
-  it('is exactly two rows — a third would need a priority renumber', () => {
-    expect(queueTransferRows()).toHaveLength(2);
+  it('keeps the hangup path out of Queue()', () => {
+    const h = queueTransferRows().find((r) => r.exten === 'h');
+    expect(h?.app).toBe('NoOp');
+    expect(queueTransferRows().filter((r) => r.exten === 'h' && r.app === 'Queue')).toHaveLength(0);
+  });
+
+  it('is exactly three rows — a fourth would need a priority renumber', () => {
+    expect(queueTransferRows()).toHaveLength(3);
   });
 });
 ```
+
+**Про строку `h`.** `_.` матчит **любой** экстеншн, включая спец-экстеншны Asterisk. Реально срабатывает `h`: когда абонент кладёт трубку, стоя в очереди — самый обычный конец брошенного перевода, — Asterisk ищет `h` в том же контексте, шаблон её ловит, и приоритет 1 выполняет `Queue(h,n)` по очереди с именем `h`, которой нет. Каналу уже всё равно, но предупреждение падает в лог на каждом таком звонке у каждой организации. Явный экстеншн бьёт шаблон, поэтому строка `h` с `NoOp` закрывает вопрос. `Hangup` в `h` не нужен — канал и так разрушается.
+
+Заменить `_.` на `_X.` **нельзя**: имена очередей буквенные (`sales`), а `_X.` требует ведущей цифры.
+
+**Про `,n`.** Опция значит «не повторять обзвон по таймауту, выйти на следующий приоритет» — именно она делает строку `Hangup` достижимой. К выходу абонента по DTMF отношения не имеет: тот управляется полем `context` самой очереди. Срабатывает при плохом имени очереди и при переполненной очереди; при **пустой** не срабатывает — таймаут не передаётся, а фикстуры очередей в этом репо ставят `leavewhenempty=no`, так что абонент ждёт до ответа или до собственного отбоя.
 
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
@@ -309,15 +321,27 @@ Expected: FAIL — `Failed to resolve import "./queue-transfer.dialplan"`.
  * контекст нельзя попасть с эндпоинта — только явным редиректом из
  * `CallTransferService`, который уже проверил, что имя очереди принадлежит
  * организации звонящего.
+ *
+ * Но `_.` матчит и спец-экстеншны Asterisk, а `h` ищется в этом же контексте,
+ * когда абонент кладёт трубку из очереди. Без явной строки `h` шаблон её
+ * перехватит и выполнит `Queue(h,n)` по несуществующей очереди на каждом
+ * брошенном переводе. Явный экстеншн бьёт шаблон — за этим строка `h` и стоит,
+ * удалять её нельзя.
  */
 import type { DialplanRow } from './operator-provisioning.dialplan';
 
 export function queueTransferRows(): DialplanRow[] {
   return [
-    // `,n` — не давать вызывающему выйти из очереди по DTMF: он сюда не
-    // звонил, его перевёл оператор, и меню у него на руках нет.
+    // Разрыв связи со стороны абонента. `NoOp`, а не `Hangup`: канал и так
+    // разрушается, а вот `Queue(h,n)` по очереди с именем `h` — нет.
+    { exten: 'h', priority: '1', app: 'NoOp', appdata: 'Queue transfer hangup' },
+    // `,n` — не повторять обзвон по таймауту, а выйти на следующий приоритет.
+    // Именно она делает строку `Hangup` достижимой. DTMF тут ни при чём: выход
+    // абонента по клавише управляется полем `context` самой очереди.
     { exten: '_.', priority: '1', app: 'Queue', appdata: '${EXTEN},n' },
-    // Без этого канал вываливается из контекста и Asterisk продолжает
+    // Срабатывает при плохом имени очереди и при переполненной. При пустой —
+    // нет: таймаут не передаётся, а фикстуры ставят `leavewhenempty=no`.
+    // Без этой строки канал вываливается из контекста и Asterisk продолжает
     // разбирать диалплан там, где его никто не ждёт.
     { exten: '_.', priority: '2', app: 'Hangup', appdata: null },
   ];
@@ -437,9 +461,14 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class AddQueueTransferContext20260822000000 implements MigrationInterface {
   name = 'AddQueueTransferContext20260822000000';
 
-  private static readonly ROWS: Array<[string, string, string | null]> = [
-    ['1', 'Queue', '${EXTEN},n'],
-    ['2', 'Hangup', null],
+  // exten, priority, app, appdata — держать в синхроне с `queueTransferRows()`.
+  // Строка `h` не декоративная: `_.` матчит и спец-экстеншны Asterisk, так что
+  // без явного `h` разрыв связи со стороны абонента выполнял бы `Queue(h,n)`
+  // по несуществующей очереди на каждом брошенном переводе.
+  private static readonly ROWS: Array<[string, string, string, string | null]> = [
+    ['h', '1', 'NoOp', 'Queue transfer hangup'],
+    ['_.', '1', 'Queue', '${EXTEN},n'],
+    ['_.', '2', 'Hangup', null],
   ];
 
   async up(qr: QueryRunner): Promise<void> {
@@ -453,6 +482,7 @@ export class AddQueueTransferContext20260822000000 implements MigrationInterface
     for (const { organization_id: organizationId } of orgs) {
       const context = `org-${organizationId}-queues`;
       for (const [
+        exten,
         priority,
         app,
         appdata,
@@ -460,10 +490,11 @@ export class AddQueueTransferContext20260822000000 implements MigrationInterface
         await qr.query(
           `INSERT INTO "extensions"
              ("context","exten","priority","app","appdata","description","organization_id")
-           VALUES ($1,'_.',$2,$3,$4,$5,$6)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)
            ON CONFLICT ("context","exten","priority") DO NOTHING`,
           [
             context,
+            exten,
             priority,
             app,
             appdata,
@@ -1130,6 +1161,21 @@ git commit -m "feat(calls): expose transfer targets, honour a queue target, audi
 ---
 
 # Слайс 4 — сервис и презентер виджета (`vv-phone-widget`)
+
+> **Комментарии в `.cs` — английской прозой.** Русский допустим только внутри
+> закавыченных UI-строк и в тестовых данных. Образец — `LeadCallPanelPresenter.cs`
+> и `LeadCallPanelPresenterTests.cs`.
+>
+> Блоки кода в задачах 9, 10 и 13 ниже написаны с русскими комментариями — это
+> ошибка автора плана, вскрытая на ревью Task 9. Смысл комментариев сохранять
+> дословно (они фиксируют *почему*, а не *что*), а прозу переводить на английский.
+>
+> **И ещё одно, общее для всех wire-типов виджета.** `System.Text.Json` на .NET 8
+> кладёт `null` в non-nullable ссылочное свойство, когда ключ в ответе
+> отсутствует: `RespectNullableAnnotations` выключен и нигде в проекте не
+> настроен. Поэтому список, приходящий с бэка, объявляется nullable, а пустоту
+> подставляет презентер. Тот же приём, что у `LeadCallContext` в
+> `Models/LeadModels.cs` — там каждое такое поле дефолтится ровно по этой причине.
 
 ### Task 9: модели и презентер
 
