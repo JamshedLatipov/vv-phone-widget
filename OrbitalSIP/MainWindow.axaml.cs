@@ -1184,7 +1184,7 @@ namespace OrbitalSIP
 
             nav.TabSelected -= OnNavTabSelected;
             nav.TabSelected += OnNavTabSelected;
-            nav.ActiveTab = ShellRouter.TabFor(s.Route);
+            nav.ActiveTab = ShellRouter.ActiveTab(s);
             nav.SetLoginMode(s.Shell == Shell.LoginSettings);
             ApplyBadges(nav);
 

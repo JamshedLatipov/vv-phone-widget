@@ -95,6 +95,54 @@ public class ShellRouterSessionTests
     }
 
     /// <summary>
+    /// Signing out sends Home back to the widget along with the screen.
+    ///
+    /// The SIP registration outlives the backend session, so a call can still arrive at the
+    /// login screen, and CallStarted reads Home to decide what to answer it with. Left at
+    /// Panel from the session that just died, it hands a signed-out operator the full panel
+    /// and a working tab bar — the second assertion below is what that costs, and it is the
+    /// one that fails without the fix.
+    /// </summary>
+    [Fact]
+    public void AnExpiredSessionSendsHomeBackToTheWidget()
+    {
+        var s = Reduce(Panel(NavRoute.Tasks), new UiEvent.SessionExpired());
+
+        Assert.Equal(Shell.Collapsed, s.Home);
+
+        var answered = Reduce(s, new UiEvent.CallStarted(), CallState.Idle);
+        Assert.Equal(Shell.CallBar, answered.Shell);
+    }
+
+    /// <summary>
+    /// Which slot the bar lights on the login-settings screen.
+    ///
+    /// LoginSettings is a surface, not a route, so Route goes on carrying the panel's last
+    /// tab across it — Tasks here, because a session expires wherever the operator was
+    /// standing. Asked of Route alone the bar lit Tasks, greyed out by login mode, while
+    /// Settings sat dark under the screen the operator was actually looking at.
+    /// </summary>
+    [Fact]
+    public void TheLoginSettingsScreenLightsTheSettingsSlot()
+    {
+        var expired = Reduce(Panel(NavRoute.Tasks), new UiEvent.SessionExpired());
+        var s = Reduce(expired, new UiEvent.LoginSettingsRequested());
+
+        Assert.Equal(Shell.LoginSettings, s.Shell);
+        Assert.Equal(NavRoute.Tasks, s.Route);
+        Assert.Equal(NavTab.Settings, ShellRouter.ActiveTab(s));
+    }
+
+    /// <summary>Every other surface still answers from the route, as it always did.</summary>
+    [Theory]
+    [InlineData(NavRoute.Dialer, NavTab.Dialer)]
+    [InlineData(NavRoute.Recents, NavTab.Recents)]
+    [InlineData(NavRoute.Tasks, NavTab.Tasks)]
+    [InlineData(NavRoute.Settings, NavTab.Settings)]
+    public void APanelRouteLightsItsOwnSlot(NavRoute route, NavTab tab) =>
+        Assert.Equal(tab, ShellRouter.ActiveTab(Panel(route)));
+
+    /// <summary>
     /// Login placed over a call in progress would take hangup, mute and hold away from an
     /// operator who is still talking. The dispatcher waits for the call to end and raises
     /// the same event again — so doing nothing here is the whole of it.

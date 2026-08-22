@@ -137,7 +137,7 @@ public abstract record UiEvent
 | *старт процесса* | нет учётных данных | `Login` |
 | *старт процесса* | есть | `Collapsed`, `Home=Collapsed`, `Route=LastNonCall=Dialer` |
 | `LoginSucceeded` | — | `Collapsed`, `Home=Collapsed`, `Route=LastNonCall=Dialer` |
-| `SessionExpired` | `call == Idle` | `Login`; окна-диалоги закрыть |
+| `SessionExpired` | `call == Idle` | `Login`, `Home=Collapsed`; окна-диалоги закрыть |
 | `SessionExpired` | звонок жив | состояние не меняется, событие отложено до `CallStateChanged(Idle)` |
 | `LoginSettingsRequested` | `Shell == Login` | `LoginSettings` |
 | `SettingsSaved` | `Shell == LoginSettings` | `Login` |
@@ -327,6 +327,15 @@ call != CallState.Idle   &&   Route != Call
 в обработчике `BackendAuth.SessionExpired`.
 
 Единственное добавление — закрытие окон-диалогов, описанное выше.
+
+`Home=Collapsed` в строке таблицы — не украшение, а перенос того, что сегодня делает
+`ShowLoginAfterSessionExpiry` строкой `_preferredMode = PreferredMode.Widget`. Истекает
+сессия бэкенда, а регистрация SIP её переживает, поэтому на экран логина всё ещё может
+прийти звонок. Ответ на него сводится аркой `CallStarted`, которая читает `Home`, — и
+`Home`, оставшийся `Panel` от прошлой сессии, выдаст незалогиненному оператору полную
+панель 320×600 с рабочим нижним меню, а конец звонка оставит его на `Panel{Route=LastNonCall}`
+вместо виджета. Сбросить `Home` в момент выхода дешевле, чем добавлять проверку сессии в
+каждую арку, которая его читает.
 
 ## Изменения в коде
 

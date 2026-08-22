@@ -63,8 +63,15 @@ public static class ShellRouter
 
         // A live call defers the login: the dispatcher waits for Idle and raises this
         // event again.
+        //
+        // Home goes back to the widget with it. The SIP registration outlives the backend
+        // session, so a call can still arrive at the login screen — and CallStarted reads
+        // Home to decide what to answer it with. Left at Panel from the previous session it
+        // would hand a signed-out operator the full 320x600 panel and a working tab bar, and
+        // the end of that call would leave them on Panel{Route=LastNonCall} rather than the
+        // widget. Cheaper here than a session check in every arm that reads Home.
         UiEvent.SessionExpired when call == CallState.Idle =>
-            s with { Shell = Shell.Login },
+            s with { Shell = Shell.Login, Home = Shell.Collapsed },
 
         // Below the LoginSettings arm above, and that order is load-bearing: in login mode
         // a tab press goes back to login, and a general TabPressed arm placed higher would
@@ -150,6 +157,22 @@ public static class ShellRouter
         state.Shell == Shell.Panel &&
         state.Route != NavRoute.Call &&
         CallIsLive(call);
+
+    /// <summary>
+    /// The bar slot that reads as current on a given state.
+    ///
+    /// Route answers this on every surface but one. LoginSettings is not a route — it is
+    /// its own surface, and Route goes on carrying whatever the panel was showing before,
+    /// which is Dialer on a cold start and the operator's last tab after a session expiry.
+    /// Asked of Route alone, the bar lit the back arrow, or a tab SetLoginMode had just
+    /// greyed out, while the operator stood on Settings and the Settings slot sat dark.
+    /// The screen it used to be derived from said Settings, and so does this.
+    ///
+    /// Here rather than at the call site in MainWindow, with the rest of the tab decisions:
+    /// a window that works out its own answer is the scatter this rework removed.
+    /// </summary>
+    public static NavTab? ActiveTab(UiState state) =>
+        state.Shell == Shell.LoginSettings ? NavTab.Settings : TabFor(state.Route);
 
     /// <summary>The bar slot that reads as current, or null — the call screen has none.</summary>
     public static NavTab? TabFor(NavRoute route) => route switch
