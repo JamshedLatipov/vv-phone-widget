@@ -89,6 +89,21 @@ public class TransferTargetsPresenterTests
     }
 
     /// <summary>
+    /// A non-null but empty result and a failed load must not collapse into
+    /// the same state. If the empty/ready fallthrough were ever checked
+    /// ahead of the error check, this would return Empty instead of Error:
+    /// the operator would see "nobody to transfer to" with no retry button,
+    /// and would never learn the list failed to load.
+    /// </summary>
+    [Fact]
+    public void AFailedLoadOutranksAnEmptyResult()
+    {
+        Assert.Equal(
+            TransferPanelState.Error,
+            TransferTargetsPresenter.SelectState(Targets(), loading: false, error: "boom", forbidden: false));
+    }
+
+    /// <summary>
     /// System.Text.Json binds a missing key, or an explicit `null`, straight
     /// through to TransferTargets.Operators/.Queues regardless of the C#
     /// nullable annotation (see the comment on TransferTargets). The panel
