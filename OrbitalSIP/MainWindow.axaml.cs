@@ -375,9 +375,26 @@ namespace OrbitalSIP
         /// <summary>True while a call is up far enough to be muted or held.</summary>
         private static bool IsTalking => App.SipService.State is CallState.Active or CallState.OnHold;
 
-        /// <summary>Whatever is in Host, when it is a <typeparamref name="T"/>.</summary>
-        private T? HostContent<T>() where T : class =>
-            this.FindControl<ContentControl>("Host")?.Content as T;
+        /// <summary>
+        /// The screen on show, when it is a <typeparamref name="T"/>.
+        ///
+        /// Unwraps <see cref="Views.PanelShellView"/>, and that is the whole point of the
+        /// method rather than a plain cast on Host.Content. Host.Content stopped being the
+        /// screen when the chrome moved into PanelShellView: a panel route now puts the
+        /// screen in the shell's Body, so a direct cast found ActiveCallView never, silently,
+        /// and every caller below fell through to its off-screen branch. The symptom was a
+        /// mute button that no longer followed the call it had just muted — the hotkey told
+        /// the service and nothing told the view, which paints from its own _muted.
+        ///
+        /// The unwrapped surfaces are unaffected and stay that way: Collapsed, Incoming and
+        /// CallBar are put in Host bare, so their views are found by the same cast as before.
+        /// </summary>
+        private T? HostContent<T>() where T : class
+        {
+            var content = this.FindControl<ContentControl>("Host")?.Content;
+            if (content is Views.PanelShellView shell) content = shell.Body;
+            return content as T;
+        }
 
         /// <summary>
         /// Mute and hold go through a call view when one is in front, because both views
@@ -765,10 +782,15 @@ namespace OrbitalSIP
 
             // The labels and buttons of a call screen already on show are not a change of
             // screen, so they go around Dispatch.
-            var host = this.FindControl<ContentControl>("Host");
+            //
+            // Through HostContent, not Host.Content: on a panel route the call screen sits
+            // inside PanelShellView, so reading Host directly matched nothing and a hold or
+            // resume the operator did not press themselves — a hotkey, or anything the
+            // service decided — left the Hold button, the status line and the DTMF pad
+            // describing the call as it was before.
             bool isOnHold = state == CallState.OnHold;
-            if (host?.Content is Views.ActiveCallView av) { av.MarkConnected(); av.SetStatus(isOnHold); }
-            else if (host?.Content is Views.ActiveCallWidgetView awv) awv.SetStatus(isOnHold);
+            if (HostContent<Views.ActiveCallView>() is { } av) { av.MarkConnected(); av.SetStatus(isOnHold); }
+            else if (HostContent<Views.ActiveCallWidgetView>() is { } awv) awv.SetStatus(isOnHold);
 
             RefreshChrome(_state);
         }
