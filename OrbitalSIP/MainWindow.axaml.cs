@@ -53,6 +53,14 @@ namespace OrbitalSIP
         private readonly DispatcherTimer _httpErrorHideTimer;
 
         /// <summary>
+        /// Routes a transfer through the backend, SIP REFER as the fallback only
+        /// where TransferOutcomePresenter says that is safe. One instance for
+        /// MainWindow's whole life — the same split TransferDialog uses for the
+        /// instance it owns — disposed in OnClosed.
+        /// </summary>
+        private readonly TransferService _transferService = new();
+
+        /// <summary>
         /// Everything the window is. Changed only through Dispatch, and only to what
         /// ShellRouter returned — assign to it directly and back comes exactly the scatter
         /// of hand-kept flags this work exists to remove.
@@ -182,6 +190,7 @@ namespace OrbitalSIP
             HttpErrorNotifier.ErrorOccurred -= OnHttpErrorOccurred;
             BackendAuth.SessionExpired -= OnSessionExpired;
             _httpErrorHideTimer.Stop();
+            _transferService.Dispose();
             base.OnClosed(e);
         }
 
@@ -761,12 +770,43 @@ namespace OrbitalSIP
             callView.OnMuteToggled += (_, muted)  => App.SipService.SetMuted(muted);
             // The state the view asked for, not a blind flip — see SipService.SetHold.
             callView.OnHoldToggled += (_, onHold) => App.SipService.SetHold(onHold);
-            // TODO(next task): route through TransferService/RouteTransferAsync by
-            // request.Kind instead of always REFERing — this keeps today's behaviour
-            // (unconditional SIP REFER) alive only long enough to compile against the
-            // event's new TransferRequest shape.
-            callView.OnTransferRequested += async (_, request) => await App.SipService.BlindTransferAsync(request.Value);
+            // Routes through the backend first; SIP REFER only for an operator
+            // target the backend could not be asked about. TransferToLeadOwner
+            // (ActiveCallView) raises this same event with an Extension target, so
+            // it gets the same routing here rather than an unconditional REFER.
+            callView.OnTransferRequested += async (_, request) => await RouteTransferAsync(request);
             return callView;
+        }
+
+        /// <summary>
+        /// Moves the call through TransferService, then acts on what
+        /// TransferOutcomePresenter decides for the (kind, outcome) pair — see that
+        /// class for the full table, including why a queue never falls back to a
+        /// SIP REFER.
+        /// </summary>
+        private async Task RouteTransferAsync(TransferRequest request)
+        {
+            var i18n = I18nService.Instance;
+            var result = await _transferService.TransferAsync(request.Kind, request.Value, request.CallerNumber);
+
+            switch (TransferOutcomePresenter.SelectAction(request.Kind, result.Outcome))
+            {
+                case TransferOutcomeAction.NotifySuccess:
+                    HttpErrorNotifier.Notify(i18n.Get("TransferDone", "Звонок переведён"));
+                    break;
+
+                case TransferOutcomeAction.ReferFallback:
+                    // Only reachable for an Extension target — see TransferOutcomePresenter.
+                    AppLogger.Log("Transfer", "Backend could not resolve the channel; falling back to SIP REFER.");
+                    await App.SipService.BlindTransferAsync(request.Value);
+                    break;
+
+                default:
+                    HttpErrorNotifier.Notify(
+                        i18n.Get("TransferFailed", "Не удалось перевести звонок")
+                        + (string.IsNullOrEmpty(result.Error) ? "" : $": {result.Error}"));
+                    break;
+            }
         }
 
         // ── SIP state changes ─────────────────────────────────────────
