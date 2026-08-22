@@ -3,12 +3,26 @@
         xmlns:i18n="clr-namespace:OrbitalSIP.Services"
         x:Class="OrbitalSIP.Views.TransferDialog"
         Title="Transfer"
-        Width="420" Height="640"
+        Width="420" Height="580" MinHeight="580"
         WindowStartupLocation="CenterOwner"
         Background="#0F172A"
         Topmost="True"
         SystemDecorations="None"
         CornerRadius="16">
+  <!-- Height/MinHeight: kept inside the app's dialog family range (580 matches
+       ScriptsDialog, the tallest sibling) rather than sized purely for a
+       generous list. WindowPlacement.KeepOnScreen only repositions a
+       chrome-less window that does not fit its screen — ClampToWorkingArea
+       pins it to the working area's top and lets the rest spill off the
+       bottom (see that method's own docblock); it never shrinks anything.
+       A window taller than the working area would strand whatever sits at
+       its bottom, and here that is the manual-entry row — the ONLY input
+       left once Forbidden/Error hides the tabs and list entirely. The Clamp
+       helper backing KeepOnScreen only ever keeps the whole window on
+       screen when window size <= working area size, so 580 is also the
+       exact working-area height (at 100% scaling) this window survives
+       down to. MinHeight repeats that number so a later edit cannot shrink
+       Height without also revisiting this comment. -->
   <Border BorderBrush="#1E293B" BorderThickness="1" CornerRadius="16">
     <Grid RowDefinitions="Auto,*,Auto">
 
