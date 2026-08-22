@@ -248,6 +248,62 @@ public class TransferServiceTests
     }
 
     [Fact]
+    public async Task TransferAsync_TreatsADeadlineTimeoutDuringTheLookupAsChannelUnresolved()
+    {
+        // Nothing ever answers, so the shortened deadline is what ends this —
+        // simulates the backend not responding to the channel lookup in time.
+        using var handler = new DelayedHandler(_ => null);
+        using var client = new HttpClient(handler);
+        using var service = new ShortDeadlineTransferService(client, Settings);
+
+        var result = await service.TransferAsync(
+            TransferTargetKind.Extension, "1042", "+992900000000", CancellationToken.None);
+
+        Assert.Equal(TransferOutcome.ChannelUnresolved, result.Outcome);
+    }
+
+    [Fact]
+    public async Task TransferAsync_TreatsADeadlineTimeoutDuringThePostAsFailedNotChannelUnresolved()
+    {
+        // The lookup answers immediately; only the transfer POST hangs, so
+        // the shortened deadline fires while the backend may already have
+        // the request in hand — this must not license a REFER on top of it.
+        using var handler = new DelayedHandler(request =>
+            request.RequestUri!.AbsolutePath.Contains("channel-uniqueid")
+                ? JsonResponse("""{ "uniqueid": "1719990000.42" }""")
+                : null);
+        using var client = new HttpClient(handler);
+        using var service = new ShortDeadlineTransferService(client, Settings);
+
+        var result = await service.TransferAsync(
+            TransferTargetKind.Extension, "1042", "+992900000000", CancellationToken.None);
+
+        Assert.Equal(TransferOutcome.Failed, result.Outcome);
+    }
+
+    [Fact]
+    public async Task TransferAsync_PropagatesCallerCancellationMidPostRatherThanReportingEitherOutcome()
+    {
+        // The lookup answers immediately; the POST hangs so there is time
+        // for the caller's own token to fire while it is in flight, with
+        // the full ten-second shared deadline nowhere near elapsing. Confirms
+        // the linked token source does not swallow or relabel a genuine
+        // caller cancellation as ChannelUnresolved or Failed — the operator
+        // abandoning the panel is not a transfer result either way.
+        using var handler = new DelayedHandler(request =>
+            request.RequestUri!.AbsolutePath.Contains("channel-uniqueid")
+                ? JsonResponse("""{ "uniqueid": "1719990000.42" }""")
+                : null);
+        using var client = new HttpClient(handler);
+        using var service = new TransferService(client, Settings, ownsHttpClient: false);
+        using var cts = new CancellationTokenSource();
+        cts.CancelAfter(TimeSpan.FromMilliseconds(50));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.TransferAsync(TransferTargetKind.Extension, "1042", "+992900000000", cts.Token));
+    }
+
+    [Fact]
     public async Task GetTargetsAsync_SurfacesForbiddenSeparatelyFromAFailedLoad()
     {
         using var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)
@@ -300,6 +356,32 @@ public class TransferServiceTests
     {
         Content = new StringContent(body, Encoding.UTF8, "application/json"),
     };
+
+    /// <summary>
+    /// A handler where any request the responder declines (returns null
+    /// for) hangs until its token cancels, instead of completing on its
+    /// own. Lets a test put the shared deadline in the middle of a
+    /// specific phase without waiting out the real ten-second RequestTimeout.
+    /// </summary>
+    private sealed class DelayedHandler(Func<HttpRequestMessage, HttpResponseMessage?> responder) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = responder(request);
+            if (response != null)
+                return response;
+
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            throw new InvalidOperationException("unreachable — Task.Delay(Infinite) only returns via cancellation");
+        }
+    }
+
+    /// <summary>Shrinks TransferDeadline so a test can reach the shared-deadline catch clauses fast.</summary>
+    private sealed class ShortDeadlineTransferService(HttpClient httpClient, Func<SipSettings> settingsProvider)
+        : TransferService(httpClient, settingsProvider, ownsHttpClient: false)
+    {
+        protected override TimeSpan TransferDeadline => TimeSpan.FromMilliseconds(100);
+    }
 
     private sealed class RecordingHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
     {

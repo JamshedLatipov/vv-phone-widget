@@ -37,6 +37,15 @@ namespace OrbitalSIP.Services
         /// </summary>
         public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
 
+        /// <summary>
+        /// The budget for one <see cref="TransferAsync"/> sequence (channel
+        /// lookup plus post, combined) — <see cref="RequestTimeout"/> by
+        /// default. A test-only seam: overriding it in a subclass is the
+        /// only way to reach the shared-deadline catch clauses without an
+        /// actual ten-second wait. Production code never overrides it.
+        /// </summary>
+        protected virtual TimeSpan TransferDeadline => RequestTimeout;
+
         private readonly HttpClient _httpClient;
         private readonly Func<SipSettings>? _settingsProvider;
         private readonly bool _ownsHttpClient;
@@ -126,18 +135,22 @@ namespace OrbitalSIP.Services
         /// Moves the call: resolves the live Asterisk channel id for the other
         /// party's number, then asks the backend to redirect that channel.
         ///
-        /// Every failure lands in one of two buckets, and the split is
-        /// deliberate: "could not ask" — no backend is configured, the
-        /// channel lookup timed out, its connection failed, or its response
-        /// was broken or unreadable — reports
-        /// <see cref="TransferOutcome.ChannelUnresolved"/>, the one outcome
-        /// that unlocks the SIP REFER fallback for an extension target (see
-        /// <c>TransferOutcome</c> in TransferModels.cs). "Was told no" — a
-        /// non-2xx from the transfer POST itself, or a 200 carrying
-        /// <c>{ok:false}</c> — reports <see cref="TransferOutcome.Failed"/>
-        /// instead, because the backend actively answered that request and a
-        /// REFER sent behind its back could race a transfer it already
-        /// refused, or one it already performed.
+        /// Every failure lands in one of two buckets, split by whether the
+        /// transfer POST was ever sent. "Could not ask" — no backend is
+        /// configured, or the channel lookup (a read-only GET) failed in any
+        /// way, including our own shared deadline elapsing before it
+        /// answered — reports <see cref="TransferOutcome.ChannelUnresolved"/>,
+        /// the one outcome that unlocks the SIP REFER fallback for an
+        /// extension target (see <c>TransferOutcome</c> in
+        /// TransferModels.cs): nothing was attempted, so REFER is safe.
+        /// "Was told no, or don't know" — a non-2xx from the transfer POST,
+        /// a 200 carrying <c>{ok:false}</c>, or the deadline elapsing while
+        /// the POST was in flight — reports <see cref="TransferOutcome.Failed"/>
+        /// instead. Once that POST is sent the backend may already have
+        /// received and acted on it, so a REFER fired behind its back could
+        /// race a transfer it already refused, or double up one it already
+        /// performed — that risk applies whether the backend answered badly
+        /// or never answered at all.
         /// </summary>
         public async Task<TransferResult> TransferAsync(
             TransferTargetKind kind,
@@ -151,16 +164,23 @@ namespace OrbitalSIP.Services
             // caller's own token (the transfer panel closing) still cancels
             // immediately, on top of our own deadline.
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            deadline.CancelAfter(RequestTimeout);
+            deadline.CancelAfter(TransferDeadline);
             var ct = deadline.Token;
 
+            string backendUrl;
+            string accessToken;
+            string channelId;
+
+            // Phase 1 — resolve the channel. This is a read-only GET, so
+            // however it fails — including our own deadline firing before
+            // it answers — nothing has been attempted yet: "could not ask".
             try
             {
                 ct.ThrowIfCancellationRequested();
                 var settings = _settingsProvider?.Invoke() ?? App.SipService?.CurrentSettings ?? SipSettings.Load();
-                var backendUrl = settings.BackendUrl?.TrimEnd('/');
+                var trimmedUrl = settings.BackendUrl?.TrimEnd('/');
 
-                if (string.IsNullOrEmpty(backendUrl) || string.IsNullOrEmpty(settings.AccessToken))
+                if (string.IsNullOrEmpty(trimmedUrl) || string.IsNullOrEmpty(settings.AccessToken))
                 {
                     // No backend to ask at all — REFER needs no backend, so
                     // this is squarely "could not ask", not a refusal.
@@ -168,13 +188,50 @@ namespace OrbitalSIP.Services
                     return new TransferResult(TransferOutcome.ChannelUnresolved, null);
                 }
 
-                var channelId = await ResolveChannelIdAsync(backendUrl, settings.AccessToken, callerNumber, ct);
-                if (string.IsNullOrWhiteSpace(channelId))
+                backendUrl = trimmedUrl;
+                accessToken = settings.AccessToken;
+
+                var resolvedChannelId = await ResolveChannelIdAsync(backendUrl, accessToken, callerNumber, ct);
+                if (string.IsNullOrWhiteSpace(resolvedChannelId))
                     return new TransferResult(TransferOutcome.ChannelUnresolved, null);
 
+                channelId = resolvedChannelId;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // The caller pulled the plug (e.g. the panel closed) — propagate
+                // so the awaiting code sees a real cancellation, not a fabricated result.
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                // cancellationToken (the caller's) is not cancelled here, so
+                // only our own deadline fired, and it fired before the
+                // lookup ever answered — nothing was attempted yet.
+                AppLogger.Log("TransferService", $"Transfer timed out resolving the channel (after {TransferDeadline}).");
+                return new TransferResult(TransferOutcome.ChannelUnresolved, null);
+            }
+            catch (Exception ex)
+            {
+                // Not a backend response at all (e.g. a local settings read
+                // failing) — nothing was posted, but this is an unexpected
+                // local failure rather than the backend simply not
+                // answering, so it is reported as Failed with the
+                // exception's own message rather than folded into
+                // ChannelUnresolved's narrower "the lookup came up empty" story.
+                AppLogger.Log("TransferService", $"Transfer error resolving the channel: {ex.GetType().Name}: {ex.Message}");
+                return new TransferResult(TransferOutcome.Failed, ex.Message);
+            }
+
+            // Phase 2 — post the transfer. Once this request is sent, "could
+            // not ask" no longer applies: the backend may already have
+            // received and acted on it, so every failure from here on,
+            // deadline included, is "was told no" territory.
+            try
+            {
                 var url = $"{backendUrl}/api/calls/transfer";
                 using var request = new HttpRequestMessage(HttpMethod.Post, url);
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AccessToken);
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
                 request.Content = JsonContent.Create(new
                 {
                     channelId,
@@ -204,18 +261,26 @@ namespace OrbitalSIP.Services
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                // The caller pulled the plug (e.g. the panel closed) — propagate
-                // so the awaiting code sees a real cancellation, not a fabricated result.
+                // The caller pulled the plug mid-POST — propagate. Whether the
+                // backend received the request before we stopped waiting is
+                // irrelevant here: the operator abandoned the panel, so this
+                // is not a transfer result to report either way.
                 throw;
             }
             catch (OperationCanceledException)
             {
-                // cancellationToken (the caller's) is not cancelled here, so only
-                // our own deadline could have fired this: the backend did not
-                // answer inside RequestTimeout. That is "could not ask", the same
-                // bucket as every other way the channel lookup can come up empty.
-                AppLogger.Log("TransferService", $"Transfer timed out after {RequestTimeout}.");
-                return new TransferResult(TransferOutcome.ChannelUnresolved, null);
+                // Our own deadline fired while the transfer POST was in
+                // flight. Unlike the lookup (a side-effect-free GET), we do
+                // not know whether this request landed: the backend may have
+                // received it, redirected the channel, and simply answered
+                // late. Reporting ChannelUnresolved here would light up the
+                // SIP REFER fallback on top of a transfer that may already
+                // have happened — the call could end up moved twice, or
+                // moved somewhere nobody chose. A timeout carries strictly
+                // less information than a 5xx, so it cannot be treated as
+                // safer than one: same Failed outcome.
+                AppLogger.Log("TransferService", $"Transfer timed out waiting for the backend to answer the transfer POST (after {TransferDeadline}).");
+                return new TransferResult(TransferOutcome.Failed, "timeout");
             }
             catch (Exception ex)
             {
