@@ -1035,6 +1035,10 @@ import { TransferTargetService } from './services/transfer-target.service';
 
 В `imports` добавить `PresenceModule` и `AuditLogModule`, в `TypeOrmModule.forFeature([...])` — `Queue`, в `providers` — `TransferTargetService`.
 
+**Решение, которое надо принять здесь осознанно.** Контроллер заворачивает любое исключение в `catch (err) { return { ok: false, error: (err as Error).message } }` с кодом 200. После проводки `targetKind` через него туда начнут попадать два новых класса отказов: `BadRequestException` от `attendedTransfer` при `targetKind === 'queue'` и `ForbiddenException` от `assertTargetAllowed` при чужой цели. Оба потеряют статус и приедут клиенту как 200.
+
+Для виджета это работает: `TransferService.ParseTransferResult` читает тело, а не код, и любой `{ok:false}` даёт `Failed` — то есть SIP-фолбэк не включится, что и требуется, раз бэкенд ответил отказом осознанно. Но решение надо зафиксировать комментарием, а не унаследовать молча: сейчас неотличимость статусов безвредна ровно потому, что единственный потребитель смотрит на тело.
+
 - [ ] **Step 2: Правка контроллера**
 
 Заменить файл целиком:
