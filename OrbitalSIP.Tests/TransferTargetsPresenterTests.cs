@@ -18,29 +18,63 @@ public class TransferTargetsPresenterTests
         IReadOnlyList<TransferQueueTarget>? queues = null) =>
         new(operators ?? [], queues ?? []);
 
+    /// <summary>
+    /// The three shapes SelectState's `targets` parameter can take. The
+    /// sweeps below run every other input against all three so a reordered
+    /// guard has nowhere to hide behind a shape that happens not to trigger
+    /// it.
+    /// </summary>
+    private static IEnumerable<(string Name, TransferTargets? Targets)> TargetShapes()
+    {
+        yield return ("null", null);
+        yield return ("empty", Targets());
+        yield return ("non-empty", Targets(operators: [new TransferOperatorTarget("1042", "Иванов")]));
+    }
+
+    /// <summary>
+    /// We have moved this hole twice: first by leaving every competing input
+    /// switched off, then by fixing that but leaving `targets: null` as the
+    /// one input that never varied — a guard reordered to check
+    /// `targets == null` before `loading` would have passed unnoticed either
+    /// time. This sweeps all three target shapes against both error values
+    /// against both forbidden values — twelve combinations — so no guard can
+    /// be promoted above `loading` without a failure naming exactly which
+    /// combination broke.
+    /// </summary>
     [Fact]
     public void Loading_BeatsEverythingElse()
     {
-        // Every other input is live (a non-empty result, an error, AND
-        // forbidden) so this only passes if loading is checked first, not
-        // merely first among inputs that happen to be switched off.
-        var targets = Targets(operators: [new TransferOperatorTarget("1042", "Иванов")]);
+        foreach (var (name, targets) in TargetShapes())
+        foreach (var error in new string?[] { null, "boom" })
+        foreach (var forbidden in new[] { false, true })
+        {
+            var actual = TransferTargetsPresenter.SelectState(targets, loading: true, error, forbidden);
 
-        Assert.Equal(
-            TransferPanelState.Loading,
-            TransferTargetsPresenter.SelectState(targets, loading: true, error: "boom", forbidden: true));
+            Assert.True(
+                actual == TransferPanelState.Loading,
+                $"targets={name}, error={error ?? "null"}, forbidden={forbidden}: expected Loading, got {actual}");
+        }
     }
 
+    /// <summary>
+    /// Same sweep, one input narrower: `loading` is fixed at false (Forbidden
+    /// only matters once loading has finished) and `forbidden` at true,
+    /// while all three target shapes run against both error values — six
+    /// combinations — so a guard reordered ahead of `forbidden` fails loudly
+    /// instead of hiding behind whichever shape it happens not to catch.
+    /// </summary>
     [Fact]
     public void Forbidden_IsNotAnError_SoNoRetryIsOffered()
     {
-        // targets and error are both live here too, so Forbidden has to win
-        // on its own precedence, not because nothing else was competing.
-        var targets = Targets(operators: [new TransferOperatorTarget("1042", "Иванов")]);
+        foreach (var (name, targets) in TargetShapes())
+        foreach (var error in new string?[] { null, "boom" })
+        {
+            var actual = TransferTargetsPresenter.SelectState(targets, loading: false, error, forbidden: true);
 
-        Assert.Equal(
-            TransferPanelState.Forbidden,
-            TransferTargetsPresenter.SelectState(targets, loading: false, error: "boom", forbidden: true));
+            Assert.True(
+                actual == TransferPanelState.Forbidden,
+                $"targets={name}, error={error ?? "null"}: expected Forbidden, got {actual}");
+        }
     }
 
     [Fact]
