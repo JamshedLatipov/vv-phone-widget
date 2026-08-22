@@ -33,17 +33,47 @@ namespace OrbitalSIP.Views
         /// MainWindow builds a new SettingsView on every visit, so without this each visit
         /// left a dead one attached: the next registration failure walked N of them, each
         /// posting to the dispatcher to write into its own detached StatusLabel.
+        ///
+        /// The handler field is no longer cleared here, and must not be: a detach is not
+        /// necessarily the end of this screen any more (see OnAttachedToVisualTree), and
+        /// the field is the only identity by which either half can be unsubscribed again.
         /// </summary>
         protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
         {
             App.SipService.RegistrationError -= OnRegistrationError;
             if (_updateAvailableHandler != null)
-            {
                 App.Updater.UpdateAvailable -= _updateAvailableHandler;
-                _updateAvailableHandler = null;
-            }
 
             base.OnDetachedFromVisualTree(e);
+        }
+
+        /// <summary>
+        /// Takes the two subscriptions back out, because the detach above may not have been
+        /// the end of this screen.
+        ///
+        /// Panel routes are built inside PanelShellView and installed through Apply, which
+        /// animates any change of window size — so expanding the widget back onto this tab
+        /// parks the screen in OverlayHost and then moves it to Host, a detach/attach pair
+        /// on an instance that is coming straight back. Without this it came back deaf: a
+        /// registration failure would no longer appear inline, on the one screen where the
+        /// host and credentials that caused it are edited.
+        ///
+        /// -= before += on both, the same idiom as MainWindow.RefreshChrome. The first
+        /// attach follows a constructor that has already subscribed, so += alone would
+        /// leave this screen answering every failure twice, and once more per swap.
+        /// </summary>
+        protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            base.OnAttachedToVisualTree(e);
+
+            App.SipService.RegistrationError -= OnRegistrationError;
+            App.SipService.RegistrationError += OnRegistrationError;
+
+            if (_updateAvailableHandler != null)
+            {
+                App.Updater.UpdateAvailable -= _updateAvailableHandler;
+                App.Updater.UpdateAvailable += _updateAvailableHandler;
+            }
         }
 
         /// <summary>Kept in a field so the closure below can be unsubscribed by identity.</summary>

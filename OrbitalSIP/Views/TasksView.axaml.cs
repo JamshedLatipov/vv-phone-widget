@@ -62,24 +62,60 @@ namespace OrbitalSIP.Views
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
         /// <summary>
+        /// True when the cancel below took a load off this screen and the screen is coming
+        /// back. Read once, on the next attach, and cleared there.
+        ///
+        /// A flag rather than an unconditional reload-on-attach, because the first attach
+        /// follows the constructor, whose own load is already in flight — reloading there
+        /// would double every visit's round trips. And read from <see cref="_loadCts"/>
+        /// rather than assumed: a detach with nothing in flight has nothing to restart.
+        /// </summary>
+        private bool _reloadOnAttach;
+
+        /// <summary>
         /// Calls off a load the operator has walked away from.
         ///
         /// Navigating away discards this screen, so a response still in flight would be
         /// parsed, merged and drawn into a list nobody can see — one orphaned round trip
         /// per visit. Cancelling is silent by design, so nothing is said about it.
         ///
-        /// A detach here is the end of this screen, so cancelling is all there is to do.
-        /// That holds only while ShowTasks installs through SetMainContent: the animated
-        /// swap parks a view in the overlay and then moves it to the host, which is a
-        /// detach/attach pair on an instance that is coming straight back, and this cancel
-        /// would leave it permanently empty. Route this view through StartAnimation and it
-        /// needs a reload-on-attach to go with it.
+        /// A detach is no longer necessarily the end of this screen, which is why the flag
+        /// above exists. Panel routes are built inside PanelShellView and installed through
+        /// Apply, which animates any change of window size — so expanding the widget back
+        /// onto this tab parks the screen in OverlayHost and then moves it to Host, a
+        /// detach/attach pair on an instance that is coming straight back. Cancelling alone
+        /// left that instance permanently empty: the cancel is silent by design, so the
+        /// operator got no rows, no "no tasks" and no failure either.
         /// </summary>
         protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
         {
             base.OnDetachedFromVisualTree(e);
 
+            _reloadOnAttach = _loadCts != null;
             _loadCts?.Cancel();
+        }
+
+        /// <summary>
+        /// Puts back the load the detach above took away, and only that one.
+        ///
+        /// Restarting rather than letting the cancelled load land: a cancelled load returns
+        /// through the silent OperationCanceledException arm and the guard in front of
+        /// <see cref="Apply"/>, so it draws nothing at all — deliberately, because the tap
+        /// that superseded it is about to. Nothing supersedes an overlay swap, so there is
+        /// no second answer coming and the screen has to ask again.
+        ///
+        /// Restarting rather than drawing an outcome from what is in hand: a cancelled load
+        /// has no outcome. Rendering one would put "no tasks" over an account whose tasks
+        /// were never fetched, which is worse than the blank list it replaced — blank at
+        /// least does not claim anything.
+        /// </summary>
+        protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            base.OnAttachedToVisualTree(e);
+
+            if (!_reloadOnAttach) return;
+            _reloadOnAttach = false;
+            _ = LoadAsync();
         }
 
         private void WireButtons()
