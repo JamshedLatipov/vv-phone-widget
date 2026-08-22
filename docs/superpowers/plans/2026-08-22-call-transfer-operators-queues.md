@@ -1690,8 +1690,15 @@ namespace OrbitalSIP.Services
         private readonly Func<SipSettings> _settingsProvider;
         private readonly bool _ownsHttpClient;
 
+        // `BackendHttp.CreateClient`, НЕ `new HttpClient()`. Второй обходит общий
+        // `AuthRefreshHandler` — панель работала бы до истечения токена, а дальше
+        // молча получала 401 без единой попытки обновления. Плюс поднимал бы
+        // собственный пул сокетов, ради устранения которых `BackendHttp` и написан.
+        // Образец — `FlowsService.cs:26`.
         public TransferService()
-            : this(new HttpClient(), () => App.SipService?.CurrentSettings ?? SipSettings.Load(), ownsHttpClient: true)
+            : this(BackendHttp.CreateClient(RequestTimeout),
+                   () => App.SipService?.CurrentSettings ?? SipSettings.Load(),
+                   ownsHttpClient: true)
         {
         }
 
