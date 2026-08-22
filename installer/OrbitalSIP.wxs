@@ -16,7 +16,13 @@
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
 
-  <Package Name="PROFFI - Phone"
+  <!-- The display name is written to RegisteredApplications as well as the
+       Package, and Settings matches those two byte for byte. Keep it in one
+       place so they cannot drift apart. -->
+  <?define AppName = "PROFFI - Phone" ?>
+  <?define ExeName = "OrbitalSIP.exe" ?>
+
+  <Package Name="$(AppName)"
            Manufacturer="Proffi"
            Version="$(Version)"
            UpgradeCode="8b5f2a1c-3d4e-4f6a-9b7c-1e2d3f4a5b6c"
@@ -53,9 +59,189 @@
                      Name="installed" Type="integer" Value="1" KeyPath="yes" />
     </Component>
 
+    <!-- ══ tel: / callto: / sip: protocol handler ═══════════════════════════
+         Ported from installer/OrbitalSIP.iss, which carries the full reasoning.
+         Three registrations doing three different jobs:
+
+           1. The ProgId. What a UrlAssociation points at, and the command
+              Windows runs once the user has picked us for a scheme.
+           2. The scheme keys (tel, callto). What ShellExecute actually
+              resolves. Microsoft, on the URL Protocol value: "Without this
+              key, the handler application will not launch."
+              https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/aa767914(v=vs.85)
+           3. Capabilities + RegisteredApplications. What lists us under
+              Settings > Default apps. ApplicationDescription is required
+              there — an app without one is not shown at all.
+              https://learn.microsoft.com/en-us/windows/win32/shell/default-programs
+
+         Everything is HKLM: the package is perMachine, matching the Inno
+         installer. A per-user handler still wins over us wherever the two
+         collide, because HKCU\Software\Classes shadows HKLM\Software\Classes.
+
+         An installer may not make itself the default — Windows blocks that
+         deliberately (UCPD.sys). We register as a candidate; the user chooses.
+
+         Two things the Inno script does that this package deliberately does
+         not, both because MSI is the wrong place for them:
+           - No ms-settings:defaultapps prompt. The MSI exists for silent
+             GPO/SCCM deployment (msiexec /qn); popping Settings on a machine
+             nobody is sitting at is worse than useless.
+           - No SHChangeNotify(SHCNE_ASSOCCHANGED). Windows Installer does not
+             send it and WiX has no element for it (wixtoolset/issues#4143,
+             still open), so it would take a native custom action — and this
+             package has no custom-action infrastructure at all. The cost of
+             going without is bounded: ShellExecute reads the scheme keys from
+             the registry, so tel: links resolve as soon as the keys land. It
+             is the cached association data behind the Settings list that may
+             lag until the next Explorer restart or logon. -->
+
+    <!-- Is either scheme already spoken for at machine level? The command
+         subkey is the thing worth testing: a scheme key without one does
+         nothing, so a scheme that has no command is unclaimed in the only
+         sense that matters.
+
+         Type="raw" reads the default value; Bitness="always64" reads the same
+         64-bit view the components below write to. AppSearch runs at sequence
+         50 and component conditions are evaluated by CostFinalize at 1000, so
+         the properties are always set before anything reads them — and
+         AppSearch is in InstallExecuteSequence, so this holds for /qn too. -->
+    <Property Id="TELHANDLERCOMMAND">
+      <RegistrySearch Id="TelHandlerCommandSearch" Root="HKLM"
+                      Key="Software\Classes\tel\shell\open\command"
+                      Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="CALLTOHANDLERCOMMAND">
+      <RegistrySearch Id="CalltoHandlerCommandSearch" Root="HKLM"
+                      Key="Software\Classes\callto\shell\open\command"
+                      Type="raw" Bitness="always64" />
+    </Property>
+
+    <!-- 1. The ProgId. Ours alone, so the whole subtree goes on uninstall —
+         this is the MSI spelling of Inno's uninsdeletekey. -->
+    <Component Id="TelProgId" Directory="INSTALLFOLDER"
+               Guid="7c1e4a90-5b26-4d38-9a71-0f3c8d2e6b41">
+      <RegistryKey Root="HKLM" Key="Software\Classes\OrbitalSIP.Tel"
+                   ForceDeleteOnUninstall="yes">
+        <RegistryValue Type="string" Value="$(AppName)" KeyPath="yes" />
+        <RegistryValue Type="string" Name="URL Protocol" Value="" />
+        <RegistryKey Key="DefaultIcon">
+          <RegistryValue Type="string" Value="[INSTALLFOLDER]$(ExeName),0" />
+        </RegistryKey>
+        <RegistryKey Key="shell\open\command">
+          <RegistryValue Type="string"
+                         Value="&quot;[INSTALLFOLDER]$(ExeName)&quot; &quot;%1&quot;" />
+        </RegistryKey>
+      </RegistryKey>
+    </Component>
+
+    <!-- 2. The scheme keys — the part that makes a link launchable.
+         Inno guards each value with createvalueifdoesntexist. WiX has no such
+         flag; RegistryValue always writes. The MSI equivalent is to make the
+         whole component conditional, which moves the granularity from
+         per-value to per-scheme — the unit that actually means something,
+         since a half-written scheme key is no use to anyone. tel and callto
+         get a component each so that claiming one does not depend on the
+         other being free.
+
+         The second half of the condition is not decoration. This package
+         does a MajorUpgrade, and RemoveExistingProducts is scheduled after
+         InstallValidate (1400) — later than CostFinalize (1000). So when
+         version N+1 costs its components, version N's keys are still in the
+         registry and the search finds our own exe. Without "or it is already
+         ours" the upgrade would skip the component, then delete the old one,
+         and every upgrade would silently unregister tel:. The comparison is
+         ~ (case-insensitive), matching the LowerCase test in the .iss.
+
+         What this does NOT reproduce is the uninstall half of Inno's guard.
+         ReleaseScheme in the .iss hands a scheme back only while the command
+         still points at our exe. Windows Installer has no equivalent: per
+         the RemoveRegistryValues docs it removes a value it authored whenever
+         the owning component is being uninstalled, with no comparison against
+         what is there now, and a component condition cannot rescue this —
+         "the component remains enabled once installed even if the conditional
+         statement ... later evaluates to False" (Component table, Condition).
+         So if a third party overwrites our HKLM command and we are then
+         uninstalled, we take their registration with us. Closing that gap
+         needs a custom action; it is left open deliberately, and the exposure
+         is narrow — it needs a machine-level takeover while we are installed,
+         and the per-user registrations that most apps actually write live in
+         HKCU where our removal cannot reach them.
+
+         sip is absent here on purpose, and is not an oversight to be tidied
+         up later. A sip: URI is as often "join this conference" as "call this
+         number" — Zoom's own ProgId is literally ZoomMeeting.sip — and the
+         app cannot tell the two apart from the URI. It stays declared under
+         UrlAssociations below so a user can pick us for it deliberately; we
+         just refuse to take it without being asked. -->
+    <Component Id="TelScheme" Directory="INSTALLFOLDER"
+               Guid="2d8f61b3-9c04-4e57-b8a2-6e5d17f09c83"
+               Condition="NOT TELHANDLERCOMMAND OR (TELHANDLERCOMMAND ~&gt;&lt; &quot;$(ExeName)&quot;)">
+      <RegistryValue Root="HKLM" Key="Software\Classes\tel"
+                     Type="string" Value="URL:Tel Protocol" />
+      <RegistryValue Root="HKLM" Key="Software\Classes\tel"
+                     Type="string" Name="URL Protocol" Value="" />
+      <RegistryValue Root="HKLM" Key="Software\Classes\tel\DefaultIcon"
+                     Type="string" Value="[INSTALLFOLDER]$(ExeName),0" />
+      <RegistryValue Root="HKLM" Key="Software\Classes\tel\shell\open\command"
+                     Type="string" KeyPath="yes"
+                     Value="&quot;[INSTALLFOLDER]$(ExeName)&quot; &quot;%1&quot;" />
+    </Component>
+
+    <Component Id="CalltoScheme" Directory="INSTALLFOLDER"
+               Guid="5a3b09d7-1e62-4c85-93f4-2b7a08e6d14f"
+               Condition="NOT CALLTOHANDLERCOMMAND OR (CALLTOHANDLERCOMMAND ~&gt;&lt; &quot;$(ExeName)&quot;)">
+      <RegistryValue Root="HKLM" Key="Software\Classes\callto"
+                     Type="string" Value="URL:Callto Protocol" />
+      <RegistryValue Root="HKLM" Key="Software\Classes\callto"
+                     Type="string" Name="URL Protocol" Value="" />
+      <RegistryValue Root="HKLM" Key="Software\Classes\callto\DefaultIcon"
+                     Type="string" Value="[INSTALLFOLDER]$(ExeName),0" />
+      <RegistryValue Root="HKLM" Key="Software\Classes\callto\shell\open\command"
+                     Type="string" KeyPath="yes"
+                     Value="&quot;[INSTALLFOLDER]$(ExeName)&quot; &quot;%1&quot;" />
+    </Component>
+
+    <!-- 3. Capabilities, so Windows offers us under Settings > Default apps >
+         "Choose defaults by link type". Unconditional: this only nominates a
+         candidate, it claims nothing, and sip is safe to declare here for
+         exactly that reason. ApplicationIcon is what shipping apps set and
+         what Settings draws next to the name; it is not in Microsoft's
+         documented list of Capabilities values, so treat it as cosmetic.
+
+         Software\OrbitalSIP is ours, so the subtree goes on uninstall. The
+         RegisteredApplications value is a lodger in a shared key: MSI removes
+         our value and leaves the key alone unless it was the last one, which
+         is what Inno's uninsdeletevalue does. -->
+    <Component Id="AppCapabilities" Directory="INSTALLFOLDER"
+               Guid="9e64c2f8-7a13-4b09-8d56-4c1f93a0b7e2">
+      <RegistryKey Root="HKLM" Key="Software\OrbitalSIP"
+                   ForceDeleteOnUninstall="yes">
+        <RegistryKey Key="Capabilities">
+          <RegistryValue Type="string" Name="ApplicationName"
+                         Value="$(AppName)" KeyPath="yes" />
+          <RegistryValue Type="string" Name="ApplicationDescription"
+                         Value="$(AppName) softphone" />
+          <RegistryValue Type="string" Name="ApplicationIcon"
+                         Value="[INSTALLFOLDER]$(ExeName),0" />
+          <RegistryKey Key="UrlAssociations">
+            <RegistryValue Type="string" Name="tel"    Value="OrbitalSIP.Tel" />
+            <RegistryValue Type="string" Name="callto" Value="OrbitalSIP.Tel" />
+            <RegistryValue Type="string" Name="sip"    Value="OrbitalSIP.Tel" />
+          </RegistryKey>
+        </RegistryKey>
+      </RegistryKey>
+      <RegistryValue Root="HKLM" Key="Software\RegisteredApplications"
+                     Type="string" Name="$(AppName)"
+                     Value="Software\OrbitalSIP\Capabilities" />
+    </Component>
+
     <Feature Id="Main" Title="OrbitalSIP" Level="1">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentRef Id="AppShortcut" />
+      <ComponentRef Id="TelProgId" />
+      <ComponentRef Id="TelScheme" />
+      <ComponentRef Id="CalltoScheme" />
+      <ComponentRef Id="AppCapabilities" />
     </Feature>
   </Package>
 </Wix>
