@@ -137,12 +137,13 @@ namespace OrbitalSIP.Services
         ///
         /// Every failure lands in one of two buckets, split by whether the
         /// transfer POST was ever sent. "Could not ask" — no backend is
-        /// configured, or the channel lookup (a read-only GET) failed in any
-        /// way, including our own shared deadline elapsing before it
-        /// answered — reports <see cref="TransferOutcome.ChannelUnresolved"/>,
-        /// the one outcome that unlocks the SIP REFER fallback for an
-        /// extension target (see <c>TransferOutcome</c> in
-        /// TransferModels.cs): nothing was attempted, so REFER is safe.
+        /// configured, reading local settings itself failed, or the channel
+        /// lookup (a read-only GET) failed in any way, including our own
+        /// shared deadline elapsing before it answered — reports
+        /// <see cref="TransferOutcome.ChannelUnresolved"/>, the one outcome
+        /// that unlocks the SIP REFER fallback for an extension target (see
+        /// <c>TransferOutcome</c> in TransferModels.cs): nothing was
+        /// attempted in any of those cases, so REFER is safe.
         /// "Was told no, or don't know" — a non-2xx from the transfer POST,
         /// a 200 carrying <c>{ok:false}</c>, or the deadline elapsing while
         /// the POST was in flight — reports <see cref="TransferOutcome.Failed"/>
@@ -213,14 +214,16 @@ namespace OrbitalSIP.Services
             }
             catch (Exception ex)
             {
-                // Not a backend response at all (e.g. a local settings read
-                // failing) — nothing was posted, but this is an unexpected
-                // local failure rather than the backend simply not
-                // answering, so it is reported as Failed with the
-                // exception's own message rather than folded into
-                // ChannelUnresolved's narrower "the lookup came up empty" story.
+                // A local settings read failing (_settingsProvider, or
+                // SipSettings.Load() hitting a corrupt or locked file) — this
+                // throws before backendUrl/accessToken are even known, which
+                // is strictly before any request toward the backend could be
+                // built, let alone sent. That is exactly as "could not ask"
+                // as no-backend-configured or a failed lookup, so it gets the
+                // same ChannelUnresolved rather than a narrower Failed that
+                // would strand the operator without the REFER fallback.
                 AppLogger.Log("TransferService", $"Transfer error resolving the channel: {ex.GetType().Name}: {ex.Message}");
-                return new TransferResult(TransferOutcome.Failed, ex.Message);
+                return new TransferResult(TransferOutcome.ChannelUnresolved, null);
             }
 
             // Phase 2 — post the transfer. Once this request is sent, "could

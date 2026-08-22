@@ -158,6 +158,31 @@ public class TransferServiceTests
     }
 
     [Fact]
+    public async Task TransferAsync_TreatsAThrowingSettingsProviderAsChannelUnresolved()
+    {
+        // A settings read failing happens before backendUrl/accessToken are
+        // even known — strictly before any request could be built, let
+        // alone sent. Exactly as "could not ask" as no-backend-configured.
+        var captured = new List<HttpRequestMessage>();
+        using var handler = new RecordingHandler(request =>
+        {
+            captured.Add(request);
+            return JsonResponse("""{ "ok": true }""");
+        });
+        using var client = new HttpClient(handler);
+        using var service = new TransferService(
+            client,
+            () => throw new InvalidOperationException("settings unavailable"),
+            ownsHttpClient: false);
+
+        var result = await service.TransferAsync(
+            TransferTargetKind.Extension, "1042", "+992900000000", CancellationToken.None);
+
+        Assert.Equal(TransferOutcome.ChannelUnresolved, result.Outcome);
+        Assert.Empty(captured);
+    }
+
+    [Fact]
     public async Task TransferAsync_TreatsA5xxFromTheLookupAsChannelUnresolved()
     {
         using var handler = new RecordingHandler(request =>
@@ -380,7 +405,14 @@ public class TransferServiceTests
     private sealed class ShortDeadlineTransferService(HttpClient httpClient, Func<SipSettings> settingsProvider)
         : TransferService(httpClient, settingsProvider, ownsHttpClient: false)
     {
-        protected override TimeSpan TransferDeadline => TimeSpan.FromMilliseconds(100);
+        // 250ms, not something smaller: this is still wall clock racing the
+        // test host, and this suite has a flakiness history (see
+        // AssemblyInfo.cs) that cost a separate fix to close. Neither
+        // DelayedHandler request can self-resolve and test-class
+        // parallelism is off assembly-wide, so nothing real races this
+        // timer — the margin is headroom for a loaded machine, not slack to
+        // be trimmed back down.
+        protected override TimeSpan TransferDeadline => TimeSpan.FromMilliseconds(250);
     }
 
     private sealed class RecordingHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
