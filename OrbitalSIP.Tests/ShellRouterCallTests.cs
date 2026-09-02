@@ -1,4 +1,4 @@
-using OrbitalSIP.Models;
+﻿using OrbitalSIP.Models;
 using OrbitalSIP.Services;
 using Xunit;
 
@@ -142,6 +142,19 @@ public class ShellRouterCallTests
         var s = Reduce(Panel(NavRoute.Tasks), new UiEvent.ReturnStripPressed(), call);
 
         Assert.Equal(NavRoute.Call, s.Route);
+    }
+
+    /// <summary>
+    /// The arm shares its guard with the strip predicate, so it has to refuse the same
+    /// call state — otherwise a press that should never have been possible still opens the
+    /// active-call screen over a call that is only ringing.
+    /// </summary>
+    [Fact]
+    public void TheReturnStripDoesNotOpenACallScreenForARingingIncomingCall()
+    {
+        var before = Panel(NavRoute.Tasks);
+
+        Assert.Equal(before, Reduce(before, new UiEvent.ReturnStripPressed(), CallState.IncomingRinging));
     }
 
     [Fact]

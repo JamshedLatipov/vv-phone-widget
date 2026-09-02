@@ -139,19 +139,35 @@ public static class ShellRouter
     /// <summary>
     /// Whether there is a call to go back to.
     ///
-    /// Not Idle, and nothing finer: an outgoing ringback is already something the operator
-    /// can return to, and so is a call on hold. Named because three separate places ask it —
-    /// the ReturnStripPressed arm, the call-gated CollapseRequested arm, and the predicate
-    /// below — and three copies of the same comparison drift apart the day "live" needs a
-    /// narrower definition.
+    /// An outgoing ringback counts, and so does a call on hold — both are calls the operator
+    /// is already on. A ringing INCOMING call does not: it is not somewhere to return to, it
+    /// is somewhere to answer, and it owns a whole screen of its own to be answered from.
+    ///
+    /// That distinction is not theoretical. Between the Idle that ends one call and the
+    /// IncomingCall event that puts the next one on screen, the window sits on Shell.Panel
+    /// with Route already walked off Call while the service is already IncomingRinging —
+    /// the reducer is correct at every step, and the gap is still real. RefreshChrome paints
+    /// the strip from the live call state inside it, and the press that follows used to open
+    /// the full active-call screen over a call nobody had answered: a timer counting up from
+    /// zero, "in call" on the status line, Answer nowhere to be reached, and a hangup button
+    /// that rejects the caller with 486 Busy Here.
+    ///
+    /// Named because three separate places ask it — the ReturnStripPressed arm, the
+    /// call-gated CollapseRequested arm, and the predicate below — and three copies of the
+    /// same comparison drift apart the day "live" needs a narrower definition. It needed one.
     /// </summary>
-    private static bool CallIsLive(CallState call) => call != CallState.Idle;
+    private static bool CallIsLive(CallState call) =>
+        call is not (CallState.Idle or CallState.IncomingRinging);
 
     /// <summary>
     /// Whether the way back to the call is on screen.
     ///
-    /// IncomingRinging never reaches this predicate — an incoming call lives on
-    /// Shell.Incoming, where there is no panel to carry the strip.
+    /// IncomingRinging DOES reach this predicate, and the claim that it could not — an
+    /// incoming call lives on Shell.Incoming, where there is no panel to carry the strip —
+    /// is what let it through. Shell.Incoming is where the call ends up, not where it starts:
+    /// the service announces IncomingRinging before it raises IncomingCall, and the window is
+    /// still on the panel when the first of those two arrives. CallIsLive is where that is
+    /// answered now.
     /// </summary>
     public static bool ShowReturnStrip(UiState state, CallState call) =>
         state.Shell == Shell.Panel &&

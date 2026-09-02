@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -17,8 +17,16 @@ namespace OrbitalSIP.Services.Logging
     /// </summary>
     public static class LogRetention
     {
-        /// <summary>Days of history kept, counting today.</summary>
-        public const int DefaultKeepDays = 3;
+        /// <summary>
+        /// Days of history kept, counting today.
+        ///
+        /// Five, not three: an operator reports a problem when they get round to it, not when
+        /// it happens, and three days meant a Monday incident raised on Thursday had already
+        /// swept itself off the machine. Five reaches back across a working week. The cost is
+        /// bounded either way — <see cref="LogRotation"/> caps each day from the other side,
+        /// so the window trades disk for reach at a known rate rather than an open one.
+        /// </summary>
+        public const int DefaultKeepDays = 5;
 
         private const string DateFormat = "yyyy-MM-dd";
 

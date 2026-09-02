@@ -394,10 +394,32 @@ namespace OrbitalSIP.Services
                 // the dialog we are already on (far-end hold) also arrives on this event,
                 // and answering it ourselves would break hold. It belongs to SIPSorcery's
                 // own agent for that dialog.
+                bool      claimed;
+                CallState stateWhenSeen;
                 lock (_lock)
                 {
-                    if (_state != CallState.Idle || _transport == null) return Task.CompletedTask;
-                    _state = CallState.IncomingRinging;
+                    stateWhenSeen = _state;
+                    claimed       = _state == CallState.Idle && _transport != null;
+                    if (claimed) _state = CallState.IncomingRinging;
+                }
+
+                if (!claimed)
+                {
+                    // The refusal used to be completely silent, and it is the exact shape of
+                    // every "the call never reached me" report: no response goes out at all,
+                    // so the caller hears ringback until the PBX gives up and books a missed
+                    // call. Nothing in either log said it had happened.
+                    //
+                    // Only a first INVITE is reported. A re-INVITE for the dialog we are
+                    // already on — far-end hold, a codec renegotiation — arrives on this same
+                    // event and is SIPSorcery's to answer, not a refusal; it carries a To-tag
+                    // and this one does not.
+                    if (string.IsNullOrEmpty(req.Header?.To?.ToTag))
+                        Log($"Incoming INVITE REFUSED: busy in State={stateWhenSeen}. "
+                          + $"From={req.Header?.From?.FromURI}. No response is sent, so the "
+                          + "caller rings out and the PBX records a missed call.");
+
+                    return Task.CompletedTask;
                 }
 
                 Log($"Incoming INVITE from {remoteEP}. From={req.Header.From?.FromURI}");
@@ -493,7 +515,16 @@ namespace OrbitalSIP.Services
                 uas = _pendingUas;
                 _pendingUas = null;
             }
-            if (ua == null || uas == null) return;
+            if (ua == null || uas == null)
+            {
+                // Silent until now, and it is the first thing worth ruling out when an
+                // operator says Answer did nothing: this returns without touching the state,
+                // so the service stays IncomingRinging while the window has already moved on.
+                Log($"AnswerAsync ignored: nothing to answer. State={_state}, "
+                  + $"agent={(ua == null ? "<none>" : "present")}, "
+                  + $"pending UAS={(uas == null ? "<none>" : "present")}.");
+                return;
+            }
 
             if (!TryCreateAudio())
             {
@@ -755,8 +786,28 @@ namespace OrbitalSIP.Services
             catch (Exception ex)
             {
                 Log($"ToggleHold failed ({(goingOnHold ? "PutOnHold" : "TakeOffHold")}): {ex.Message}");
-                lock (_lock) { IsOnHold = !goingOnHold; _state = from; }
-                AnnounceState(from);
+
+                // Only if the call the re-INVITE belonged to is still there. It very often
+                // is not: the hangup that ended it is the same thing that made PutOnHold
+                // throw, and an unconditional restore wrote Active back over the Idle
+                // OnCallEnded had just announced — with the agent already dropped, so no
+                // BYE and no RTP close could move it again and every later INVITE was
+                // refused for the rest of the session. See Models.HoldRollback.
+                bool restored;
+                lock (_lock)
+                {
+                    restored = Models.HoldRollback.ShouldRestore(
+                        callStillUp: _activeCall != null, current: _state, claimed: to);
+
+                    if (restored)
+                    {
+                        IsOnHold = !goingOnHold;
+                        _state   = from;
+                    }
+                }
+
+                if (restored) AnnounceState(from);
+                else Log($"Not restoring {from} after the failed hold: the call is already gone.");
                 return;
             }
 
@@ -1031,8 +1082,14 @@ namespace OrbitalSIP.Services
                             Log("REMOTE SILENT: RTP arrived for the whole call but every decoded "
                               + "sample was zero — the far end sent packets carrying no audio. "
                               + "Nothing on this side can fix that; look at the other end.");
-                        if (State == CallState.Active || State == CallState.Ringing)
-                            OnCallEnded();
+                        // Unconditionally, and OnCallEnded's own claim under the lock is what
+                        // makes that safe — it returns on Idle, so the re-entry from
+                        // CleanupMedia's own Close() still costs nothing. The list of states
+                        // this used to name left OnHold out, and OnHold is exactly where a
+                        // call whose only remaining signal is the media closing can sit: a
+                        // held call that ends with its BYE lost had nothing else to end it,
+                        // and the widget stayed in that call for the rest of the session.
+                        OnCallEnded();
                     }
                     catch (Exception ex) { Log($"OnRtpClosed handler threw: {ex}"); }
                 };
