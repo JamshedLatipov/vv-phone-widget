@@ -1,4 +1,4 @@
-using OrbitalSIP.Models;
+﻿using OrbitalSIP.Models;
 using OrbitalSIP.Services;
 using Xunit;
 
@@ -22,6 +22,23 @@ public class ShellRouterStripTests
     public void ALiveCallOnAnotherTabShowsTheStrip(CallState call)
     {
         Assert.True(ShellRouter.ShowReturnStrip(Panel(NavRoute.Tasks), call));
+    }
+
+    /// <summary>
+    /// A ringing incoming call is not something to return to — it has a full screen of its
+    /// own, with Answer and Decline on it. The strip claims otherwise, and the state it
+    /// claims it from is real: between the Idle that ends the previous call and the
+    /// IncomingCall event that puts the incoming screen up, the window sits on
+    /// Shell.Panel with the route already walked off Call while the service is already
+    /// IncomingRinging. RefreshChrome paints the strip from the live call state in exactly
+    /// that gap, and pressing it opens the full active-call screen — timer running from
+    /// zero, "in call" on the status line — for a call nobody has answered. From there
+    /// Answer is unreachable and the hangup button rejects the caller with 486.
+    /// </summary>
+    [Fact]
+    public void ARingingIncomingCallIsNotSomethingToReturnTo()
+    {
+        Assert.False(ShellRouter.ShowReturnStrip(Panel(NavRoute.Dialer), CallState.IncomingRinging));
     }
 
     [Fact]
