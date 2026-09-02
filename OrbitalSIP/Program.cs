@@ -78,14 +78,9 @@ namespace OrbitalSIP
             if (ex != null)
                 SentrySdk.CaptureException(ex);
 
-            try
-            {
-                Directory.CreateDirectory(Services.Logging.LogPaths.Directory);
-                var logPath = Services.Logging.LogPaths.File("crash.log");
-                var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{source}] {ex}{Environment.NewLine}";
-                File.AppendAllText(logPath, line, Encoding.UTF8);
-            }
-            catch { /* nowhere left to report */ }
+            // Through CrashLog, not a bare append: the file it used to write was undated, so
+            // the retention window could not see it and nothing ever swept it. See CrashLog.
+            Services.Logging.CrashLog.Write(source, ex);
         }
 
         public static AppBuilder BuildAvaloniaApp()

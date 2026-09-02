@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using OrbitalSIP.Services.Logging;
@@ -15,6 +15,27 @@ namespace OrbitalSIP.Tests
     public class LogRetentionTests
     {
         private static readonly DateTime Today = new DateTime(2026, 8, 22);
+
+        /// <summary>
+        /// The window the app actually ships with. Asserted through Expired rather than by
+        /// comparing the constant to a number, so it says what the window MEANS: a file from
+        /// four days ago is still readable when an operator reports something that happened
+        /// earlier in the week, and one from six days ago is not worth the disk.
+        /// </summary>
+        [Fact]
+        public void TheDefaultWindowReachesBackAcrossAWorkingWeek()
+        {
+            var files = new[]
+            {
+                "app-2026-08-17.log",   // six days back, counting today
+                "app-2026-08-18.log",   // the oldest day still inside the window
+                "app-2026-08-22.log",   // today
+            };
+
+            var expired = LogRetention.Expired("app.log", files, Today, LogRetention.DefaultKeepDays);
+
+            Assert.Equal(new[] { "app-2026-08-17.log" }, expired);
+        }
 
         [Fact]
         public void DailyPath_DatesTheFile()
