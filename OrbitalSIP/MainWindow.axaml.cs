@@ -454,6 +454,9 @@ namespace OrbitalSIP
         /// </summary>
         private void HotkeyHangup()
         {
+            AppLogger.Log("Hotkeys",
+                $"Hangup pressed. call={App.SipService.State}, screen={_state.Shell}/{_state.Route}.");
+
             if (HostContent<Views.IncomingView>() is { } incoming) { incoming.TriggerDecline(); return; }
             if (HostContent<Views.ActiveCallView>() is { } panel) { panel.TriggerHangup(); return; }
             if (HostContent<Views.ActiveCallWidgetView>() is { } mini) { mini.TriggerHangup(); return; }
@@ -474,7 +477,20 @@ namespace OrbitalSIP
         /// IncomingView.OnAnswer. It is also the one that cannot be stranded: the incoming
         /// panel has no bottom bar, so there is no way to navigate off a ringing call.
         /// </summary>
-        private void HotkeyAnswer() => HostContent<Views.IncomingView>()?.TriggerAnswer();
+        private void HotkeyAnswer()
+        {
+            var incoming = HostContent<Views.IncomingView>();
+
+            // "I press Alt+Enter and nothing happens" is a real report, and until this line
+            // there was no way to tell the two causes apart: the key never arrived, or it
+            // arrived and found no incoming screen to answer from. Both look identical to the
+            // operator, and only one of them is a hotkey problem.
+            AppLogger.Log("Hotkeys",
+                $"Answer pressed. Incoming screen {(incoming == null ? "NOT on show — nothing to answer" : "on show")}; "
+              + $"call={App.SipService.State}, screen={_state.Shell}/{_state.Route}.");
+
+            incoming?.TriggerAnswer();
+        }
 
         /// <summary>
         /// The focused-window half of the same four actions, routed the same way. Gated on
@@ -1141,6 +1157,30 @@ namespace OrbitalSIP
             var call = e is UiEvent.CallStateChanged changed ? changed.State : App.SipService.State;
 
             var next = ShellRouter.Reduce(_state, e, call);
+
+            // One line per screen decision, and the reason it is here: when the widget and the
+            // call disagree — an active-call screen over a call that is only ringing, a call
+            // screen left standing after a hangup — sip.log proves the service was right and
+            // says nothing about which gesture moved the window. Nothing else in this window
+            // records that, so the disagreement could only ever be reproduced by guesswork.
+            // Cheap enough to leave on: a handful of lines per call against the audio
+            // backlog line every five seconds.
+            AppLogger.Log("Shell",
+                $"{e.GetType().Name} call={call} "
+              + $"{_state.Shell}/{_state.Route} -> "
+              + (next == _state ? "(no change)" : $"{next.Shell}/{next.Route}")
+              + $" caller={Models.LogRedaction.Phone(App.SipService.ActiveCallerId)}");
+
+            // Against the LIVE call state, not the payload above: the payload says what the
+            // event announced, and the question here is whether the screen about to be drawn
+            // matches what is actually going on. Before the early return, so a disagreement
+            // that persists without moving the state is reported too — that is the shape of
+            // it that reads as a frozen widget.
+            if (Models.ScreenCallAgreement.Disagreement(next, App.SipService.State) is { } mismatch)
+                AppLogger.Log("Shell",
+                    $"SCREEN/CALL MISMATCH after {e.GetType().Name}: {mismatch}. "
+                  + "The operator is looking at a screen that describes a call the service is "
+                  + "not on; Answer and hangup on it do not mean what they say.");
 
             // Record equality, and it carries more weight than it looks: this is what makes
             // a press on the already-lit tab free. ShellRouter has an arm for that case, but
