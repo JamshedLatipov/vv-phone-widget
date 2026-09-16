@@ -83,6 +83,30 @@ public class ShellRouterCallTests
     }
 
     /// <summary>
+    /// The incoming screen has no tab bar, so a tab press while it is up can only be a stale
+    /// click: the panel it replaced stays hit-testable under the overlay for the whole 280 ms
+    /// fade, and a click on its bar 272 ms into the fade did reach the reducer. The general
+    /// TabPressed arm honoured it — Incoming/Recents became Panel/Recents while the call went
+    /// on ringing, and with the incoming screen gone nothing could answer it: Answer refused
+    /// ("Incoming screen NOT on show"), the return strip refuses IncomingRinging by design,
+    /// and the caller rang out two minutes later. Home too, in both values — the incoming
+    /// screen is reached from either.
+    /// </summary>
+    [Theory]
+    [InlineData(Shell.Collapsed, NavTab.Dialer)]
+    [InlineData(Shell.Panel,     NavTab.Recents)]
+    [InlineData(Shell.Panel,     NavTab.Tasks)]
+    public void ATabPressDoesNotDropTheIncomingScreen(Shell home, NavTab tab)
+    {
+        var before = UiState.Initial(true) with
+        {
+            Shell = Shell.Incoming, Route = NavRoute.Recents, LastNonCall = NavRoute.Recents, Home = home
+        };
+
+        Assert.Equal(before, Reduce(before, new UiEvent.TabPressed(tab), CallState.IncomingRinging));
+    }
+
+    /// <summary>
     /// A second call arriving mid-conversation does not take the operator off the one they
     /// are on. What SipService does with it is not this table's business.
     /// </summary>
