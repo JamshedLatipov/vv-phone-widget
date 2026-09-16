@@ -78,6 +78,16 @@ public static class ShellRouter
         // swallow it and open a panel to an operator with no session.
         UiEvent.TabPressed t when s.Shell == Shell.Panel && RouteFor(t.Tab) == s.Route => s,
 
+        // The incoming screen has no tab bar, so a tab press while it is up is a stale
+        // click: the panel it replaced stays hit-testable under the overlay for the whole
+        // fade (OverlayHost is IsHitTestVisible=False), and its bar is still wired to this
+        // window. Honoured by the general arm below, that click took the incoming screen
+        // down while the call went on ringing — and nothing could bring it back. Answer
+        // refused with "Incoming screen NOT on show", the return strip refuses
+        // IncomingRinging on purpose, and the caller rang out two minutes later against a
+        // dialpad that looked idle.
+        UiEvent.TabPressed when s.Shell == Shell.Incoming => s,
+
         UiEvent.TabPressed t => s with
         {
             Shell       = Shell.Panel,
